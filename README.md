@@ -86,7 +86,7 @@ CI already contains the SonarCloud step; it stays dormant until you connect the 
 1. Go to **https://sonarcloud.io** and sign in with GitHub.
 2. **Analyze a new project** → choose the `Zanders214/fb-simulation` repository.
 3. Pick **GitHub Actions** as the analysis method and **turn _Automatic Analysis_ OFF** (CI uploads coverage, which Automatic Analysis can't do).
-4. Confirm the **Project Key** and **Organization Key** SonarCloud shows you match [`sonar-project.properties`](sonar-project.properties) (currently `Zanders214_fb-simulation` / `zanders214`). Update that file if they differ.
+4. Confirm the **Project Key** and **Organization Key** SonarCloud shows you match [`sonar-project.properties`](sonar-project.properties) (`fb-simulator_fb-simulator` / `fb-simulator`). Update that file if they differ.
 5. Generate a token and add it to the repo as a secret named **`SONAR_TOKEN`** (GitHub → Settings → Secrets and variables → Actions → New repository secret).
 6. The next pull request will be analysed automatically.
 

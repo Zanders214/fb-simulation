@@ -40,8 +40,6 @@ jobs:
         run: npm test -- --coverage --ci
 
       # Runs only once SONAR_TOKEN is set in the repo secrets (see README).
-      - name: SonarCloud scan
+      - name: SonarQube Cloud scan
         if: ${{ env.SONAR_TOKEN != '' }}
-        uses: SonarSource/sonarqube-scan-action@v5
-        env:
-          SONAR_HOST_URL: https://sonarcloud.io
+        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
