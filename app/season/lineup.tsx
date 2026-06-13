@@ -16,6 +16,7 @@ export default function LineupScreen() {
   const game = useGame();
   const changeFormation = useGameStore((s) => s.changeFormation);
   const substitute = useGameStore((s) => s.substitute);
+  const swapPositions = useGameStore((s) => s.swapPositions);
   const [selected, setSelected] = useState<string | null>(null);
 
   if (!game) return <Redirect href="/" />;
@@ -45,7 +46,8 @@ export default function LineupScreen() {
     }
     const selInXI = xiSet.has(selected);
     const tapInXI = xiSet.has(id);
-    if (selInXI && !tapInXI) substitute(selected, id);
+    if (selInXI && tapInXI) swapPositions(selected, id);
+    else if (selInXI && !tapInXI) substitute(selected, id);
     else if (!selInXI && tapInXI) substitute(id, selected);
     else {
       setSelected(id);
@@ -84,7 +86,9 @@ export default function LineupScreen() {
         </Card>
       )}
 
-      <Text style={styles.hint}>Tap a player on the pitch, then a substitute, to swap them.</Text>
+      <Text style={styles.hint}>
+        Tap a player, then a substitute to swap them — or another starter to switch their positions.
+      </Text>
 
       <Text style={styles.sectionTitle}>Starting XI · {squad.formation}</Text>
       <Pitch slots={pitchSlots} selectedId={selected} onSelect={tap} />

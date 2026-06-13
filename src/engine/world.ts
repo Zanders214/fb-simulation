@@ -172,3 +172,18 @@ export function swapPlayer(squad: SquadConfig, outId: string, inId: string): Squ
   }
   return { ...squad, startingXI, bench: bench.filter((id) => id !== inId), roles };
 }
+
+/**
+ * Swap the pitch positions of two players who are both already in the starting
+ * XI by exchanging their slots. Roles stay with the players (both remain in the
+ * XI), so nothing else changes. Returns a new SquadConfig.
+ */
+export function swapStarters(squad: SquadConfig, aId: string, bId: string): SquadConfig {
+  const ai = squad.startingXI.indexOf(aId);
+  const bi = squad.startingXI.indexOf(bId);
+  if (ai === -1 || bi === -1 || ai === bi) return squad;
+  const startingXI = squad.startingXI.slice();
+  startingXI[ai] = bId;
+  startingXI[bi] = aId;
+  return { ...squad, startingXI };
+}
