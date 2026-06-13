@@ -11,7 +11,7 @@ import {
 } from '../engine/season';
 import { buyPlayer, sellPlayer, type TransferResult } from '../engine/transfers';
 import type { Formation, GameState, SquadRoles } from '../engine/types';
-import { setFormation, setRole, swapPlayer } from '../engine/world';
+import { setFormation, setRole, swapPlayer, swapStarters } from '../engine/world';
 import { storage } from '../persistence/storage';
 
 interface GameStore {
@@ -28,6 +28,7 @@ interface GameStore {
   changeFormation: (formation: Formation) => void;
   assignRole: (role: keyof SquadRoles, playerId: string | undefined) => void;
   substitute: (outId: string, inId: string) => void;
+  swapPositions: (aId: string, bId: string) => void;
   buy: (playerId: string) => TransferResult;
   sell: (playerId: string) => TransferResult;
   resetGame: () => void;
@@ -87,6 +88,13 @@ export const useGameStore = create<GameStore>()(
         const game = get().game;
         if (!game) return;
         game.squad = swapPlayer(game.squad, outId, inId);
+        set({ game: { ...game } });
+      },
+
+      swapPositions: (aId, bId) => {
+        const game = get().game;
+        if (!game) return;
+        game.squad = swapStarters(game.squad, aId, bId);
         set({ game: { ...game } });
       },
 

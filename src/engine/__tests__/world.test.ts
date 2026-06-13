@@ -1,5 +1,5 @@
 import { generateWorld } from '../content';
-import { autoPickSquad, isPlayableXI, setRole, swapPlayer, validateXI } from '../world';
+import { autoPickSquad, isPlayableXI, setRole, swapPlayer, swapStarters, validateXI } from '../world';
 
 describe('squad helpers', () => {
   const w = generateWorld(321);
@@ -45,6 +45,26 @@ describe('squad helpers', () => {
     expect(swapped.roles.freeKickTakerId).toBe(inId);
     // no more "role not in XI" complaints
     expect(validateXI(w, swapped, clubId).some((i) => i.type === 'role-not-in-xi')).toBe(false);
+  });
+
+  it('swaps the slots of two starters without touching the bench or roles', () => {
+    const sq = autoPickSquad(w, clubId);
+    const aId = sq.startingXI[1];
+    const bId = sq.startingXI[4];
+    const swapped = swapStarters(sq, aId, bId);
+
+    expect(swapped.startingXI[1]).toBe(bId);
+    expect(swapped.startingXI[4]).toBe(aId);
+    expect(swapped.startingXI.length).toBe(11);
+    expect(swapped.bench).toEqual(sq.bench);
+    expect(swapped.roles).toEqual(sq.roles);
+    // same set of players, just reordered
+    expect([...swapped.startingXI].sort()).toEqual([...sq.startingXI].sort());
+  });
+
+  it('leaves the squad unchanged when a player is not a starter', () => {
+    const sq = autoPickSquad(w, clubId);
+    expect(swapStarters(sq, sq.startingXI[0], sq.bench[0])).toBe(sq);
   });
 
   it('flags a role assigned to a benched player', () => {
