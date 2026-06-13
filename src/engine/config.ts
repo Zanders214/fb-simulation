@@ -25,15 +25,15 @@ export const SIM = {
   HOME_DEF_MULT: 1.04,
   CAPTAIN_MORALE_MAX: 0.03, // ±3% team strength at captain stat extremes
   // per-area position weights (weighted means keep ratings on a ~1..99 scale)
-  wAtk: { GK: 0, DEF: 0.15, MID: 0.55, FWD: 1.0 } as Record<Position, number>,
-  wDef: { GK: 0, DEF: 1.0, MID: 0.45, FWD: 0.1 } as Record<Position, number>,
-  wMid: { GK: 0, DEF: 0.3, MID: 1.0, FWD: 0.4 } as Record<Position, number>,
+  wAtk: { GK: 0, DEF: 0.15, MID: 0.55, FWD: 1 } as Record<Position, number>,
+  wDef: { GK: 0, DEF: 1, MID: 0.45, FWD: 0.1 } as Record<Position, number>,
+  wMid: { GK: 0, DEF: 0.3, MID: 1, FWD: 0.4 } as Record<Position, number>,
   GK_DEF_BLEND: 0.25, // team DEF = (1-b)*outfieldDef + b*keeper.defending
   // who scores: weight = attacking^EXP * posScoreMult
   SCORER_ATK_EXP: 1.5,
-  posScoreMult: { GK: 0, DEF: 0.08, MID: 0.45, FWD: 1.0 } as Record<Position, number>,
+  posScoreMult: { GK: 0, DEF: 0.08, MID: 0.45, FWD: 1 } as Record<Position, number>,
   // per-player rating
-  RATING_BASE: 6.0,
+  RATING_BASE: 6,
   GOAL_PTS: 1.1,
   ASSIST_PTS: 0.7,
   RESULT_ADJ: 0.4, // ± for win/loss
@@ -67,7 +67,7 @@ export const POSITION_FACETS: Record<Position, { attacking: number; defending: n
 
 // weights used to compute a single "overall" from the coarse trio, per position
 export const OVERALL_WEIGHTS: Record<Position, { attacking: number; defending: number; midfield: number }> = {
-  GK: { attacking: 0.0, defending: 0.9, midfield: 0.1 },
+  GK: { attacking: 0, defending: 0.9, midfield: 0.1 },
   DEF: { attacking: 0.1, defending: 0.6, midfield: 0.3 },
   MID: { attacking: 0.25, defending: 0.15, midfield: 0.6 },
   FWD: { attacking: 0.7, defending: 0.1, midfield: 0.2 },
@@ -79,7 +79,7 @@ export const PROGRESSION = {
   PERF_PIVOT: 6.5, // ratings above this grow a player, below shrink
   PERF_CLAMP: 1.5,
   HEADROOM_DIV: 25,
-  XP_THRESHOLD: 1.0,
+  XP_THRESHOLD: 1,
   FORM_ALPHA: 0.45, // EMA weight on the latest rating
   FORM_MIN: -5,
   FORM_MAX: 5,
@@ -90,7 +90,7 @@ export const PROGRESSION = {
 // age modifier for growth speed
 export function ageGrowthMod(age: number): number {
   if (age <= 21) return 1.4;
-  if (age <= 25) return 1.0;
+  if (age <= 25) return 1;
   if (age <= 29) return 0.5;
   if (age <= 32) return 0.15;
   return 0;

@@ -66,15 +66,15 @@ export default function LineupScreen() {
 
       {errors.length > 0 && (
         <Card style={styles.errorBanner}>
-          {errors.map((e, i) => (
-            <Text key={i} style={styles.errorText}>⚠ {e.message}</Text>
+          {errors.map((e) => (
+            <Text key={e.message} style={styles.errorText}>⚠ {e.message}</Text>
           ))}
         </Card>
       )}
       {errors.length === 0 && warnings.length > 0 && (
         <Card style={styles.warnBanner}>
-          {warnings.map((w, i) => (
-            <Text key={i} style={styles.warnText}>{w.message}</Text>
+          {warnings.map((w) => (
+            <Text key={w.message} style={styles.warnText}>{w.message}</Text>
           ))}
         </Card>
       )}

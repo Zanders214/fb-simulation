@@ -20,14 +20,17 @@ export interface RatingContext {
   jitter: number;
 }
 
+function resultAdjustment(ctx: RatingContext): number {
+  if (ctx.teamWon) return SIM.RESULT_ADJ;
+  if (ctx.teamDrew) return 0;
+  return -SIM.RESULT_ADJ;
+}
+
 /** Per-player match rating, 1.0..10.0. Anchored at 6.0 like real football ratings. */
 export function computeRating(ctx: RatingContext): number {
   const pos = ctx.player.position;
   let r =
-    SIM.RATING_BASE +
-    SIM.GOAL_PTS * ctx.goals +
-    SIM.ASSIST_PTS * ctx.assists +
-    (ctx.teamWon ? SIM.RESULT_ADJ : ctx.teamDrew ? 0 : -SIM.RESULT_ADJ);
+    SIM.RATING_BASE + SIM.GOAL_PTS * ctx.goals + SIM.ASSIST_PTS * ctx.assists + resultAdjustment(ctx);
 
   if (pos === 'GK' || pos === 'DEF') {
     if (ctx.cleanSheet) r += SIM.CLEAN_SHEET_ADJ;

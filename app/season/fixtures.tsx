@@ -5,8 +5,13 @@ import { Card } from '../../src/components/Card';
 import { Chip } from '../../src/components/Chip';
 import { isSeasonComplete, leagueTable, type Fixture } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
-import { ordinal } from '../../src/ui/format';
 import { theme } from '../../src/theme';
+
+function resultColor(my: number, opp: number): string {
+  if (my > opp) return theme.colors.win;
+  if (my < opp) return theme.colors.loss;
+  return theme.colors.draw;
+}
 
 export default function FixturesScreen() {
   const router = useRouter();
@@ -74,7 +79,7 @@ function opponentOf(f: Fixture, me: string) {
   return { oppId: isHome ? f.awayClubId : f.homeClubId, isHome };
 }
 
-function NextOpponent({ game }: { game: NonNullable<ReturnType<typeof useGame>> }) {
+function NextOpponent({ game }: Readonly<{ game: NonNullable<ReturnType<typeof useGame>> }>) {
   const me = game.managedClubId;
   const next = game.season.fixtures.find(
     (f) => !f.result && (f.homeClubId === me || f.awayClubId === me),
@@ -95,11 +100,11 @@ function FixtureRow({
   fixture,
   me,
   game,
-}: {
+}: Readonly<{
   fixture: Fixture;
   me: string;
   game: NonNullable<ReturnType<typeof useGame>>;
-}) {
+}>) {
   const { oppId, isHome } = opponentOf(fixture, me);
   const opp = game.world.clubs[oppId];
   const r = fixture.result;
@@ -109,7 +114,7 @@ function FixtureRow({
     const myGoals = isHome ? r.homeGoals : r.awayGoals;
     const oppGoals = isHome ? r.awayGoals : r.homeGoals;
     resultText = `${myGoals}-${oppGoals}`;
-    color = myGoals > oppGoals ? theme.colors.win : myGoals < oppGoals ? theme.colors.loss : theme.colors.draw;
+    color = resultColor(myGoals, oppGoals);
   }
   return (
     <View style={styles.fixtureRow}>

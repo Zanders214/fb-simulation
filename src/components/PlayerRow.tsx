@@ -11,13 +11,13 @@ export function PlayerRow({
   selected,
   subtitle,
   right,
-}: {
+}: Readonly<{
   player: Player;
   onPress?: () => void;
   selected?: boolean;
   subtitle?: string;
   right?: ReactNode;
-}) {
+}>) {
   const ovr = overall(player);
   const body = (
     <>

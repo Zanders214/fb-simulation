@@ -6,11 +6,11 @@ export function Chip({
   label,
   color,
   textColor,
-}: {
+}: Readonly<{
   label: string;
   color?: string;
   textColor?: string;
-}) {
+}>) {
   return (
     <View style={[styles.chip, color ? { backgroundColor: color } : null]}>
       <Text style={[styles.text, textColor ? { color: textColor } : null]}>{label}</Text>

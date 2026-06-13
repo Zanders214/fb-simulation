@@ -67,6 +67,14 @@ function pickAge(rng: Rng): number {
   return Math.round((randInt(rng, 17, 36) + randInt(rng, 17, 36)) / 2);
 }
 
+/** Growth headroom above current overall — younger players have more potential. */
+function potentialHeadroom(rng: Rng, age: number): number {
+  if (age <= 20) return randInt(rng, 6, 18);
+  if (age <= 24) return randInt(rng, 3, 12);
+  if (age <= 28) return randInt(rng, 0, 5);
+  return 0;
+}
+
 function generatePlayer(rng: Rng, id: string, clubId: string, position: Position, clubRep: number): Player {
   const base = clamp(gaussian(rng, clubRep, 7), 30, 95);
   const facet = POSITION_FACETS[position];
@@ -99,9 +107,7 @@ function generatePlayer(rng: Rng, id: string, clubId: string, position: Position
   };
 
   const ov = overall(player);
-  const headroom =
-    age <= 20 ? randInt(rng, 6, 18) : age <= 24 ? randInt(rng, 3, 12) : age <= 28 ? randInt(rng, 0, 5) : 0;
-  player.potential = clamp(ov + headroom, ov, 99);
+  player.potential = clamp(ov + potentialHeadroom(rng, age), ov, 99);
   return player;
 }
 
