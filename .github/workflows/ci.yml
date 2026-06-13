@@ -40,6 +40,11 @@ jobs:
         run: npm test -- --coverage --ci
 
       # Runs only once SONAR_TOKEN is set in the repo secrets (see README).
+      # sonar.qualitygate.wait makes this step (and the build) fail if the
+      # SonarCloud quality gate fails.
       - name: SonarQube Cloud scan
         if: ${{ env.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
+        with:
+          args: >
+            -Dsonar.qualitygate.wait=true

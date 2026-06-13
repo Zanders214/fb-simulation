@@ -1,5 +1,9 @@
 # FB Simulation
 
+[![CI](https://github.com/Zanders214/fb-simulation/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/Zanders214/fb-simulation/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=fb-simulator_fb-simulator&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fb-simulator_fb-simulator)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fb-simulator_fb-simulator&metric=coverage)](https://sonarcloud.io/summary/new_code?id=fb-simulator_fb-simulator)
+
 A **BitLife-style football (soccer) management simulation** for iOS and Android. Create or take over a club, pick a league, manage your lineup, formation and roles, then play instant-result matches across a full season while your players develop. All clubs, players and leagues are **fictional and generated** — no licensed content.
 
 > **Status:** pre-alpha. The v1 season loop is playable end to end.
@@ -75,7 +79,7 @@ Every pull request — and every push to `dev`/`main` — runs the **CI** workfl
 
 1. **Type check** (`tsc`)
 2. **Unit tests** (`jest`) with coverage
-3. **SonarCloud** code-quality analysis (runs once `SONAR_TOKEN` is configured)
+3. **SonarCloud** code-quality analysis with the **quality gate enforced** — the pipeline fails if the gate fails (`-Dsonar.qualitygate.wait=true`). Runs once `SONAR_TOKEN` is configured.
 
 Keep CI green — don't merge a PR into `dev` with a failing pipeline. (Tip: enable branch protection on `dev` in GitHub → Settings → Branches, requiring the CI check to pass before merging.)
 
