@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../../src/components/Card';
@@ -12,6 +12,7 @@ import { theme } from '../../src/theme';
 
 export default function SquadScreen() {
   const game = useGame();
+  const router = useRouter();
   const summary = useMemo(() => {
     if (!game) return null;
     const table = leagueTable(game);
@@ -56,6 +57,7 @@ export default function SquadScreen() {
                   player={p}
                   subtitle={subtitle}
                   selected={inXI}
+                  onPress={() => router.push(`/player?id=${p.id}`)}
                 />
               );
             })}
