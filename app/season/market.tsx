@@ -30,6 +30,23 @@ type Mode = 'buy' | 'sell';
 type PosFilter = Position | 'ALL';
 const POS_FILTERS: PosFilter[] = ['ALL', 'GK', 'DEF', 'MID', 'FWD'];
 
+type SellSort = 'status' | 'value' | 'rating' | 'position';
+const SELL_SORTS: { key: SellSort; label: string }[] = [
+  { key: 'status', label: 'Squad role' },
+  { key: 'value', label: 'Value' },
+  { key: 'rating', label: 'Rating' },
+  { key: 'position', label: 'Position' },
+];
+const POS_RANK: Record<Position, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
+
+/** Where the player sits in the user's squad: starting XI, then bench, then reserve. */
+function squadRole(game: NonNullable<ReturnType<typeof useGame>>, id: string): number {
+  if (game.squad.startingXI.includes(id)) return 0;
+  if (game.squad.bench.includes(id)) return 1;
+  return 2;
+}
+const ROLE_LABELS = ['Starting XI', 'Substitute', 'Reserve'];
+
 export default function MarketScreen() {
   const game = useGame();
   const buy = useGameStore((s) => s.buy);
@@ -39,6 +56,7 @@ export default function MarketScreen() {
   const [pos, setPos] = useState<PosFilter>('ALL');
   const [leagueId, setLeagueId] = useState<string>('ALL');
   const [search, setSearch] = useState('');
+  const [sellSort, setSellSort] = useState<SellSort>('status');
 
   const leagues = useMemo(() => (game ? Object.values(game.world.leagues) : []), [game]);
 
@@ -58,8 +76,15 @@ export default function MarketScreen() {
 
   const sellList = useMemo(() => {
     if (!game || mode !== 'sell') return [];
-    return clubPlayers(game, game.managedClubId).sort((a, b) => playerValue(b) - playerValue(a));
-  }, [game, mode]);
+    const byValue = (a: Player, b: Player) => playerValue(b) - playerValue(a);
+    const cmp: Record<SellSort, (a: Player, b: Player) => number> = {
+      status: (a, b) => squadRole(game, a.id) - squadRole(game, b.id) || byValue(a, b),
+      value: byValue,
+      rating: (a, b) => overall(b) - overall(a) || byValue(a, b),
+      position: (a, b) => POS_RANK[a.position] - POS_RANK[b.position] || byValue(a, b),
+    };
+    return clubPlayers(game, game.managedClubId).sort(cmp[sellSort]);
+  }, [game, mode, sellSort]);
 
   if (!game) return <Redirect href="/" />;
 
@@ -94,7 +119,7 @@ export default function MarketScreen() {
     return (
       <PlayerRow
         player={item}
-        subtitle={`OVR ${overall(item)} · Age ${item.age} · ${item.nationality}`}
+        subtitle={`${ROLE_LABELS[squadRole(game, item.id)]} · OVR ${overall(item)} · Age ${item.age}`}
         right={
           <Action label="Sell" amount={proceeds} enabled={canSell} onPress={() => onSell(item.id)} />
         }
@@ -157,6 +182,19 @@ export default function MarketScreen() {
             placeholderTextColor={theme.colors.textMuted}
             style={styles.search}
           />
+        </View>
+      )}
+
+      {mode === 'sell' && (
+        <View style={styles.chipRow}>
+          {SELL_SORTS.map((s) => (
+            <FilterChip
+              key={s.key}
+              label={s.label}
+              active={sellSort === s.key}
+              onPress={() => setSellSort(s.key)}
+            />
+          ))}
         </View>
       )}
 
