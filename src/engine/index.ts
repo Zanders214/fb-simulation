@@ -13,3 +13,4 @@ export * from './standings';
 export * from './world';
 export * from './season';
 export * from './transfers';
+export * from './records';

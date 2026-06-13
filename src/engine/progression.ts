@@ -69,6 +69,7 @@ export function applySeasonEnd(player: Player): void {
   player.seasonGoals = 0;
   player.seasonAssists = 0;
   player.seasonApps = 0;
+  player.seasonCleanSheets = 0;
   player.form = 0;
 
   if (player.age >= PROGRESSION.DECLINE_AGE) {
