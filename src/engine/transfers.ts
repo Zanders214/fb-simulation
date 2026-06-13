@@ -18,7 +18,7 @@ function roundTo100(x: number): number {
 function ageMult(age: number): number {
   if (age <= 20) return 1.1;
   if (age <= 23) return 1.15;
-  if (age <= 27) return 1.0;
+  if (age <= 27) return 1;
   if (age <= 30) return 0.8;
   if (age <= 32) return 0.55;
   if (age <= 34) return 0.35;
@@ -142,7 +142,7 @@ export function buyPlayer(state: GameState, playerId: PlayerId): TransferResult 
 export function sellPlayer(state: GameState, playerId: PlayerId): TransferResult {
   const { world, managedClubId } = state;
   const player = world.players[playerId];
-  if (!player || player.clubId !== managedClubId) {
+  if (player?.clubId !== managedClubId) {
     return { ok: false, reason: 'You do not own this player.' };
   }
   if (squadSize(world, managedClubId) <= MARKET.MIN_SQUAD) {
