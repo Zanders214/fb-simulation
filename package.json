@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "demo": "tsx scripts/demo.ts",
     "lint": "expo lint"
   },
   "dependencies": {
@@ -40,6 +41,10 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "testMatch": [
+      "**/__tests__/**/*.test.{ts,tsx}",
+      "**/*.test.{ts,tsx}"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/.expo/"

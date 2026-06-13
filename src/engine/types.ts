@@ -1,0 +1,175 @@
+/** Core domain types for the football management sim. Pure data, no behaviour. */
+
+export type PlayerId = string;
+export type ClubId = string;
+export type LeagueId = string;
+export type FixtureId = string;
+
+export type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
+
+/**
+ * Attribute keys. v1 only generates/uses the coarse trio; the rest are reserved
+ * so a future, richer stat model can be added WITHOUT a save migration — the
+ * `attrs` map is sparse and always read through helpers in `attrs.ts`.
+ */
+export type AttrKey =
+  | 'attacking'
+  | 'defending'
+  | 'midfield'
+  // reserved for later expansion:
+  | 'pace'
+  | 'shooting'
+  | 'passing'
+  | 'dribbling'
+  | 'tackling'
+  | 'physical'
+  | 'goalkeeping';
+
+export type Formation = '4-4-2' | '4-3-3' | '3-5-2' | '4-2-3-1' | '5-3-2' | '4-5-1';
+
+export interface Player {
+  id: PlayerId;
+  clubId: ClubId;
+  name: string;
+  firstName: string;
+  lastName: string;
+  nationality: string; // fictional
+  age: number;
+  position: Position;
+  /** Sparse attribute map. v1 fills attacking/defending/midfield (1..99). */
+  attrs: Partial<Record<AttrKey, number>>;
+  potential: number; // soft growth ceiling, 1..99
+  // ---- evolving development state (mutated by progression) ----
+  form: number; // -5..+5 EMA of recent ratings, affects the next match only
+  growthXp: number; // fractional accumulator; crossing ±1 nudges a stat
+  // ---- season counters (reset each season, for UI like top scorers) ----
+  seasonGoals: number;
+  seasonAssists: number;
+  seasonApps: number;
+}
+
+export interface Club {
+  id: ClubId;
+  leagueId: LeagueId;
+  name: string;
+  shortName: string; // 3-letter code for tables
+  reputation: number; // 1..100, drives generated squad strength
+  primaryColor: string;
+  secondaryColor: string;
+  playerIds: PlayerId[];
+  isUserClub?: boolean;
+}
+
+export interface League {
+  id: LeagueId;
+  name: string;
+  country: string; // fictional
+  clubIds: ClubId[];
+}
+
+export interface World {
+  seed: number;
+  generatorVersion: number;
+  leagues: Record<LeagueId, League>;
+  clubs: Record<ClubId, Club>;
+  players: Record<PlayerId, Player>;
+}
+
+// ---- match results ----
+
+export type GoalType = 'open_play' | 'header' | 'penalty' | 'free_kick';
+
+export interface GoalEvent {
+  minute: number; // 1..90
+  clubId: ClubId;
+  scorerId: PlayerId;
+  assistId?: PlayerId;
+  type: GoalType;
+}
+
+export interface PlayerRating {
+  playerId: PlayerId;
+  rating: number; // 1.0..10.0
+  goals: number;
+  assists: number;
+}
+
+export interface TeamMatchStats {
+  possession: number; // 0..1
+  chances: number;
+  xg: number;
+  goals: number;
+}
+
+export interface MatchResult {
+  homeClubId: ClubId;
+  awayClubId: ClubId;
+  homeGoals: number;
+  awayGoals: number;
+  events: GoalEvent[]; // sorted by minute asc
+  ratings: Record<PlayerId, PlayerRating>;
+  stats: { home: TeamMatchStats; away: TeamMatchStats };
+}
+
+// ---- season ----
+
+export interface Fixture {
+  id: FixtureId;
+  matchday: number; // 1-based
+  homeClubId: ClubId;
+  awayClubId: ClubId;
+  result?: MatchResult;
+}
+
+export interface TableRow {
+  clubId: ClubId;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  points: number;
+}
+
+export interface Season {
+  number: number; // 1-based
+  leagueId: LeagueId;
+  fixtures: Fixture[];
+  currentMatchday: number; // next matchday to play; > totalMatchdays when finished
+  totalMatchdays: number;
+}
+
+// ---- the user's tactical setup for their club ----
+
+export interface SquadRoles {
+  captainId?: PlayerId;
+  freeKickTakerId?: PlayerId;
+  penaltyTakerId?: PlayerId;
+}
+
+export interface SquadConfig {
+  formation: Formation;
+  startingXI: PlayerId[]; // length 11
+  bench: PlayerId[]; // up to 7
+  roles: SquadRoles;
+}
+
+// ---- the persisted game ----
+
+export interface SeasonHistoryEntry {
+  season: number;
+  championClubId: ClubId;
+  userPosition: number;
+}
+
+export interface GameState {
+  saveVersion: number;
+  world: World;
+  managedClubId: ClubId;
+  squad: SquadConfig;
+  season: Season;
+  history: SeasonHistoryEntry[];
+  createdAtSeed: number; // the seed the world was generated from (reproducibility)
+}
