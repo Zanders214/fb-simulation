@@ -139,12 +139,18 @@ type PlayerIdOrUndefined = string | undefined;
 
 /**
  * Swap a player who is currently on the bench (or unused) into the XI in place
- * of a starter, keeping slot order. Returns a new SquadConfig.
+ * of a starter, keeping slot order. Any roles (captain, penalty/free-kick taker)
+ * held by the outgoing player transfer to the incoming one, so the XI never ends
+ * up with a role assigned to a benched player. Returns a new SquadConfig.
  */
 export function swapPlayer(squad: SquadConfig, outId: string, inId: string): SquadConfig {
   if (!squad.startingXI.includes(outId)) return squad;
   const startingXI = squad.startingXI.map((id) => (id === outId ? inId : id));
   const bench = squad.bench.map((id) => (id === inId ? outId : id));
   if (!squad.bench.includes(inId)) bench.push(outId);
-  return { ...squad, startingXI, bench: bench.filter((id) => id !== inId) };
+  const roles = { ...squad.roles };
+  for (const key of Object.keys(roles) as (keyof SquadRoles)[]) {
+    if (roles[key] === outId) roles[key] = inId;
+  }
+  return { ...squad, startingXI, bench: bench.filter((id) => id !== inId), roles };
 }

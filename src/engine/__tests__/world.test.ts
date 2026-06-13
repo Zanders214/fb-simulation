@@ -1,5 +1,5 @@
 import { generateWorld } from '../content';
-import { autoPickSquad, isPlayableXI, setRole, validateXI } from '../world';
+import { autoPickSquad, isPlayableXI, setRole, swapPlayer, validateXI } from '../world';
 
 describe('squad helpers', () => {
   const w = generateWorld(321);
@@ -28,6 +28,23 @@ describe('squad helpers', () => {
     const broken = { ...sq, startingXI: sq.startingXI.map((id) => (id === gkId ? (outfieldBench as string) : id)) };
     expect(validateXI(w, broken, clubId).some((i) => i.type === 'no-gk')).toBe(true);
     expect(isPlayableXI(w, broken, clubId)).toBe(false);
+  });
+
+  it('transfers roles from the outgoing player to the substitute', () => {
+    const sq = autoPickSquad(w, clubId);
+    const captainId = sq.roles.captainId as string;
+    // give the captain every role, then sub them off
+    const withRoles = setRole(setRole(sq, 'penaltyTakerId', captainId), 'freeKickTakerId', captainId);
+    const inId = withRoles.bench[0];
+    const swapped = swapPlayer(withRoles, captainId, inId);
+
+    expect(swapped.startingXI).toContain(inId);
+    expect(swapped.startingXI).not.toContain(captainId);
+    expect(swapped.roles.captainId).toBe(inId);
+    expect(swapped.roles.penaltyTakerId).toBe(inId);
+    expect(swapped.roles.freeKickTakerId).toBe(inId);
+    // no more "role not in XI" complaints
+    expect(validateXI(w, swapped, clubId).some((i) => i.type === 'role-not-in-xi')).toBe(false);
   });
 
   it('flags a role assigned to a benched player', () => {
