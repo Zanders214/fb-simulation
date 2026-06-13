@@ -97,14 +97,51 @@ function findRole(team: SimTeam, id?: string): Player | undefined {
 }
 
 function bestAttacker(players: Player[]): Player {
-  return players.reduce((best, p) =>
-    effectiveArea(p, 'attacking') > effectiveArea(best, 'attacking') ? p : best,
+  return players.reduce(
+    (best, p) => (effectiveArea(p, 'attacking') > effectiveArea(best, 'attacking') ? p : best),
+    players[0],
   );
 }
 
 interface SideOutcome {
   events: GoalEvent[];
   xg: number;
+}
+
+interface ChanceKind {
+  type: GoalType;
+  pConv: number;
+  forcedScorer?: Player;
+}
+
+/** Classify one chance (penalty / free kick / open play). Consumes exactly one Rng draw. */
+function classifyChance(
+  rng: Rng,
+  atkAreas: Areas,
+  defAreas: Areas,
+  shooters: Player[],
+  penTaker: Player | undefined,
+  fkTaker: Player | undefined,
+): ChanceKind {
+  const roll = rng.next();
+  if (roll < SIM.PEN_RATE) {
+    return { type: 'penalty', pConv: SIM.P_PEN, forcedScorer: penTaker ?? bestAttacker(shooters) };
+  }
+  if (roll < SIM.PEN_RATE + SIM.FK_RATE) {
+    const taker = fkTaker ?? bestAttacker(shooters);
+    const pConv = clamp((SIM.P_FK_BASE * effectiveArea(taker, 'attacking')) / 100, 0.02, 0.3);
+    return { type: 'free_kick', pConv, forcedScorer: taker };
+  }
+  return { type: 'open_play', pConv: convProb(atkAreas.atk, defAreas.def) };
+}
+
+/** Pick an assister for an open-play/header goal, or none. Consumes Rng draws. */
+function pickAssist(rng: Rng, atk: SimTeam, scorerId: string): string | undefined {
+  if (rng.next() >= SIM.P_ASSIST) return undefined;
+  const others = atk.players.filter((p) => p.id !== scorerId);
+  if (!others.length) return undefined;
+  const aw = others.map((p) => effectiveArea(p, 'midfield') + 0.5 * effectiveArea(p, 'attacking'));
+  return others[pickWeightedIndex(rng, aw)].id;
 }
 
 /** Simulate one team's attacking chances. Chance count is passed in (drawn earlier). */
@@ -118,47 +155,17 @@ function simulateSide(rng: Rng, atk: SimTeam, atkAreas: Areas, defAreas: Areas, 
   let xg = 0;
 
   for (let c = 0; c < chanceCount; c++) {
-    const typeRoll = rng.next();
-    let pConv: number;
-    let forcedScorer: Player | undefined;
-    let type: GoalType;
-
-    if (typeRoll < SIM.PEN_RATE) {
-      type = 'penalty';
-      pConv = SIM.P_PEN;
-      forcedScorer = penTaker ?? bestAttacker(shooters);
-    } else if (typeRoll < SIM.PEN_RATE + SIM.FK_RATE) {
-      type = 'free_kick';
-      const taker = fkTaker ?? bestAttacker(shooters);
-      pConv = clamp((SIM.P_FK_BASE * effectiveArea(taker, 'attacking')) / 100, 0.02, 0.3);
-      forcedScorer = taker;
-    } else {
-      type = 'open_play';
-      pConv = convProb(atkAreas.atk, defAreas.def);
-    }
-
+    const { type, pConv, forcedScorer } = classifyChance(rng, atkAreas, defAreas, shooters, penTaker, fkTaker);
     xg += pConv;
-    const scored = rng.next() < pConv;
-    if (!scored) continue;
+    if (rng.next() >= pConv) continue; // not scored
 
-    let scorer: Player;
-    if (forcedScorer) {
-      scorer = forcedScorer;
-    } else {
-      scorer = shooters[pickWeightedIndex(rng, weights)] ?? shooters[0];
-    }
+    const scorer = forcedScorer ?? shooters[pickWeightedIndex(rng, weights)] ?? shooters[0];
 
     let goalType: GoalType = type;
     if (type === 'open_play' && rng.next() < SIM.HEADER_SHARE) goalType = 'header';
 
-    let assistId: string | undefined;
-    if ((goalType === 'open_play' || goalType === 'header') && rng.next() < SIM.P_ASSIST) {
-      const others = atk.players.filter((p) => p.id !== scorer.id);
-      if (others.length) {
-        const aw = others.map((p) => effectiveArea(p, 'midfield') + 0.5 * effectiveArea(p, 'attacking'));
-        assistId = others[pickWeightedIndex(rng, aw)].id;
-      }
-    }
+    const assistId =
+      goalType === 'open_play' || goalType === 'header' ? pickAssist(rng, atk, scorer.id) : undefined;
 
     const minute = randInt(rng, 1, 90);
     events.push({ minute, clubId: atk.clubId, scorerId: scorer.id, assistId, type: goalType });

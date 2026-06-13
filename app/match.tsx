@@ -8,6 +8,20 @@ import { useGame, useGameStore } from '../src/store/gameStore';
 import { goalTypeTag } from '../src/ui/format';
 import { theme } from '../src/theme';
 
+type Outcome = 'WIN' | 'DRAW' | 'DEFEAT';
+
+function matchOutcome(my: number, opp: number): Outcome {
+  if (my > opp) return 'WIN';
+  if (my < opp) return 'DEFEAT';
+  return 'DRAW';
+}
+
+function outcomeColorFor(outcome: Outcome): string {
+  if (outcome === 'WIN') return theme.colors.win;
+  if (outcome === 'DEFEAT') return theme.colors.loss;
+  return theme.colors.draw;
+}
+
 export default function MatchScreen() {
   const router = useRouter();
   const game = useGame();
@@ -22,9 +36,8 @@ export default function MatchScreen() {
   const isHome = r.homeClubId === me;
   const myGoals = isHome ? r.homeGoals : r.awayGoals;
   const oppGoals = isHome ? r.awayGoals : r.homeGoals;
-  const outcome = myGoals > oppGoals ? 'WIN' : myGoals < oppGoals ? 'DEFEAT' : 'DRAW';
-  const outcomeColor =
-    outcome === 'WIN' ? theme.colors.win : outcome === 'DEFEAT' ? theme.colors.loss : theme.colors.draw;
+  const outcome = matchOutcome(myGoals, oppGoals);
+  const outcomeColor = outcomeColorFor(outcome);
 
   const others = lastOutcome.results.filter((res) => res !== r);
 
@@ -51,12 +64,12 @@ export default function MatchScreen() {
         {r.events.length === 0 ? (
           <Text style={styles.noGoals}>No goals.</Text>
         ) : (
-          r.events.map((e, i) => {
+          r.events.map((e) => {
             const club = game.world.clubs[e.clubId];
             const scorer = game.world.players[e.scorerId];
             const assist = e.assistId ? game.world.players[e.assistId] : undefined;
             return (
-              <View key={i} style={styles.goalRow}>
+              <View key={`${e.minute}-${e.scorerId}-${e.type}`} style={styles.goalRow}>
                 <Text style={styles.minute}>{e.minute}'</Text>
                 <Chip label={club.shortName} color={club.primaryColor} />
                 <View style={styles.goalInfo}>
@@ -76,8 +89,8 @@ export default function MatchScreen() {
         <>
           <Text style={styles.sectionTitle}>Elsewhere this matchday</Text>
           <Card style={styles.othersCard}>
-            {others.map((res, i) => (
-              <OtherResult key={i} res={res} game={game} />
+            {others.map((res) => (
+              <OtherResult key={`${res.homeClubId}-${res.awayClubId}`} res={res} game={game} />
             ))}
           </Card>
         </>
@@ -88,7 +101,7 @@ export default function MatchScreen() {
   );
 }
 
-function OtherResult({ res, game }: { res: MatchResult; game: NonNullable<ReturnType<typeof useGame>> }) {
+function OtherResult({ res, game }: Readonly<{ res: MatchResult; game: NonNullable<ReturnType<typeof useGame>> }>) {
   const h = game.world.clubs[res.homeClubId];
   const a = game.world.clubs[res.awayClubId];
   return (

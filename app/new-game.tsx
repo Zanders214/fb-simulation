@@ -165,7 +165,7 @@ export default function NewGame() {
   );
 }
 
-function Swatches({ selected, onSelect }: { selected: string; onSelect: (c: string) => void }) {
+function Swatches({ selected, onSelect }: Readonly<{ selected: string; onSelect: (c: string) => void }>) {
   return (
     <View style={styles.swatches}>
       {COLOR_SWATCHES.map((c) => (

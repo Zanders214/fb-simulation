@@ -67,7 +67,7 @@ export default function SquadScreen() {
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+function Meta({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <View style={styles.meta}>
       <Text style={styles.metaValue}>{value}</Text>

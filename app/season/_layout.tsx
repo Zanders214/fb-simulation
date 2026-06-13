@@ -6,8 +6,16 @@ function tabIcon(emoji: string) {
   return () => <Text style={{ fontSize: 18 }}>{emoji}</Text>;
 }
 
-export default function SeasonLayout() {
+function HeaderHomeButton() {
   const router = useRouter();
+  return (
+    <Pressable onPress={() => router.dismissTo('/')} hitSlop={10} style={{ paddingHorizontal: 14 }}>
+      <Text style={{ color: theme.colors.onPrimary, fontSize: 22 }}>⌂</Text>
+    </Pressable>
+  );
+}
+
+export default function SeasonLayout() {
   return (
     <Tabs
       screenOptions={{
@@ -18,11 +26,7 @@ export default function SeasonLayout() {
         tabBarActiveTintColor: theme.colors.accent,
         tabBarInactiveTintColor: theme.colors.textMuted,
         sceneStyle: { backgroundColor: theme.colors.bg },
-        headerRight: () => (
-          <Pressable onPress={() => router.dismissTo('/')} hitSlop={10} style={{ paddingHorizontal: 14 }}>
-            <Text style={{ color: theme.colors.onPrimary, fontSize: 22 }}>⌂</Text>
-          </Pressable>
-        ),
+        headerRight: () => <HeaderHomeButton />,
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Squad', tabBarIcon: tabIcon('👥') }} />

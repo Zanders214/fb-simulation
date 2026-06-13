@@ -12,7 +12,7 @@ type Props = {
   testID?: string;
 };
 
-export function Button({ label, onPress, variant = 'primary', disabled = false, style, testID }: Props) {
+export function Button({ label, onPress, variant = 'primary', disabled = false, style, testID }: Readonly<Props>) {
   return (
     <Pressable
       testID={testID}
