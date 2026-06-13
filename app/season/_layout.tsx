@@ -15,6 +15,8 @@ function HeaderHomeButton() {
   );
 }
 
+const renderHeaderHome = () => <HeaderHomeButton />;
+
 export default function SeasonLayout() {
   return (
     <Tabs
@@ -26,7 +28,7 @@ export default function SeasonLayout() {
         tabBarActiveTintColor: theme.colors.accent,
         tabBarInactiveTintColor: theme.colors.textMuted,
         sceneStyle: { backgroundColor: theme.colors.bg },
-        headerRight: () => <HeaderHomeButton />,
+        headerRight: renderHeaderHome,
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Squad', tabBarIcon: tabIcon('👥') }} />
