@@ -32,6 +32,8 @@ export function makePlayer(
     seasonGoals: 0,
     seasonAssists: 0,
     seasonApps: 0,
+    careerGoals: opts.careerGoals ?? 0,
+    careerAssists: opts.careerAssists ?? 0,
   };
 }
 

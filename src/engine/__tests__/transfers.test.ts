@@ -35,6 +35,8 @@ function makeMid(overall: number, age: number, potential = overall): Player {
     seasonGoals: 0,
     seasonAssists: 0,
     seasonApps: 0,
+    careerGoals: 0,
+    careerAssists: 0,
   };
 }
 

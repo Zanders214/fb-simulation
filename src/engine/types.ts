@@ -46,6 +46,9 @@ export interface Player {
   seasonGoals: number;
   seasonAssists: number;
   seasonApps: number;
+  // ---- career totals (never reset; read via `?? 0` for pre-career saves) ----
+  careerGoals: number;
+  careerAssists: number;
 }
 
 export interface Club {
