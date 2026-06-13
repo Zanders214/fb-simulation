@@ -50,8 +50,12 @@
       "/.expo/"
     ],
     "collectCoverageFrom": [
-      "src/**/*.{ts,tsx}",
-      "!src/**/*.test.{ts,tsx}"
+      "src/engine/**/*.{ts,tsx}",
+      "!src/engine/**/__tests__/**"
+    ],
+    "coverageReporters": [
+      "lcov",
+      "text-summary"
     ]
   },
   "private": true
