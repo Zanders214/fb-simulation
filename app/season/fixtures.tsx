@@ -1,10 +1,11 @@
 import { Redirect, useRouter } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { Chip } from '../../src/components/Chip';
 import { isSeasonComplete, leagueTable, type Fixture } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
+import { confirmAction } from '../../src/ui/confirm';
 import { theme } from '../../src/theme';
 
 function resultColor(my: number, opp: number): string {
@@ -32,14 +33,13 @@ export default function FixturesScreen() {
   const onAdvance = () => {
     const table = leagueTable(game);
     const champ = game.world.clubs[table[0].clubId];
-    Alert.alert(
-      `Season ${game.season.number} complete`,
-      `Champions: ${champ.name}. Start season ${game.season.number + 1}?`,
-      [
-        { text: 'Not yet', style: 'cancel' },
-        { text: 'Start', onPress: () => advanceToNextSeason() },
-      ],
-    );
+    confirmAction({
+      title: `Season ${game.season.number} complete`,
+      message: `Champions: ${champ.name}. Start season ${game.season.number + 1}?`,
+      confirmLabel: 'Start',
+      cancelLabel: 'Not yet',
+      onConfirm: () => advanceToNextSeason(),
+    });
   };
 
   const champion = complete ? game.world.clubs[leagueTable(game)[0].clubId] : null;

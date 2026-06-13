@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { useGameStore } from '../src/store/gameStore';
+import { confirmAction } from '../src/ui/confirm';
 import { theme } from '../src/theme';
 
 export default function Settings() {
@@ -11,17 +12,16 @@ export default function Settings() {
   const resetGame = useGameStore((s) => s.resetGame);
 
   const confirmReset = () => {
-    Alert.alert('Delete save?', 'Your current career will be permanently deleted.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          resetGame();
-          router.dismissTo('/');
-        },
+    confirmAction({
+      title: 'Delete save?',
+      message: 'Your current career will be permanently deleted.',
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: () => {
+        resetGame();
+        router.dismissTo('/');
       },
-    ]);
+    });
   };
 
   return (

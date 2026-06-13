@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../src/components/Button';
 import { useGameStore } from '../src/store/gameStore';
+import { confirmAction } from '../src/ui/confirm';
 import { theme } from '../src/theme';
 
 export default function Home() {
@@ -12,10 +13,13 @@ export default function Home() {
 
   const startNewGame = () => {
     if (hasSave) {
-      Alert.alert('Start a new game?', 'This will replace your current save.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'New Game', style: 'destructive', onPress: () => router.push('/new-game') },
-      ]);
+      confirmAction({
+        title: 'Start a new game?',
+        message: 'This will replace your current save.',
+        confirmLabel: 'New Game',
+        destructive: true,
+        onConfirm: () => router.push('/new-game'),
+      });
     } else {
       router.push('/new-game');
     }
