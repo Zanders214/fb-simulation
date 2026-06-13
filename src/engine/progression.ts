@@ -31,6 +31,9 @@ export function applyMatchProgression(player: Player, r: PlayerRating): void {
   player.seasonApps += 1;
   player.seasonGoals += r.goals;
   player.seasonAssists += r.assists;
+  // career totals accumulate across seasons (default for pre-career saves)
+  player.careerGoals = (player.careerGoals ?? 0) + r.goals;
+  player.careerAssists = (player.careerAssists ?? 0) + r.assists;
 
   // form: EMA of (rating - base), clamped to [-5, +5]; affects only the next match
   player.form = clamp(
