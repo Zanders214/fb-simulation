@@ -46,6 +46,7 @@ export interface Player {
   seasonGoals: number;
   seasonAssists: number;
   seasonApps: number;
+  seasonCleanSheets: number; // matches a GK finished without conceding
 }
 
 export interface Club {

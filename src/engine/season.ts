@@ -117,9 +117,15 @@ export function playMatchday(state: GameState): MatchdayOutcome {
       userResult = result;
     }
     for (const team of [home, away]) {
+      const conceded = team === home ? result.awayGoals : result.homeGoals;
       for (const p of team.players) {
         const r = result.ratings[p.id];
-        if (r) applyMatchProgression(world.players[p.id], r);
+        if (!r) continue;
+        const player = world.players[p.id];
+        applyMatchProgression(player, r);
+        if (p.position === 'GK' && conceded === 0) {
+          player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
+        }
       }
     }
   });

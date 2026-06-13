@@ -105,6 +105,7 @@ function generatePlayer(rng: Rng, id: string, clubId: string, position: Position
     seasonGoals: 0,
     seasonAssists: 0,
     seasonApps: 0,
+    seasonCleanSheets: 0,
   };
 
   const ov = overall(player);
