@@ -138,6 +138,24 @@ export function setRole(squad: SquadConfig, role: keyof SquadRoles, playerId: Pl
 type PlayerIdOrUndefined = string | undefined;
 
 /**
+ * Drop a player from the tactical setup entirely: remove him from the starting
+ * XI and bench, and clear any role he held. Used when a player leaves the club
+ * (e.g. a transfer out) so the lineup never references an unowned player.
+ */
+export function removeFromSquad(squad: SquadConfig, playerId: string): SquadConfig {
+  const roles: SquadRoles = { ...squad.roles };
+  for (const key of Object.keys(roles) as (keyof SquadRoles)[]) {
+    if (roles[key] === playerId) roles[key] = undefined;
+  }
+  return {
+    ...squad,
+    startingXI: squad.startingXI.filter((id) => id !== playerId),
+    bench: squad.bench.filter((id) => id !== playerId),
+    roles,
+  };
+}
+
+/**
  * Swap a player who is currently on the bench (or unused) into the XI in place
  * of a starter, keeping slot order. Any roles (captain, penalty/free-kick taker)
  * held by the outgoing player transfer to the incoming one, so the XI never ends

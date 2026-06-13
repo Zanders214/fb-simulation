@@ -10,6 +10,7 @@ import {
   NATIONALITIES,
 } from './names';
 import { gaussian, randInt, type Rng, streamFor } from './rng';
+import { initialBudget } from './transfers';
 import type { Club, League, Player, Position, World } from './types';
 import { clamp } from './util';
 
@@ -156,6 +157,7 @@ export function generateWorld(seed: number, generatorVersion = CONTENT.GENERATOR
         name,
         shortName,
         reputation,
+        budget: initialBudget(reputation),
         primaryColor,
         secondaryColor,
         playerIds: [],

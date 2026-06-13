@@ -54,6 +54,7 @@ export interface Club {
   name: string;
   shortName: string; // 3-letter code for tables
   reputation: number; // 1..100, drives generated squad strength
+  budget: number; // transfer funds, in thousands (e.g. 23400 == €23.4M)
   primaryColor: string;
   secondaryColor: string;
   playerIds: PlayerId[];

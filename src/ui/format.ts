@@ -28,6 +28,16 @@ export function overallColor(ovr: number): string {
   return theme.colors.textMuted;
 }
 
+/** Format a money amount (stored in thousands) as e.g. €90.0M / €750K / €0. */
+export function formatMoney(thousands: number): string {
+  if (thousands <= 0) return '€0';
+  if (thousands >= 1000) {
+    const m = thousands / 1000;
+    return `€${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  return `€${Math.round(thousands)}K`;
+}
+
 export function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
