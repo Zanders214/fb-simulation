@@ -33,6 +33,7 @@ export default function SeasonLayout() {
       <Tabs.Screen name="lineup" options={{ title: 'Lineup', tabBarIcon: tabIcon('📋') }} />
       <Tabs.Screen name="roles" options={{ title: 'Roles', tabBarIcon: tabIcon('⭐') }} />
       <Tabs.Screen name="fixtures" options={{ title: 'Fixtures', tabBarIcon: tabIcon('📅') }} />
+      <Tabs.Screen name="market" options={{ title: 'Market', tabBarIcon: tabIcon('💰') }} />
       <Tabs.Screen name="table" options={{ title: 'Table', tabBarIcon: tabIcon('🏆') }} />
     </Tabs>
   );

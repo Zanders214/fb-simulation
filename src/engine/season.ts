@@ -1,4 +1,4 @@
-import { SAVE_VERSION } from './config';
+import { MARKET, SAVE_VERSION } from './config';
 import { generateFixtures } from './fixtures';
 import { applyMatchProgression, applySeasonEnd } from './progression';
 import { hashSeed, makeRng } from './rng';
@@ -15,6 +15,7 @@ import type {
   TableRow,
   World,
 } from './types';
+import { clubBudget } from './transfers';
 import { autoPickSquad } from './world';
 
 export interface NewGameOptions {
@@ -145,6 +146,13 @@ export function advanceSeason(state: GameState): GameState {
   state.history.push({ season: season.number, championClubId, userPosition });
 
   for (const id of Object.keys(world.players)) applySeasonEnd(world.players[id]);
+
+  // Annual income keeps every club's transfer budget liquid season to season.
+  for (const id of Object.keys(world.clubs)) {
+    const club = world.clubs[id];
+    const income = MARKET.SEASON_INCOME_BASE + Math.max(0, club.reputation - 40) * MARKET.SEASON_INCOME_REP;
+    club.budget = clubBudget(world, id) + income;
+  }
 
   const newNumber = season.number + 1;
   state.season = {

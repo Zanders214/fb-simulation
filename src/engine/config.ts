@@ -96,6 +96,24 @@ export function ageGrowthMod(age: number): number {
   return 0;
 }
 
+// ---- transfer market ----
+export const MARKET = {
+  MIN_SQUAD: 18, // a club won't sell below this many players
+  MAX_SQUAD: 25, // a club won't buy above this (gen size is 22, leaving slack)
+  SELL_RETURN: 0.9, // fraction of value the seller receives on a sale
+  // valuation: value(overall, age) scaled to a plausible fee range (thousands)
+  VAL_SCALE: 90000, // a 99-overall peak-age player ≈ €90M
+  VAL_EXP: 2.5, // convexity: stars cost disproportionately more
+  VAL_FLOOR_OVR: 35, // overalls at/below this carry ~no fee
+  POT_PREMIUM: 0.6, // weight of (potential - overall) headroom on value
+  // budgets seeded from reputation (thousands)
+  BUDGET_SCALE: 250000, // a max-reputation club starts ≈ €250M
+  BUDGET_FLOOR: 5000, // every club has at least €5M
+  // income added to every club each season so the market stays liquid
+  SEASON_INCOME_BASE: 8000, // €8M flat
+  SEASON_INCOME_REP: 1200, // + €1.2M per reputation point above the floor
+} as const;
+
 export const FORMATIONS: Record<Formation, Record<Position, number>> = {
   '4-4-2': { GK: 1, DEF: 4, MID: 4, FWD: 2 },
   '4-3-3': { GK: 1, DEF: 4, MID: 3, FWD: 3 },
