@@ -23,7 +23,7 @@ import { useGame, useGameStore } from '../src/store/gameStore';
 import { theme } from '../src/theme';
 import { confirmAction } from '../src/ui/confirm';
 
-const INTERVAL_MS = 70;
+const INTERVAL_MS = 110;
 const TARGET_FRAMES = 28; // a jump of any length sweeps in roughly this many ticks
 
 export default function CalendarScreen() {
