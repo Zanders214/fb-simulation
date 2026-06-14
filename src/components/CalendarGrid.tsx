@@ -27,6 +27,9 @@ type Props = Readonly<{
   canSelect: (day: Date) => boolean;
 }>;
 
+/** A single grid cell; `day` is null for the leading/trailing blanks. */
+type DayCell = { key: string; day: number | null };
+
 export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, canSelect }: Props) {
   const styles = useThemedStyles(makeStyles);
   const year = month.getUTCFullYear();
@@ -34,13 +37,15 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
   const lead = new Date(Date.UTC(year, m, 1)).getUTCDay(); // 0=Sun
   const total = daysInMonth(year, m);
 
-  // Build a flat list of cells padded to whole weeks (null = blank).
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < lead; i++) cells.push(null);
-  for (let d = 1; d <= total; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
+  // Build a flat list of cells padded to whole weeks. Each cell carries a stable
+  // key so list rendering never relies on the array index.
+  const cells: DayCell[] = [];
+  for (let i = 0; i < lead; i++) cells.push({ key: `lead-${i}`, day: null });
+  for (let d = 1; d <= total; d++) cells.push({ key: `day-${d}`, day: d });
+  let pad = 0;
+  while (cells.length % 7 !== 0) cells.push({ key: `tail-${pad++}`, day: null });
 
-  const weeks: (number | null)[][] = [];
+  const weeks: DayCell[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
 
   const asOfTime = asOf.getTime();
@@ -56,10 +61,11 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
         ))}
       </View>
 
-      {weeks.map((week, wi) => (
-        <View key={wi} style={styles.weekRow}>
-          {week.map((day, di) => {
-            if (day == null) return <View key={di} style={styles.cell} />;
+      {weeks.map((week) => (
+        <View key={`week-${week[0].key}`} style={styles.weekRow}>
+          {week.map((cell) => {
+            if (cell.day == null) return <View key={cell.key} style={styles.cell} />;
+            const day = cell.day;
             const date = new Date(Date.UTC(year, m, day));
             const t = date.getTime();
             const isToday = t === asOfTime;
@@ -71,20 +77,7 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
               <>
                 <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{day}</Text>
                 <View style={styles.cellBody}>
-                  {marker?.isUserMatch ? (
-                    marker.played && t <= asOfTime ? (
-                      <View style={styles.resultWrap}>
-                        <Text style={[styles.resultLetter, { color: marker.resultColor }]}>
-                          {marker.resultLetter}
-                        </Text>
-                        <Text style={styles.resultScore}>{marker.resultText}</Text>
-                      </View>
-                    ) : (
-                      <View style={[styles.matchDot, { backgroundColor: marker.oppColor }]} />
-                    )
-                  ) : passed ? (
-                    <Text style={styles.cross}>✕</Text>
-                  ) : null}
+                  <CellMarker marker={marker} passed={passed} revealed={t <= asOfTime} />
                 </View>
               </>
             );
@@ -100,7 +93,7 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
             if (selectable) {
               return (
                 <Pressable
-                  key={di}
+                  key={cell.key}
                   style={cellStyle}
                   onPress={() => onSelectDay(date)}
                   accessibilityRole="button"
@@ -110,7 +103,7 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
               );
             }
             return (
-              <View key={di} style={cellStyle}>
+              <View key={cell.key} style={cellStyle}>
                 {body}
               </View>
             );
@@ -119,6 +112,28 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
       ))}
     </View>
   );
+}
+
+/** What to draw inside a day cell: a result, a match dot, an ✕, or nothing. */
+function CellMarker({
+  marker,
+  passed,
+  revealed,
+}: Readonly<{ marker?: DayMarker; passed: boolean; revealed: boolean }>) {
+  const styles = useThemedStyles(makeStyles);
+  if (marker?.isUserMatch) {
+    if (marker.played && revealed) {
+      return (
+        <View style={styles.resultWrap}>
+          <Text style={[styles.resultLetter, { color: marker.resultColor }]}>{marker.resultLetter}</Text>
+          <Text style={styles.resultScore}>{marker.resultText}</Text>
+        </View>
+      );
+    }
+    return <View style={[styles.matchDot, { backgroundColor: marker.oppColor }]} />;
+  }
+  if (passed) return <Text style={styles.cross}>✕</Text>;
+  return null;
 }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({

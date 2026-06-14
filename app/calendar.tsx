@@ -18,6 +18,8 @@ import {
   seasonEndDate,
   seasonStartDate,
   startOfMonth,
+  type Fixture,
+  type GameState,
 } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
@@ -25,6 +27,29 @@ import { confirmAction } from '../src/ui/confirm';
 
 const INTERVAL_MS = 110;
 const TARGET_FRAMES = 28; // a jump of any length sweeps in roughly this many ticks
+
+function resultStyle(my: number, og: number, theme: Theme): { resultLetter: string; resultColor: string } {
+  if (my > og) return { resultLetter: 'W', resultColor: theme.colors.win };
+  if (my < og) return { resultLetter: 'L', resultColor: theme.colors.loss };
+  return { resultLetter: 'D', resultColor: theme.colors.draw };
+}
+
+/** Build the calendar marker for the user's fixture on a given day (null if none). */
+function userFixtureMarker(game: GameState, fixtures: Fixture[], me: string, theme: Theme): DayMarker | null {
+  const f = fixtures.find((fx) => fx.homeClubId === me || fx.awayClubId === me);
+  if (!f) return null;
+  const isHome = f.homeClubId === me;
+  const opp = game.world.clubs[isHome ? f.awayClubId : f.homeClubId];
+  const marker: DayMarker = { isUserMatch: true, oppShortName: opp.shortName, oppColor: opp.primaryColor };
+  if (f.result) {
+    const my = isHome ? f.result.homeGoals : f.result.awayGoals;
+    const og = isHome ? f.result.awayGoals : f.result.homeGoals;
+    marker.played = true;
+    marker.resultText = `${my}-${og}`;
+    Object.assign(marker, resultStyle(my, og, theme));
+  }
+  return marker;
+}
 
 export default function CalendarScreen() {
   const game = useGame();
@@ -53,28 +78,8 @@ export default function CalendarScreen() {
     if (!game) return map;
     const me = game.managedClubId;
     for (const { date, fixtures } of enumerateSchedule(game)) {
-      const f = fixtures.find((fx) => fx.homeClubId === me || fx.awayClubId === me);
-      if (!f) continue;
-      const isHome = f.homeClubId === me;
-      const opp = game.world.clubs[isHome ? f.awayClubId : f.homeClubId];
-      const marker: DayMarker = { isUserMatch: true, oppShortName: opp.shortName, oppColor: opp.primaryColor };
-      if (f.result) {
-        const my = isHome ? f.result.homeGoals : f.result.awayGoals;
-        const og = isHome ? f.result.awayGoals : f.result.homeGoals;
-        marker.played = true;
-        marker.resultText = `${my}-${og}`;
-        if (my > og) {
-          marker.resultLetter = 'W';
-          marker.resultColor = theme.colors.win;
-        } else if (my < og) {
-          marker.resultLetter = 'L';
-          marker.resultColor = theme.colors.loss;
-        } else {
-          marker.resultLetter = 'D';
-          marker.resultColor = theme.colors.draw;
-        }
-      }
-      map.set(dateKey(date), marker);
+      const marker = userFixtureMarker(game, fixtures, me, theme);
+      if (marker) map.set(dateKey(date), marker);
     }
     return map;
   }, [game, theme]);
@@ -147,6 +152,11 @@ export default function CalendarScreen() {
     });
   };
 
+  let hint: string;
+  if (animating) hint = 'Simulating…';
+  else if (complete) hint = 'Season complete — advance from the Fixtures tab.';
+  else hint = 'Tap a future date to simulate to it.';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Card style={styles.statusCard}>
@@ -154,13 +164,7 @@ export default function CalendarScreen() {
           Season {game.season.number} · {complete ? 'Complete' : `Matchday ${game.season.currentMatchday} of ${game.season.totalMatchdays}`}
         </Text>
         <Text style={styles.today}>{formatShortDate(currentDate(game))}</Text>
-        <Text style={styles.hint}>
-          {animating
-            ? 'Simulating…'
-            : complete
-              ? 'Season complete — advance from the Fixtures tab.'
-              : 'Tap a future date to simulate to it.'}
-        </Text>
+        <Text style={styles.hint}>{hint}</Text>
       </Card>
 
       <View style={styles.monthNav}>
