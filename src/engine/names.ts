@@ -28,18 +28,22 @@ export const NATIONALITIES: string[] = [
   'Iberica', 'Jutland', 'Korvale', 'Lysmark', 'Marenia', 'Norvik', 'Ostmark', 'Pelagia',
 ];
 
-// fictional countries that host the leagues
+// fictional countries that host the leagues, each with its own division pyramid
 export const COUNTRIES: string[] = [
   'Albia', 'Brevia', 'Caldonia', 'Drennia', 'Esmark', 'Fjordal', 'Granland', 'Holvik',
 ];
 
-export const LEAGUE_SUFFIXES: string[] = [
-  'Premier Division',
-  'Elite League',
+/**
+ * Division names by tier, top first: `TIER_SUFFIXES[0]` is the top flight. A
+ * league is named `${country} ${TIER_SUFFIXES[tier - 1]}` (e.g. "Albia First
+ * Division"). Lower index = higher tier, so winning the Second Division earns
+ * promotion to the First Division.
+ */
+export const TIER_SUFFIXES: string[] = [
   'First Division',
-  'Super Liga',
-  'Top Flight',
-  'Pro League',
+  'Second Division',
+  'Third Division',
+  'Fourth Division',
 ];
 
 // city-ish prefixes for club names (invented)

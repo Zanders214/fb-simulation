@@ -5,13 +5,14 @@
  */
 import { overall } from '../src/engine/attrs';
 import { generateWorld } from '../src/engine/content';
-import { createGame, isSeasonComplete, leagueTable, playMatchday } from '../src/engine/season';
+import { advanceSeason, createGame, isSeasonComplete, leagueTable, playMatchday } from '../src/engine/season';
 
 const seed = Number(process.argv[2] ?? 2026);
 const w = generateWorld(seed);
-const leagueId = 'L0';
+// Start in a middle tier so promotion/relegation is visible across seasons.
+const leagueId = 'L1';
 const league = w.leagues[leagueId];
-console.log(`Seed ${seed} — League: ${league.name} — ${league.clubIds.length} clubs`);
+console.log(`Seed ${seed} — League: ${league.name} (${league.country}, tier ${league.tier}) — ${league.clubIds.length} clubs`);
 
 const s = createGame(w, { leagueId, mode: 'takeover', takeoverClubId: league.clubIds[0] });
 const club = w.clubs[s.managedClubId];
@@ -33,8 +34,12 @@ for (let i = 0; i < 5; i++) {
   console.log(`  ${h} ${userResult.homeGoals}-${userResult.awayGoals} ${a}    ${scorers}`);
 }
 
-let guard = 0;
-while (!isSeasonComplete(s) && guard++ < 200) playMatchday(s);
+function playToEnd() {
+  let guard = 0;
+  while (!isSeasonComplete(s) && guard++ < 200) playMatchday(s);
+}
+
+playToEnd();
 
 console.log('\nFinal table:');
 leagueTable(s).forEach((r, i) => {
@@ -44,3 +49,20 @@ leagueTable(s).forEach((r, i) => {
     `  ${String(i + 1).padStart(2)}. ${c.shortName.padEnd(4)} P${r.played} W${r.won} D${r.drawn} L${r.lost}  ${r.gf}-${r.ga} (${r.gd >= 0 ? '+' : ''}${r.gd})  ${r.points}pts${you}`,
   );
 });
+
+function movementArrow(movement: string | undefined): string {
+  if (movement === 'promoted') return '⬆ promoted';
+  if (movement === 'relegated') return '⬇ relegated';
+  return '— stayed';
+}
+
+console.log('\nPromotion / relegation over the next few seasons:');
+for (let n = 0; n < 4; n++) {
+  advanceSeason(s); // rolls over the season just played, applying pro/rel
+  const h = s.history[s.history.length - 1];
+  const played = w.leagues[h.leagueId ?? ''];
+  console.log(
+    `  Season ${h.season}: ${club.shortName} finished ${h.userPosition} in ${played?.name} → ${movementArrow(h.movement)}`,
+  );
+  playToEnd();
+}

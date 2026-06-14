@@ -15,6 +15,7 @@ describe('content generation', () => {
   it('has the expected league/club/squad structure', () => {
     const w = generateWorld(999);
     expect(Object.keys(w.leagues).length).toBe(CONTENT.LEAGUES);
+    expect(CONTENT.LEAGUES).toBe(CONTENT.COUNTRY_COUNT * CONTENT.TIERS_PER_COUNTRY);
     for (const lg of Object.values(w.leagues)) {
       expect(lg.clubIds.length).toBe(CONTENT.CLUBS_PER_LEAGUE);
       for (const cid of lg.clubIds) {
@@ -25,6 +26,37 @@ describe('content generation', () => {
         expect(byPos).toEqual(CONTENT.POSITION_QUOTA);
       }
     }
+  });
+
+  it('organises leagues into countries with a stacked division pyramid', () => {
+    const w = generateWorld(999);
+    expect(Object.keys(w.countries).length).toBe(CONTENT.COUNTRY_COUNT);
+    for (const country of Object.values(w.countries)) {
+      expect(country.leagueIds.length).toBe(CONTENT.TIERS_PER_COUNTRY);
+      // leagueIds are ordered top → bottom (tier 1, 2, 3, ...)
+      country.leagueIds.forEach((lid, i) => {
+        const league = w.leagues[lid];
+        expect(league.tier).toBe(i + 1);
+        expect(league.countryId).toBe(country.id);
+        expect(league.name).toContain(country.name);
+        // every club's leagueId points back to the league that lists it
+        for (const cid of league.clubIds) expect(w.clubs[cid].leagueId).toBe(lid);
+      });
+    }
+  });
+
+  it('makes higher tiers stronger than lower tiers', () => {
+    const w = generateWorld(999);
+    const meanRepForTier = (tier: number) => {
+      const reps = Object.values(w.leagues)
+        .filter((l) => l.tier === tier)
+        .flatMap((l) => l.clubIds.map((c) => w.clubs[c].reputation));
+      return reps.reduce((a, b) => a + b, 0) / reps.length;
+    };
+    // top flight clubs out-rate the third tier on average by a clear margin
+    expect(meanRepForTier(1)).toBeGreaterThan(meanRepForTier(3) + 10);
+    expect(meanRepForTier(1)).toBeGreaterThan(meanRepForTier(2));
+    expect(meanRepForTier(2)).toBeGreaterThan(meanRepForTier(3));
   });
 
   it('keeps stats, potential and ages in sane ranges', () => {

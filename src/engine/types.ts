@@ -3,6 +3,7 @@
 export type PlayerId = string;
 export type ClubId = string;
 export type LeagueId = string;
+export type CountryId = string;
 export type FixtureId = string;
 
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
@@ -81,13 +82,24 @@ export interface Club {
 export interface League {
   id: LeagueId;
   name: string;
-  country: string; // fictional
+  country: string; // fictional country name (display); see `countryId` for the link
+  countryId: CountryId;
+  tier: number; // 1-based; 1 = top division. Promotion moves a club to tier - 1.
   clubIds: ClubId[];
+}
+
+/** A fictional country hosting a stacked pyramid of leagues (one per tier). */
+export interface Country {
+  id: CountryId;
+  name: string;
+  /** Leagues in this country ordered by tier, top first (`leagueIds[0]` = tier 1). */
+  leagueIds: LeagueId[];
 }
 
 export interface World {
   seed: number;
   generatorVersion: number;
+  countries: Record<CountryId, Country>;
   leagues: Record<LeagueId, League>;
   clubs: Record<ClubId, Club>;
   players: Record<PlayerId, Player>;
@@ -178,10 +190,18 @@ export interface SquadConfig {
 
 // ---- the persisted game ----
 
+export type Movement = 'promoted' | 'relegated' | 'stayed';
+
 export interface SeasonHistoryEntry {
   season: number;
   championClubId: ClubId;
   userPosition: number;
+  /** The league the user played that season (added with the division pyramid). */
+  leagueId?: LeagueId;
+  /** The tier the user played that season (1 = top). */
+  tier?: number;
+  /** Whether the user was promoted, relegated, or stayed after that season. */
+  movement?: Movement;
 }
 
 export interface GameState {

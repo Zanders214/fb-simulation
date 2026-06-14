@@ -4,17 +4,21 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
-import { generateWorld, type ClubId, type LeagueId } from '../src/engine';
+import { generateWorld, type ClubId, type CountryId, type League, type LeagueId } from '../src/engine';
 import { useGameStore } from '../src/store/gameStore';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 type Mode = 'create' | 'takeover';
-type Step = 'mode' | 'league' | 'configure';
+type Step = 'country' | 'league' | 'mode' | 'configure';
 
 const COLOR_SWATCHES = [
   '#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#d35400',
   '#16a085', '#2c3e50', '#f1c40f', '#e84393', '#ecf0f1',
 ];
+
+function tierLabel(tier: number): string {
+  return tier === 1 ? 'Top flight' : `Tier ${tier}`;
+}
 
 export default function NewGame() {
   const router = useRouter();
@@ -28,8 +32,9 @@ export default function NewGame() {
   const [seed] = useState(() => Date.now());
   const world = useMemo(() => generateWorld(seed), [seed]);
 
-  const [step, setStep] = useState<Step>('mode');
+  const [step, setStep] = useState<Step>('country');
   const [mode, setMode] = useState<Mode>('takeover');
+  const [countryId, setCountryId] = useState<CountryId | null>(null);
   const [leagueId, setLeagueId] = useState<LeagueId | null>(null);
 
   const [clubId, setClubId] = useState<ClubId | null>(null);
@@ -38,7 +43,10 @@ export default function NewGame() {
   const [primary, setPrimary] = useState(COLOR_SWATCHES[1]);
   const [secondary, setSecondary] = useState(COLOR_SWATCHES[9]);
 
-  const leagues = Object.values(world.leagues);
+  const countries = Object.values(world.countries);
+
+  const leagueStrength = (lg: League) =>
+    Math.round(lg.clubIds.reduce((sum, id) => sum + world.clubs[id].reputation, 0) / lg.clubIds.length);
 
   const start = () => {
     if (!leagueId) return;
@@ -65,42 +73,71 @@ export default function NewGame() {
   };
 
   const canStart = mode === 'takeover' ? !!clubId : clubName.trim().length >= 2;
+  const selectedLeague = leagueId ? world.leagues[leagueId] : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {step === 'mode' && (
+      {step === 'country' && (
         <>
-          <Text style={styles.h}>How do you want to start?</Text>
-          <Pressable onPress={() => { setMode('create'); setStep('league'); }}>
-            <Card style={styles.optionCard}>
-              <Text style={styles.optTitle}>Create a new club</Text>
-              <Text style={styles.optDesc}>Name and colour a brand-new club that joins a league as the newcomer.</Text>
-            </Card>
-          </Pressable>
-          <Pressable onPress={() => { setMode('takeover'); setStep('league'); }}>
-            <Card style={styles.optionCard}>
-              <Text style={styles.optTitle}>Take over an existing club</Text>
-              <Text style={styles.optDesc}>Pick one of the league’s clubs and manage its current squad.</Text>
-            </Card>
-          </Pressable>
-        </>
-      )}
-
-      {step === 'league' && (
-        <>
-          <Text style={styles.h}>Choose a league</Text>
-          {leagues.map((lg) => (
+          <Text style={styles.h}>Choose a country</Text>
+          <Text style={styles.sub}>Each country runs its own league pyramid — win promotion, avoid the drop.</Text>
+          {countries.map((c) => (
             <Pressable
-              key={lg.id}
-              onPress={() => { setLeagueId(lg.id); setClubId(null); setStep('configure'); }}
+              key={c.id}
+              onPress={() => { setCountryId(c.id); setLeagueId(null); setStep('league'); }}
             >
               <Card style={styles.optionCard}>
-                <Text style={styles.optTitle}>{lg.name}</Text>
-                <Text style={styles.optDesc}>{lg.country} · {lg.clubIds.length} clubs</Text>
+                <Text style={styles.optTitle}>{c.name}</Text>
+                <Text style={styles.optDesc}>{c.leagueIds.length} divisions</Text>
               </Card>
             </Pressable>
           ))}
-          <Button label="Back" variant="ghost" onPress={() => setStep('mode')} style={styles.mt} />
+        </>
+      )}
+
+      {step === 'league' && countryId && (
+        <>
+          <Text style={styles.h}>Choose a division</Text>
+          {world.countries[countryId].leagueIds
+            .map((id) => world.leagues[id])
+            .map((lg) => (
+              <Pressable
+                key={lg.id}
+                onPress={() => { setLeagueId(lg.id); setClubId(null); setStep('mode'); }}
+              >
+                <Card style={styles.optionCard}>
+                  <View style={styles.leagueHead}>
+                    <Text style={styles.optTitle}>{lg.name}</Text>
+                    <Text style={styles.tierBadge}>{tierLabel(lg.tier)}</Text>
+                  </View>
+                  <Text style={styles.optDesc}>{lg.clubIds.length} clubs · avg rating {leagueStrength(lg)}</Text>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${leagueStrength(lg)}%` }]} />
+                  </View>
+                </Card>
+              </Pressable>
+            ))}
+          <Button label="Back" variant="ghost" onPress={() => setStep('country')} style={styles.mt} />
+        </>
+      )}
+
+      {step === 'mode' && selectedLeague && (
+        <>
+          <Text style={styles.h}>How do you want to start?</Text>
+          <Text style={styles.sub}>{selectedLeague.name} · {tierLabel(selectedLeague.tier)}</Text>
+          <Pressable onPress={() => { setMode('takeover'); setStep('configure'); }}>
+            <Card style={styles.optionCard}>
+              <Text style={styles.optTitle}>Take over an existing club</Text>
+              <Text style={styles.optDesc}>Pick one of the division’s clubs and manage its current squad.</Text>
+            </Card>
+          </Pressable>
+          <Pressable onPress={() => { setMode('create'); setStep('configure'); }}>
+            <Card style={styles.optionCard}>
+              <Text style={styles.optTitle}>Create a new club</Text>
+              <Text style={styles.optDesc}>Name and colour a brand-new club that joins this division as the newcomer.</Text>
+            </Card>
+          </Pressable>
+          <Button label="Back" variant="ghost" onPress={() => setStep('league')} style={styles.mt} />
         </>
       )}
 
@@ -128,7 +165,7 @@ export default function NewGame() {
               );
             })}
           <Button label="Start career" onPress={start} disabled={!canStart} style={styles.mt} testID="start-career" />
-          <Button label="Back" variant="ghost" onPress={() => setStep('league')} />
+          <Button label="Back" variant="ghost" onPress={() => setStep('mode')} />
         </>
       )}
 
@@ -162,7 +199,7 @@ export default function NewGame() {
             <Swatches selected={secondary} onSelect={setSecondary} />
           </Card>
           <Button label="Start career" onPress={start} disabled={!canStart} style={styles.mt} testID="start-career" />
-          <Button label="Back" variant="ghost" onPress={() => setStep('league')} />
+          <Button label="Back" variant="ghost" onPress={() => setStep('mode')} />
         </>
       )}
     </ScrollView>
@@ -188,9 +225,18 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1.5), paddingBottom: theme.spacing(6) },
   h: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '700', marginBottom: theme.spacing(0.5) },
+  sub: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: -theme.spacing(0.5), marginBottom: theme.spacing(0.5) },
   optionCard: { gap: theme.spacing(0.5) },
   optTitle: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '700' },
   optDesc: { color: theme.colors.textMuted, fontSize: theme.font.small },
+  leagueHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  tierBadge: {
+    color: theme.colors.accent,
+    fontSize: theme.font.small,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   mt: { marginTop: theme.spacing(1) },
   clubRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1.5) },
   clubSelected: { borderColor: theme.colors.accent },

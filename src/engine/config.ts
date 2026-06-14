@@ -5,7 +5,9 @@ import type { Formation, Position } from './types';
  * algorithm code, and tests can probe edge behaviour by overriding them.
  */
 
-export const SAVE_VERSION = 1;
+// Bumped to 2 for the country/division-pyramid world: older saves (flat leagues,
+// no `countries`/tier) fail validation in the store and fall back to "no save".
+export const SAVE_VERSION = 2;
 
 // ---- match simulation ----
 export const SIM = {
@@ -44,17 +46,32 @@ export const SIM = {
 
 // ---- content generation ----
 export const CONTENT = {
-  GENERATOR_VERSION: 1,
-  LEAGUES: 6,
+  GENERATOR_VERSION: 2,
+  // The world is a set of countries, each with a stacked division pyramid.
+  COUNTRY_COUNT: 4,
+  TIERS_PER_COUNTRY: 3, // each country runs 3 leagues (top → bottom)
+  LEAGUES: 12, // MUST equal COUNTRY_COUNT * TIERS_PER_COUNTRY
   CLUBS_PER_LEAGUE: 16, // even -> clean double round-robin (30 matchdays)
   SQUAD_SIZE: 22,
   POSITION_QUOTA: { GK: 3, DEF: 8, MID: 6, FWD: 5 } as Record<Position, number>,
-  REP_MEAN: 65,
-  REP_SD: 11,
-  REP_MIN: 45,
-  REP_MAX: 85,
+  // Reputation mean per tier (top first). Higher tiers field stronger squads and
+  // richer clubs, so promotion is a real step up and relegation a step down.
+  // Indexed by `tier - 1`; tiers beyond the list reuse the last (weakest) mean.
+  TIER_REP_MEAN: [73, 60, 48] as readonly number[],
+  REP_SD: 8,
+  REP_MIN: 38,
+  REP_MAX: 88,
   STAT_NOISE_SD: 4,
   NEW_CLUB_REPUTATION: 55, // a user-created club starts as a mid-table newcomer
+} as const;
+
+// ---- league pyramid (promotion / relegation) ----
+export const PYRAMID = {
+  // Clubs that swap between two adjacent tiers each season: the bottom
+  // PROMOTION_SLOTS of the upper league go down, the top PROMOTION_SLOTS of the
+  // lower league come up. Must be < CLUBS_PER_LEAGUE / 2 so the up/down bands
+  // never overlap within a league.
+  PROMOTION_SLOTS: 3,
 } as const;
 
 // signature stat offsets from a player's base overall, per position

@@ -10,6 +10,7 @@ export * from './sim';
 export * from './progression';
 export * from './fixtures';
 export * from './standings';
+export * from './promotion';
 export * from './world';
 export * from './season';
 export * from './calendar';
