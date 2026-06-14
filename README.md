@@ -4,7 +4,7 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=fb-simulator_fb-simulator&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fb-simulator_fb-simulator)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fb-simulator_fb-simulator&metric=coverage)](https://sonarcloud.io/summary/new_code?id=fb-simulator_fb-simulator)
 
-A **BitLife-style football (soccer) management simulation** for iOS and Android. Pick a country and one of its divisions, then create or take over a club, manage your lineup, formation and roles, and play instant-result matches across a full season while your players develop. Each country runs a stacked **league pyramid** with **promotion and relegation** between tiers, so winning your division climbs you up and finishing bottom sends you down. All countries, clubs, players and leagues are **fictional and generated** — no licensed content.
+A **BitLife-style football (soccer) management simulation** for iOS and Android. Pick a country and one of its divisions, then create or take over a club, manage your lineup, formation and roles, and play instant-result matches across a full season while your players develop. Each country runs a stacked **league pyramid** with **promotion and relegation** between tiers, so winning your division climbs you up and finishing bottom sends you down. Countries and player nationalities are real, but the clubs, players and league names are **fictional and generated** — no licensed content.
 
 > **Status:** pre-alpha. The v1 season loop is playable end to end.
 
@@ -109,4 +109,4 @@ CI already contains the SonarCloud step; it stays dormant until you connect the 
 
 ## Licensing
 
-All clubs, players and leagues are fictional and procedurally generated — no licensed names, likenesses, crests, or logos. Only the store developer fees apply when publishing (Apple $99/yr, Google $25 one-time).
+All clubs, players and league names are fictional and procedurally generated — no licensed names, likenesses, crests, or logos. Only real-world country names (which carry no IP) are used. Only the store developer fees apply when publishing (Apple $99/yr, Google $25 one-time).
