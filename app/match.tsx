@@ -5,7 +5,7 @@ import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
 import type { GoalEvent, MatchResult } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
-import { goalTypeTag } from '../src/ui/format';
+import { formatMoney, goalTypeTag } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 type Outcome = 'WIN' | 'DRAW' | 'DEFEAT';
@@ -60,6 +60,12 @@ export default function MatchScreen() {
           </View>
         </View>
       </Card>
+
+      {lastOutcome.userEarnings != null && (
+        <Text style={[styles.earnings, { color: outcomeColor }]}>
+          Match fee +{formatMoney(lastOutcome.userEarnings)}
+        </Text>
+      )}
 
       <Card style={styles.timelineCard}>
         {r.events.length === 0 ? (
@@ -171,6 +177,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     marginLeft: -1,
     backgroundColor: theme.colors.border,
   },
+  earnings: { textAlign: 'center', fontSize: theme.font.body, fontWeight: '800', letterSpacing: 0.5 },
   timelineRow: { flexDirection: 'row', alignItems: 'center' },
   timelineSide: { flex: 1 },
   timelineCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing(0.5), minWidth: 64 },

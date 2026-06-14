@@ -15,7 +15,7 @@ import type {
   TableRow,
   World,
 } from './types';
-import { clubBudget } from './transfers';
+import { clubBudget, matchIncome, type MatchOutcome, seasonPrize } from './transfers';
 import { autoPickSquad } from './world';
 
 export interface NewGameOptions {
@@ -91,6 +91,22 @@ function simTeamFor(
 export interface MatchdayOutcome {
   results: MatchResult[];
   userResult?: MatchResult;
+  /** Match income the managed club earned this matchday, in thousands. */
+  userEarnings?: number;
+}
+
+/** The result, from the perspective of the team that scored `my` against `opp`. */
+function outcomeFor(my: number, opp: number): MatchOutcome {
+  if (my > opp) return 'win';
+  if (my < opp) return 'loss';
+  return 'draw';
+}
+
+/** Credit each club its match income (win/draw/loss), in place. */
+function awardMatchIncome(world: World, result: MatchResult): void {
+  const { homeClubId, awayClubId, homeGoals, awayGoals } = result;
+  world.clubs[homeClubId].budget = clubBudget(world, homeClubId) + matchIncome(outcomeFor(homeGoals, awayGoals));
+  world.clubs[awayClubId].budget = clubBudget(world, awayClubId) + matchIncome(outcomeFor(awayGoals, homeGoals));
 }
 
 /**
@@ -103,6 +119,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   const md = season.currentMatchday;
   const results: MatchResult[] = [];
   let userResult: MatchResult | undefined;
+  let userEarnings: number | undefined;
   if (md > season.totalMatchdays) return { results };
 
   // Only the user's club has training slots; AI players never appear in this set.
@@ -116,8 +133,13 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     const result = simulateMatch({ home, away, rng });
     f.result = result;
     results.push(result);
+    awardMatchIncome(world, result);
     if (f.homeClubId === state.managedClubId || f.awayClubId === state.managedClubId) {
       userResult = result;
+      const isHome = f.homeClubId === state.managedClubId;
+      const my = isHome ? result.homeGoals : result.awayGoals;
+      const opp = isHome ? result.awayGoals : result.homeGoals;
+      userEarnings = matchIncome(outcomeFor(my, opp));
     }
     for (const team of [home, away]) {
       const conceded = team === home ? result.awayGoals : result.homeGoals;
@@ -143,7 +165,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   }
 
   season.currentMatchday = md + 1;
-  return { results, userResult };
+  return { results, userResult, userEarnings };
 }
 
 export function isSeasonComplete(state: GameState): boolean {
@@ -165,10 +187,16 @@ export function advanceSeason(state: GameState): GameState {
 
   for (const id of Object.keys(world.players)) applySeasonEnd(world.players[id]);
 
-  // Annual income keeps every club's transfer budget liquid season to season.
+  // End-of-season income. Clubs in the played league earn a position-based prize;
+  // every other club gets a flat top-up so the wider transfer market stays liquid.
+  const positionById = new Map(table.map((r, i) => [r.clubId, i + 1]));
   for (const id of Object.keys(world.clubs)) {
     const club = world.clubs[id];
-    const income = MARKET.SEASON_INCOME_BASE + Math.max(0, club.reputation - 40) * MARKET.SEASON_INCOME_REP;
+    const position = positionById.get(id);
+    const income =
+      position !== undefined
+        ? seasonPrize(position, clubIds.length)
+        : MARKET.SEASON_INCOME_BASE + Math.max(0, club.reputation - 40) * MARKET.SEASON_INCOME_REP;
     club.budget = clubBudget(world, id) + income;
   }
 
