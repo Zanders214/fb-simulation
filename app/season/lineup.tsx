@@ -99,12 +99,15 @@ export default function LineupScreen() {
         ))}
       </View>
 
-      <Button
-        label={`🏋  Training · ${trainingCount}/${TRAINING.SLOTS}`}
-        variant="secondary"
-        onPress={() => router.push('/training')}
-        style={styles.trainingBtn}
-      />
+      <View style={styles.actionRow}>
+        <Button label="⭐  Roles" variant="secondary" onPress={() => router.push('/roles')} style={styles.actionBtn} />
+        <Button
+          label={`🏋  Training · ${trainingCount}/${TRAINING.SLOTS}`}
+          variant="secondary"
+          onPress={() => router.push('/training')}
+          style={styles.actionBtn}
+        />
+      </View>
 
       {errors.length > 0 && (
         <Card style={styles.errorBanner}>
@@ -164,7 +167,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
   },
   formChipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-  trainingBtn: { marginTop: theme.spacing(0.5) },
+  actionRow: { flexDirection: 'row', gap: theme.spacing(1), marginTop: theme.spacing(0.5) },
+  actionBtn: { flex: 1, paddingHorizontal: theme.spacing(1) },
   formText: { color: theme.colors.textMuted, fontWeight: '700', fontSize: theme.font.small },
   formTextActive: { color: theme.colors.onPrimary },
   listCard: { gap: theme.spacing(0.25), paddingVertical: theme.spacing(1) },

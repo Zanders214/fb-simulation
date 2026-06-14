@@ -8,8 +8,8 @@ describe('flagFor', () => {
     expect(flagFor('United States')).toBe('🇺🇸');
   });
 
-  it('uses the St George\'s cross for England', () => {
-    expect(flagFor('England')).toBe('🏴󠁧󠁢󠁥󠁮󠁧󠁿');
+  it('uses the UK flag for England', () => {
+    expect(flagFor('England')).toBe('🇬🇧');
   });
 
   it('has a flag for every generated nationality', () => {

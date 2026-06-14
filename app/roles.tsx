@@ -1,11 +1,11 @@
 import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card } from '../../src/components/Card';
-import { PlayerRow } from '../../src/components/PlayerRow';
-import type { SquadRoles } from '../../src/engine';
-import { useGame, useGameStore } from '../../src/store/gameStore';
-import { useThemedStyles, type Theme } from '../../src/theme';
+import { Card } from '../src/components/Card';
+import { PlayerRow } from '../src/components/PlayerRow';
+import type { SquadRoles } from '../src/engine';
+import { useGame, useGameStore } from '../src/store/gameStore';
+import { useThemedStyles, type Theme } from '../src/theme';
 
 const ROLES: { key: keyof SquadRoles; label: string }[] = [
   { key: 'captainId', label: 'Captain' },

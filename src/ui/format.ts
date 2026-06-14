@@ -108,11 +108,12 @@ export function formColor(form: number, theme: Theme): string {
 
 /**
  * Emoji flag per nationality. Keys match the names in engine `NATIONALITIES`.
- * England has no country-code emoji, so it uses the St George's cross tag
- * sequence; every other nation is a regional-indicator pair.
+ * England has no country-code emoji that renders reliably (the St George's cross
+ * is a subdivision tag sequence many platforms can't draw), so it falls back to
+ * the UK flag; every other nation is a regional-indicator pair.
  */
 const NATIONALITY_FLAGS: Record<string, string> = {
-  England: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  England: '🇬🇧',
   Spain: '🇪🇸',
   Italy: '🇮🇹',
   Germany: '🇩🇪',

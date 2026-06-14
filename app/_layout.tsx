@@ -59,6 +59,7 @@ function RootNavigator() {
         <Stack.Screen name="player" options={{ title: 'Player' }} />
         <Stack.Screen name="club" options={{ title: 'Club Stats' }} />
         <Stack.Screen name="training" options={{ title: 'Training' }} />
+        <Stack.Screen name="roles" options={{ title: 'Roles' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       </Stack>
     </>
