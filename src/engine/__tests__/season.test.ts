@@ -6,7 +6,7 @@ import {
   leagueTable,
   playMatchday,
 } from '../season';
-import { transferPlayer } from '../transfers';
+import { clubBudget, transferPlayer } from '../transfers';
 import { isPlayableXI } from '../world';
 
 function freshTakeover(seed = 2026) {
@@ -133,6 +133,41 @@ describe('season', () => {
     transferPlayer(s.world, scorerId!, otherClub);
     expect(s.world.players[scorerId!].clubId).toBe(otherClub);
     expect(club.playerContributions?.[scorerId!].goals).toBe(goalsBefore);
+  });
+
+  it('pays both clubs match income and reports the user earnings', () => {
+    const s = freshTakeover(5);
+    const md1 = s.season.fixtures.filter((f) => f.matchday === 1);
+    const budgets0 = new Map(Object.keys(s.world.clubs).map((id) => [id, clubBudget(s.world, id)]));
+
+    const outcome = playMatchday(s);
+
+    // every club that played this matchday earned something
+    for (const f of md1) {
+      expect(clubBudget(s.world, f.homeClubId)).toBeGreaterThan(budgets0.get(f.homeClubId)!);
+      expect(clubBudget(s.world, f.awayClubId)).toBeGreaterThan(budgets0.get(f.awayClubId)!);
+    }
+    // the user's club earned exactly the reported amount
+    expect(outcome.userEarnings).toBeGreaterThan(0);
+    expect(clubBudget(s.world, s.managedClubId)).toBe(
+      budgets0.get(s.managedClubId)! + outcome.userEarnings!,
+    );
+  });
+
+  it('rewards a higher league finish with a bigger end-of-season prize', () => {
+    const s = freshTakeover(5);
+    playFullSeason(s);
+    const table = leagueTable(s);
+    const champion = table[0].clubId;
+    const wooden = table[table.length - 1].clubId;
+    const champ0 = clubBudget(s.world, champion);
+    const wooden0 = clubBudget(s.world, wooden);
+
+    advanceSeason(s);
+
+    expect(clubBudget(s.world, champion) - champ0).toBeGreaterThan(
+      clubBudget(s.world, wooden) - wooden0,
+    );
   });
 
   it('keeps all attributes within 1..99 after a full season of progression', () => {

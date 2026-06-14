@@ -8,7 +8,9 @@ import {
   clubSquadValue,
   findBuyer,
   initialBudget,
+  matchIncome,
   playerValue,
+  seasonPrize,
   sellPlayer,
 } from '../transfers';
 import { toggleTraining } from '../world';
@@ -76,6 +78,28 @@ describe('clubSquadValue', () => {
     );
     expect(clubSquadValue(s.world, clubId)).toBe(manual);
     expect(clubSquadValue(s.world, clubId)).toBeGreaterThan(0);
+  });
+});
+
+describe('matchIncome', () => {
+  it('pays a win more than a draw, and a draw more than a loss', () => {
+    expect(matchIncome('win')).toBeGreaterThan(matchIncome('draw'));
+    expect(matchIncome('draw')).toBeGreaterThan(matchIncome('loss'));
+    expect(matchIncome('loss')).toBeGreaterThan(0);
+  });
+});
+
+describe('seasonPrize', () => {
+  it('pays more for a higher finish, with a champion bonus', () => {
+    const n = 16;
+    expect(seasonPrize(1, n)).toBeGreaterThan(seasonPrize(2, n));
+    expect(seasonPrize(2, n)).toBeGreaterThan(seasonPrize(8, n));
+    expect(seasonPrize(8, n)).toBeGreaterThan(seasonPrize(n, n));
+    expect(seasonPrize(n, n)).toBeGreaterThan(0);
+    // the champion bonus makes 1st jump more than a single place is worth
+    expect(seasonPrize(1, n) - seasonPrize(2, n)).toBeGreaterThan(
+      seasonPrize(2, n) - seasonPrize(3, n),
+    );
   });
 });
 

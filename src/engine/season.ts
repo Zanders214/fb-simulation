@@ -16,7 +16,7 @@ import type {
   TableRow,
   World,
 } from './types';
-import { clubBudget, clubSquadValue, playerValue } from './transfers';
+import { clubBudget, clubSquadValue, matchIncome, type MatchOutcome, playerValue, seasonPrize } from './transfers';
 import { autoPickSquad } from './world';
 
 export interface NewGameOptions {
@@ -92,6 +92,50 @@ function simTeamFor(
 export interface MatchdayOutcome {
   results: MatchResult[];
   userResult?: MatchResult;
+  /** Match income the managed club earned this matchday, in thousands. */
+  userEarnings?: number;
+}
+
+/** The result, from the perspective of the team that scored `my` against `opp`. */
+function outcomeFor(my: number, opp: number): MatchOutcome {
+  if (my > opp) return 'win';
+  if (my < opp) return 'loss';
+  return 'draw';
+}
+
+/** Credit each club its match income (win/draw/loss), in place. */
+function awardMatchIncome(world: World, result: MatchResult): void {
+  const { homeClubId, awayClubId, homeGoals, awayGoals } = result;
+  world.clubs[homeClubId].budget = clubBudget(world, homeClubId) + matchIncome(outcomeFor(homeGoals, awayGoals));
+  world.clubs[awayClubId].budget = clubBudget(world, awayClubId) + matchIncome(outcomeFor(awayGoals, homeGoals));
+}
+
+/** Match income the managed club earns from one of its own results, in thousands. */
+function userMatchEarnings(managedClubId: ClubId, result: MatchResult): number {
+  const isHome = result.homeClubId === managedClubId;
+  const my = isHome ? result.homeGoals : result.awayGoals;
+  const opp = isHome ? result.awayGoals : result.homeGoals;
+  return matchIncome(outcomeFor(my, opp));
+}
+
+/** Apply post-match development to one team's players, tracking who featured. */
+function applyTeamProgression(
+  state: GameState,
+  team: SimTeam,
+  conceded: number,
+  training: Set<string>,
+  played: Set<string>,
+  result: MatchResult,
+): void {
+  const cleanSheet = conceded === 0;
+  for (const p of team.players) {
+    const r = result.ratings[p.id];
+    if (!r) continue;
+    const player = state.world.players[p.id];
+    applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
+    played.add(p.id);
+    recordPlayerMatchStats(state, player, r, cleanSheet);
+  }
 }
 
 /**
@@ -130,6 +174,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   const md = season.currentMatchday;
   const results: MatchResult[] = [];
   let userResult: MatchResult | undefined;
+  let userEarnings: number | undefined;
   if (md > season.totalMatchdays) return { results };
 
   // Only the user's club has training slots; AI players never appear in this set.
@@ -143,21 +188,13 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     const result = simulateMatch({ home, away, rng });
     f.result = result;
     results.push(result);
+    awardMatchIncome(world, result);
     if (f.homeClubId === state.managedClubId || f.awayClubId === state.managedClubId) {
       userResult = result;
+      userEarnings = userMatchEarnings(state.managedClubId, result);
     }
-    for (const team of [home, away]) {
-      const conceded = team === home ? result.awayGoals : result.homeGoals;
-      const cleanSheet = conceded === 0;
-      for (const p of team.players) {
-        const r = result.ratings[p.id];
-        if (!r) continue;
-        const player = world.players[p.id];
-        applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
-        played.add(p.id);
-        recordPlayerMatchStats(state, player, r, cleanSheet);
-      }
-    }
+    applyTeamProgression(state, home, result.awayGoals, training, played, result);
+    applyTeamProgression(state, away, result.homeGoals, training, played, result);
   });
 
   // Track each club's highest-ever total squad value.
@@ -174,7 +211,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   }
 
   season.currentMatchday = md + 1;
-  return { results, userResult };
+  return { results, userResult, userEarnings };
 }
 
 export function isSeasonComplete(state: GameState): boolean {
@@ -196,16 +233,22 @@ export function advanceSeason(state: GameState): GameState {
 
   for (const id of Object.keys(world.players)) applySeasonEnd(world.players[id]);
 
-  // Ageing shifts market values, so re-latch player and club value peaks.
+  // Ageing shifts market values, so re-latch player value peaks.
   for (const id of Object.keys(world.players)) {
     const p = world.players[id];
     p.peakValue = Math.max(p.peakValue ?? 0, playerValue(p));
   }
 
-  // Annual income keeps every club's transfer budget liquid season to season.
+  // End-of-season income. Clubs in the played league earn a position-based prize;
+  // every other club gets a flat top-up so the wider transfer market stays liquid.
+  const positionById = new Map(table.map((r, i) => [r.clubId, i + 1]));
   for (const id of Object.keys(world.clubs)) {
     const club = world.clubs[id];
-    const income = MARKET.SEASON_INCOME_BASE + Math.max(0, club.reputation - 40) * MARKET.SEASON_INCOME_REP;
+    const position = positionById.get(id);
+    const income =
+      position === undefined
+        ? MARKET.SEASON_INCOME_BASE + Math.max(0, club.reputation - 40) * MARKET.SEASON_INCOME_REP
+        : seasonPrize(position, clubIds.length);
     club.budget = clubBudget(world, id) + income;
     club.peakSquadValue = Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, id));
   }

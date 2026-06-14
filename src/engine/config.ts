@@ -121,7 +121,13 @@ export const MARKET = {
   // budgets seeded from reputation (thousands)
   BUDGET_SCALE: 250000, // a max-reputation club starts ≈ €250M
   BUDGET_FLOOR: 5000, // every club has at least €5M
-  // income added to every club each season so the market stays liquid
+  // match income earned by each club per result (thousands)
+  MATCH_INCOME: { WIN: 1200, DRAW: 500, LOSS: 200 }, // €1.2M / €0.5M / €0.2M
+  // end-of-season prize for clubs in the played league, scaled by final position
+  SEASON_PRIZE_BASE: 4000, // last place ≈ €4M
+  SEASON_PRIZE_PER_PLACE: 3000, // + €3M per place above last
+  SEASON_PRIZE_CHAMPION: 8000, // extra bonus for finishing 1st
+  // flat income for clubs in non-played leagues, to keep the wider market liquid
   SEASON_INCOME_BASE: 8000, // €8M flat
   SEASON_INCOME_REP: 1200, // + €1.2M per reputation point above the floor
 } as const;
