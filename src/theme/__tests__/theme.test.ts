@@ -1,4 +1,4 @@
-import { resolveTheme, THEME_OPTIONS, themes, type Palette, type ThemeName } from '..';
+import { resolveTheme, THEME_OPTIONS, themes, type Palette, type ThemeName, type ThemePref } from '..';
 
 const PALETTE_KEYS: (keyof Palette)[] = [
   'primary',
@@ -38,6 +38,12 @@ describe('themes', () => {
   it('resolves an explicit preference to that exact theme', () => {
     expect(resolveTheme('midnight', 'light')).toBe(themes.midnight);
     expect(resolveTheme('claret', null)).toBe(themes.claret);
+  });
+
+  it('falls back to the standard theme for a stale/unknown preference', () => {
+    // e.g. a preference persisted before a theme was renamed or removed
+    expect(resolveTheme('neon' as ThemePref, 'dark')).toBe(themes.dark);
+    expect(resolveTheme('neon' as ThemePref, 'light')).toBe(themes.light);
   });
 
   it('exposes a selectable option for "system" and every theme', () => {

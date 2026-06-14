@@ -197,8 +197,10 @@ type Scheme = 'light' | 'dark' | null | undefined;
 
 /** Resolve a preference (+ current OS scheme) to a concrete theme. */
 export function resolveTheme(pref: ThemePref, scheme: Scheme): Theme {
-  if (pref === 'system') return scheme === 'light' ? themes.light : themes.dark;
-  return themes[pref] ?? themes.dark;
+  const standard = scheme === 'light' ? themes.light : themes.dark;
+  // `pref in themes` also guards against a stale/unknown persisted preference.
+  if (pref !== 'system' && pref in themes) return themes[pref];
+  return standard;
 }
 
 // -------------------------------------------------------------- context/hooks
@@ -213,12 +215,11 @@ export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   useEffect(() => {
     // Keep the native root background in step with the theme (overscroll, gaps).
-    try {
-      const p = SystemUI.setBackgroundColorAsync(theme.colors.bg);
-      if (p && typeof p.catch === 'function') p.catch(() => {});
-    } catch {
-      // expo-system-ui is a no-op on some platforms (e.g. web) — ignore.
-    }
+    // expo-system-ui is unavailable on some platforms (e.g. web); wrapping in a
+    // promise chain swallows both synchronous and async failures.
+    void Promise.resolve()
+      .then(() => SystemUI.setBackgroundColorAsync(theme.colors.bg))
+      .catch(() => undefined);
   }, [theme]);
 
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
