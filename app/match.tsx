@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
-import type { GoalEvent, MatchResult } from '../src/engine';
+import { MARKET, type GoalEvent, type MatchResult } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { formatMoney, goalTypeTag } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
@@ -65,6 +65,9 @@ export default function MatchScreen() {
         <Text style={[styles.earnings, { color: outcomeColor }]}>
           Match fee +{formatMoney(lastOutcome.userEarnings)}
         </Text>
+      )}
+      {outcome === 'WIN' && lastOutcome.userEarnings != null && lastOutcome.userEarnings > MARKET.MATCH_INCOME.WIN && (
+        <Text style={styles.upset}>Upset bonus — you beat a higher-ranked side</Text>
       )}
 
       <Card style={styles.timelineCard}>
@@ -178,6 +181,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.border,
   },
   earnings: { textAlign: 'center', fontSize: theme.font.body, fontWeight: '800', letterSpacing: 0.5 },
+  upset: { textAlign: 'center', color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: -theme.spacing(0.5) },
   timelineRow: { flexDirection: 'row', alignItems: 'center' },
   timelineSide: { flex: 1 },
   timelineCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing(0.5), minWidth: 64 },

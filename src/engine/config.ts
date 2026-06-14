@@ -138,8 +138,11 @@ export const MARKET = {
   // budgets seeded from reputation (thousands)
   BUDGET_SCALE: 250000, // a max-reputation club starts ≈ €250M
   BUDGET_FLOOR: 5000, // every club has at least €5M
-  // match income earned by each club per result (thousands)
-  MATCH_INCOME: { WIN: 1200, DRAW: 500, LOSS: 200 }, // €1.2M / €0.5M / €0.2M
+  // base match income earned by each club per result (thousands). A win is the
+  // even-match baseline and is scaled by the opponent's ranking (see RANKING);
+  // a draw and a loss are flat. Kept below the scaled win floor (250) so a win
+  // never pays less than a draw.
+  MATCH_INCOME: { WIN: 500, DRAW: 200, LOSS: 100 }, // €0.5M (even win) / €0.2M / €0.1M
   // end-of-season prize for clubs in the played league, scaled by final position
   SEASON_PRIZE_BASE: 4000, // last place ≈ €4M
   SEASON_PRIZE_PER_PLACE: 3000, // + €3M per place above last
@@ -147,6 +150,30 @@ export const MARKET = {
   // flat income for clubs in non-played leagues, to keep the wider market liquid
   SEASON_INCOME_BASE: 8000, // €8M flat
   SEASON_INCOME_REP: 1200, // + €1.2M per reputation point above the floor
+} as const;
+
+// ---- team ranking (Elo) ----
+// Every club carries an Elo-style ranking that rises on wins and falls on losses
+// by an amount set by the opponent's strength. It seeds from reputation, updates
+// after every match (zero-sum, so the world average stays stable), gets a nudge
+// from each season's final league position, and scales the win match income.
+export const RANKING = {
+  // initial ranking = REP_RATING_BASE + reputation * REP_RATING_SLOPE
+  // (rep 38 -> 1380, rep 73 -> 1730, rep 88 -> 1880).
+  REP_RATING_BASE: 1000,
+  REP_RATING_SLOPE: 10,
+  ELO_K: 24, // per-match volatility ("a little bit" each game)
+  ELO_SCALE: 400, // standard Elo logistic denominator
+  POSITION_SWING: 40, // ± ranking at the top/bottom of the table each season end
+  // win income multiplier = clamp(2 - 2*expectedScore, MIN, MAX): even match -> 1,
+  // beating a stronger side -> up to 2, beating a weaker side -> down to 0.5.
+  REWARD_MULT_MIN: 0.5,
+  REWARD_MULT_MAX: 2,
+  // Strength-bar display range. Reputation seeds land in 1380..1880; pad to
+  // 1200..2000 so the weakest clubs still show a partial bar and dominant
+  // clubs have room to fill it (values outside the range clamp to 0/1).
+  DISPLAY_MIN: 1200,
+  DISPLAY_MAX: 2000,
 } as const;
 
 export const FORMATIONS: Record<Formation, Record<Position, number>> = {
