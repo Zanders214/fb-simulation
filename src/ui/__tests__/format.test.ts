@@ -1,4 +1,4 @@
-import { NATIONALITIES } from '../../engine/names';
+import { COUNTRIES, NATIONALITIES } from '../../engine/names';
 import { flagFor } from '../format';
 
 describe('flagFor', () => {
@@ -16,6 +16,12 @@ describe('flagFor', () => {
     for (const nation of NATIONALITIES) {
       // A mapped nation returns its flag, never the name fallback.
       expect(flagFor(nation)).not.toBe(nation);
+    }
+  });
+
+  it('has a flag for every host country', () => {
+    for (const country of COUNTRIES) {
+      expect(flagFor(country)).not.toBe(country);
     }
   });
 

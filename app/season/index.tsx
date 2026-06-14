@@ -37,7 +37,7 @@ export default function SquadScreen() {
           </Text>
         </View>
         <Text style={styles.leagueLine} numberOfLines={1}>
-          {league.name}{league.tier === 1 ? ' · Top flight' : ` · Tier ${league.tier}`}
+          {flagFor(league.country)} {league.name}{league.tier === 1 ? ' · Top flight' : ` · Tier ${league.tier}`}
         </Text>
         <View style={styles.metaRow}>
           <Meta label="Season" value={`${game.season.number}`} />
