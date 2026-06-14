@@ -265,7 +265,7 @@ function injuryDuration(rng: Rng): number {
     cum += band.weight;
     if (roll < cum) return band.min + Math.floor(within * (band.max - band.min + 1));
   }
-  const last = INJURY.BANDS[INJURY.BANDS.length - 1];
+  const last = INJURY.BANDS.at(-1)!;
   return last.min + Math.floor(within * (last.max - last.min + 1));
 }
 

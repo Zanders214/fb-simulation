@@ -21,6 +21,7 @@ module.exports = [
     },
     rules: {
       'sonarjs/no-nested-conditional': 'error', // SonarCloud S3358
+      'sonarjs/no-nested-template-literals': 'error', // S4624
       'sonarjs/cognitive-complexity': ['error', 15], // S3776
       'no-negated-condition': 'error', // S7735
       'react/no-array-index-key': 'error', // S6479

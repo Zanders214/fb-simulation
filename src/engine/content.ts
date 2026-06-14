@@ -156,9 +156,10 @@ function generateLeague(
   players: Record<string, Player>,
 ): League {
   const leagueId = `L${li}`;
+  const tierSuffix = TIER_SUFFIXES[tier - 1] ?? `Tier ${tier}`;
   const league: League = {
     id: leagueId,
-    name: `${countryName} ${TIER_SUFFIXES[tier - 1] ?? `Tier ${tier}`}`,
+    name: `${countryName} ${tierSuffix}`,
     country: countryName,
     countryId,
     tier,
