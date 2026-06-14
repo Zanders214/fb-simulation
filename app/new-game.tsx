@@ -20,8 +20,10 @@ export default function NewGame() {
   const router = useRouter();
   const newGame = useGameStore((s) => s.newGame);
 
-  // one fresh seed per visit; the engine regenerates this exact world on start
-  const [seed] = useState(() => Math.floor(Math.random() * 1_000_000_000));
+  // One fresh seed per visit; the engine regenerates this exact world on start.
+  // The seed only needs to vary between new games, not be cryptographically
+  // secure, so the wall clock is a fine (and clearer) non-PRNG source.
+  const [seed] = useState(() => Date.now());
   const world = useMemo(() => generateWorld(seed), [seed]);
 
   const [step, setStep] = useState<Step>('mode');

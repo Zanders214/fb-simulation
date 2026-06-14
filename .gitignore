@@ -30,8 +30,10 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# env / secret files (cover every dotenv variant, keep a tracked example)
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
