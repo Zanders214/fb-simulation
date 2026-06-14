@@ -41,6 +41,31 @@ interface GameStore {
   resetGame: () => void;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Minimal structural check that a persisted value is a usable GameState. It is
+ * intentionally shallow — just enough that the screens which deep-dereference
+ * the save (match, season, lineup, selectors) can't crash on a stale-shaped or
+ * corrupt payload. Anything that fails falls back to "no save" (the main menu).
+ */
+function isValidSavedGame(value: unknown): value is GameState {
+  if (!isRecord(value)) return false;
+  const world = value.world;
+  const squad = value.squad;
+  return (
+    typeof value.managedClubId === 'string' &&
+    isRecord(world) &&
+    isRecord(world.clubs) &&
+    isRecord(world.players) &&
+    isRecord(squad) &&
+    Array.isArray(squad.startingXI) &&
+    isRecord(value.season)
+  );
+}
+
 /**
  * The single source of truth for the active game. The engine evolves the
  * GameState (mutating its nested world); each action then publishes a new
@@ -162,9 +187,21 @@ export const useGameStore = create<GameStore>()(
       storage: createJSONStorage(() => storage),
       // only the game is durable; lastOutcome/hasHydrated are session state
       partialize: (s) => ({ game: s.game }),
-      migrate: (persisted) => persisted as { game: GameState | null },
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+      // Defensive: a stale-shaped or corrupt payload (e.g. an old save after a
+      // SAVE_VERSION bump) becomes "no save", so the app falls back to the main
+      // menu instead of crashing a screen that deep-dereferences it. Add
+      // forward-transform branches per old version here as the schema evolves.
+      migrate: (persisted) => {
+        const game = isRecord(persisted) ? persisted.game : undefined;
+        return { game: isValidSavedGame(game) ? game : null };
+      },
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[fbsim] failed to load saved game; starting fresh.', error);
+        }
+        // Always leave the loading state — even on a parse error, where `state`
+        // is undefined — so the app opens on the main menu rather than hanging.
+        useGameStore.setState({ hasHydrated: true });
       },
     },
   ),
