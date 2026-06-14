@@ -1,5 +1,5 @@
 import { overall } from './attrs';
-import { ageGrowthMod, PROGRESSION, SIM } from './config';
+import { ageGrowthMod, PROGRESSION, SIM, TRAINING } from './config';
 import type { Area } from './attrs';
 import type { Player, PlayerRating, Position } from './types';
 import { clamp } from './util';
@@ -26,8 +26,11 @@ function bump(player: Player, key: Area, delta: number): void {
  * form (EMA of recent performance), and slowly nudges ability toward potential.
  * Bench players are simply never passed here, so rotation has a real cost.
  * Mutates the player (it is mutable game state owned by the save).
+ *
+ * When `inTraining` is set, development is biased in the player's favour: good
+ * matches grow ability much faster, while poor matches cost far less than usual.
  */
-export function applyMatchProgression(player: Player, r: PlayerRating): void {
+export function applyMatchProgression(player: Player, r: PlayerRating, inTraining = false): void {
   player.seasonApps += 1;
   player.seasonGoals += r.goals;
   player.seasonAssists += r.assists;
@@ -45,8 +48,11 @@ export function applyMatchProgression(player: Player, r: PlayerRating): void {
   // growth: small, potential- and age-capped, accumulated as fractional XP
   const headroom = Math.max(0, player.potential - overall(player));
   const perf = clamp(r.rating - PROGRESSION.PERF_PIVOT, -PROGRESSION.PERF_CLAMP, PROGRESSION.PERF_CLAMP);
-  const growth =
+  let growth =
     perf * PROGRESSION.GROWTH_RATE * ageGrowthMod(player.age) * (headroom / PROGRESSION.HEADROOM_DIV);
+  if (inTraining) {
+    growth *= growth >= 0 ? TRAINING.GROWTH_MULT : TRAINING.DECLINE_MULT;
+  }
   player.growthXp += growth;
 
   const key = signatureKey(player.position);

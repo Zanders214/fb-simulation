@@ -159,6 +159,8 @@ export interface SquadConfig {
   startingXI: PlayerId[]; // length 11
   bench: PlayerId[]; // up to 7
   roles: SquadRoles;
+  /** Up to TRAINING.SLOTS players who develop faster after matches. */
+  trainingIds?: PlayerId[];
 }
 
 // ---- the persisted game ----

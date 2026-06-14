@@ -1,10 +1,11 @@
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { Pitch, type PitchSlot } from '../../src/components/Pitch';
 import { PlayerRow } from '../../src/components/PlayerRow';
-import { FORMATIONS, type Formation, overall, validateXI } from '../../src/engine';
+import { FORMATIONS, type Formation, overall, TRAINING, validateXI } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
 import { clubPlayers } from '../../src/store/selectors';
 import { theme } from '../../src/theme';
@@ -31,6 +32,7 @@ export default function LineupScreen() {
     .filter((p) => !xiSet.has(p.id))
     .sort((a, b) => overall(b) - overall(a));
 
+  const trainingCount = squad.trainingIds?.length ?? 0;
   const issues = validateXI(game.world, squad, game.managedClubId);
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
@@ -70,6 +72,13 @@ export default function LineupScreen() {
           </Pressable>
         ))}
       </View>
+
+      <Button
+        label={`🏋  Training · ${trainingCount}/${TRAINING.SLOTS}`}
+        variant="secondary"
+        onPress={() => router.push('/training')}
+        style={styles.trainingBtn}
+      />
 
       {errors.length > 0 && (
         <Card style={styles.errorBanner}>
@@ -123,6 +132,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
   },
   formChipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  trainingBtn: { marginTop: theme.spacing(0.5) },
   formText: { color: theme.colors.textMuted, fontWeight: '700', fontSize: theme.font.small },
   formTextActive: { color: theme.colors.onPrimary },
   listCard: { gap: theme.spacing(0.25), paddingVertical: theme.spacing(1) },

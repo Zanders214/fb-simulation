@@ -1,5 +1,15 @@
+import { TRAINING } from '../config';
 import { generateWorld } from '../content';
-import { autoPickSquad, isPlayableXI, setRole, swapPlayer, swapStarters, validateXI } from '../world';
+import {
+  autoPickSquad,
+  isPlayableXI,
+  removeFromSquad,
+  setRole,
+  swapPlayer,
+  swapStarters,
+  toggleTraining,
+  validateXI,
+} from '../world';
 
 describe('squad helpers', () => {
   const w = generateWorld(321);
@@ -71,6 +81,37 @@ describe('squad helpers', () => {
     const sq = autoPickSquad(w, clubId);
     const broken = setRole(sq, 'captainId', sq.bench[0]);
     expect(validateXI(w, broken, clubId).some((i) => i.type === 'role-not-in-xi')).toBe(true);
+  });
+
+  it('toggles training players in and out and caps the slots', () => {
+    const sq = autoPickSquad(w, clubId);
+    const [a, b, c, d] = sq.startingXI;
+
+    const one = toggleTraining(sq, a);
+    expect(one.trainingIds).toEqual([a]);
+
+    const three = toggleTraining(toggleTraining(one, b), c);
+    expect(three.trainingIds).toEqual([a, b, c]);
+    expect(three.trainingIds?.length).toBe(TRAINING.SLOTS);
+
+    // a fourth add is ignored (slots full) and returns the same reference
+    expect(toggleTraining(three, d)).toBe(three);
+
+    // toggling an existing one removes it, freeing a slot
+    const removed = toggleTraining(three, b);
+    expect(removed.trainingIds).toEqual([a, c]);
+    expect(toggleTraining(removed, d).trainingIds).toEqual([a, c, d]);
+  });
+
+  it('clears a training slot when the player leaves the squad', () => {
+    const sq = autoPickSquad(w, clubId);
+    const id = sq.startingXI[3];
+    const withTraining = toggleTraining(sq, id);
+    expect(withTraining.trainingIds).toContain(id);
+
+    const after = removeFromSquad(withTraining, id);
+    expect(after.trainingIds ?? []).not.toContain(id);
+    expect(after.startingXI).not.toContain(id);
   });
 
   it('treats off-formation selections as warnings, not errors', () => {

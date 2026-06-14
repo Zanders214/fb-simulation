@@ -87,6 +87,15 @@ export const PROGRESSION = {
   RETIRE_AGE: 39,
 } as const;
 
+// ---- training ----
+// Players placed in the manager's training slots develop faster after matches:
+// good performances grow them much harder, while poor ones cost them far less.
+export const TRAINING = {
+  SLOTS: 3,
+  GROWTH_MULT: 5, // positive growth after a good match ×5
+  DECLINE_MULT: 0.3, // negative growth after a bad match softened (they lose less)
+} as const;
+
 // age modifier for growth speed
 export function ageGrowthMod(age: number): number {
   if (age <= 21) return 1.4;

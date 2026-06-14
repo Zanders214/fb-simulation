@@ -105,6 +105,8 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   let userResult: MatchResult | undefined;
   if (md > season.totalMatchdays) return { results };
 
+  // Only the user's club has training slots; AI players never appear in this set.
+  const training = new Set(state.squad.trainingIds ?? []);
   const fixtures = season.fixtures.filter((f) => f.matchday === md);
   fixtures.forEach((f, i) => {
     const rng = makeRng(hashSeed(world.seed, season.number, md, i));
@@ -122,7 +124,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
         const r = result.ratings[p.id];
         if (!r) continue;
         const player = world.players[p.id];
-        applyMatchProgression(player, r);
+        applyMatchProgression(player, r, training.has(p.id));
         if (p.position === 'GK' && conceded === 0) {
           player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
         }
