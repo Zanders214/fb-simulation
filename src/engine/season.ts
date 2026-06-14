@@ -1,6 +1,6 @@
 import { MARKET, SAVE_VERSION } from './config';
 import { generateFixtures } from './fixtures';
-import { applyMatchProgression, applySeasonEnd } from './progression';
+import { applyMatchProgression, applySeasonEnd, applyTrainingProgression } from './progression';
 import { hashSeed, makeRng } from './rng';
 import { type SimTeam, simulateMatch } from './sim';
 import { computeTable } from './standings';
@@ -105,6 +105,9 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   let userResult: MatchResult | undefined;
   if (md > season.totalMatchdays) return { results };
 
+  // Only the user's club has training slots; AI players never appear in this set.
+  const training = new Set(state.squad.trainingIds ?? []);
+  const played = new Set<string>();
   const fixtures = season.fixtures.filter((f) => f.matchday === md);
   fixtures.forEach((f, i) => {
     const rng = makeRng(hashSeed(world.seed, season.number, md, i));
@@ -118,17 +121,26 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     }
     for (const team of [home, away]) {
       const conceded = team === home ? result.awayGoals : result.homeGoals;
+      const cleanSheet = conceded === 0;
       for (const p of team.players) {
         const r = result.ratings[p.id];
         if (!r) continue;
         const player = world.players[p.id];
-        applyMatchProgression(player, r);
-        if (p.position === 'GK' && conceded === 0) {
+        applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
+        played.add(p.id);
+        if (p.position === 'GK' && cleanSheet) {
           player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
         }
       }
     }
   });
+
+  // Training-slot players who didn't feature still develop on the training ground.
+  for (const id of training) {
+    if (played.has(id)) continue;
+    const player = world.players[id];
+    if (player) applyTrainingProgression(player);
+  }
 
   season.currentMatchday = md + 1;
   return { results, userResult };

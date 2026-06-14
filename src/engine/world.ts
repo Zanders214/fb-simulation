@@ -1,5 +1,5 @@
 import { overall } from './attrs';
-import { DEFAULT_FORMATION, FORMATIONS } from './config';
+import { DEFAULT_FORMATION, FORMATIONS, TRAINING } from './config';
 import type { ClubId, Formation, Player, Position, SquadConfig, SquadRoles, World } from './types';
 
 const SLOT_ORDER: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
@@ -135,6 +135,20 @@ export function setRole(squad: SquadConfig, role: keyof SquadRoles, playerId: Pl
   return { ...squad, roles: { ...squad.roles, [role]: playerId } };
 }
 
+/**
+ * Toggle a player in or out of the training slots. Removing is always allowed;
+ * adding is ignored once the slots are full (caps the squad at `max`). Returns a
+ * new SquadConfig so the store can publish a fresh reference.
+ */
+export function toggleTraining(squad: SquadConfig, playerId: string, max: number = TRAINING.SLOTS): SquadConfig {
+  const current = squad.trainingIds ?? [];
+  if (current.includes(playerId)) {
+    return { ...squad, trainingIds: current.filter((id) => id !== playerId) };
+  }
+  if (current.length >= max) return squad;
+  return { ...squad, trainingIds: [...current, playerId] };
+}
+
 type PlayerIdOrUndefined = string | undefined;
 
 /**
@@ -152,6 +166,7 @@ export function removeFromSquad(squad: SquadConfig, playerId: string): SquadConf
     startingXI: squad.startingXI.filter((id) => id !== playerId),
     bench: squad.bench.filter((id) => id !== playerId),
     roles,
+    trainingIds: squad.trainingIds?.filter((id) => id !== playerId),
   };
 }
 
@@ -192,6 +207,7 @@ export function replaceInSquad(world: World, squad: SquadConfig, clubId: ClubId,
     startingXI,
     bench: squad.bench.filter((id) => id !== playerId && id !== replacement.id),
     roles,
+    trainingIds: squad.trainingIds?.filter((id) => id !== playerId),
   };
 }
 
