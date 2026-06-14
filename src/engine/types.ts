@@ -65,10 +65,12 @@ export interface Player {
   suspendedMatches?: number;
 }
 
-/** A player's all-time goal/assist tally while at a specific club. */
+/** A player's all-time tally while at a specific club. */
 export interface ClubContribution {
   goals: number;
   assists: number;
+  yellow?: number; // bookings shown while at this club (read via `?? 0`)
+  red?: number; // sendings-off while at this club (read via `?? 0`)
 }
 
 export interface Club {

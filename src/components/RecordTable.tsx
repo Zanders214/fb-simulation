@@ -62,9 +62,14 @@ function Row({
   const body = (
     <>
       <Text style={[styles.rPos, styles.cell]}>{rank}</Text>
-      <Text style={[styles.rName, styles.cell, isUser && styles.userText]} numberOfLines={1}>
-        {entry.player.name}
-      </Text>
+      <View style={styles.rName}>
+        <Text style={[styles.cell, isUser && styles.userText]} numberOfLines={1}>
+          {entry.player.name}
+        </Text>
+        {entry.yellow != null && (
+          <Text style={styles.cardSplit} numberOfLines={1}>{`🟨 ${entry.yellow}   🟥 ${entry.red ?? 0}`}</Text>
+        )}
+      </View>
       <View style={styles.rPosTag}>
         <Chip label={entry.player.position} color={positionColor(entry.player.position)} />
       </View>
@@ -128,6 +133,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   rPos: { width: 20, textAlign: 'center' },
   rName: { flex: 1, paddingRight: theme.spacing(0.5) },
+  cardSplit: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 1 },
   rPosTag: { width: 44, alignItems: 'center' },
   rTeam: { width: 48, alignItems: 'center' },
   rStat: { width: 30, textAlign: 'center' },

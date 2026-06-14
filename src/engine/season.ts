@@ -207,15 +207,32 @@ function recordPlayerMatchStats(
 }
 
 /**
+ * Add a card to a club's all-time per-player ledger (the same one that tracks
+ * goals/assists), keyed by the club the player turned out for. Survives a later
+ * transfer, like the goal/assist ledger. Mutates the club.
+ */
+function recordClubCard(world: World, card: MatchResult['cards'][number]): void {
+  const club = world.clubs[card.clubId];
+  if (!club) return;
+  club.playerContributions ??= {};
+  const entry = club.playerContributions[card.playerId] ?? { goals: 0, assists: 0 };
+  if (card.type === 'yellow') entry.yellow = (entry.yellow ?? 0) + 1;
+  else entry.red = (entry.red ?? 0) + 1;
+  club.playerContributions[card.playerId] = entry;
+}
+
+/**
  * Apply a match's cards and injuries to player state: tally bookings, suspend
- * sent-off players, and sideline the injured. Records everyone newly ruled out so
- * the matchday's recovery tick doesn't immediately count down a fresh absence.
+ * sent-off players, sideline the injured, and log cards to the club's all-time
+ * ledger. Records everyone newly ruled out so the matchday's recovery tick
+ * doesn't immediately count down a fresh absence.
  */
 function applyMatchDiscipline(world: World, result: MatchResult, newlyOut: Set<string>): void {
   for (const card of result.cards ?? []) {
     const player = world.players[card.playerId];
     if (!player) continue;
     applyCard(player, card);
+    recordClubCard(world, card);
     if (card.type === 'red') newlyOut.add(player.id);
   }
   for (const injury of result.injuries ?? []) {

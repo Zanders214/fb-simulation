@@ -91,6 +91,7 @@ export default function ClubScreen() {
 
       <RecordTable title="All-time Top Scorers" statLabel="G" entries={stats.topScorers} onPressRow={openPlayer} />
       <RecordTable title="All-time Top Assisters" statLabel="A" entries={stats.topAssisters} onPressRow={openPlayer} />
+      <RecordTable title="All-time Most Cards" statLabel="Cards" entries={stats.mostCards} onPressRow={openPlayer} />
     </ScrollView>
   );
 }
