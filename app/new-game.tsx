@@ -80,7 +80,7 @@ export default function NewGame() {
           <Pressable onPress={() => { setMode('takeover'); setStep('league'); }}>
             <Card style={styles.optionCard}>
               <Text style={styles.optTitle}>Take over an existing club</Text>
-              <Text style={styles.optDesc}>Pick one of the league's clubs and manage its current squad.</Text>
+              <Text style={styles.optDesc}>Pick one of the league’s clubs and manage its current squad.</Text>
             </Card>
           </Pressable>
         </>

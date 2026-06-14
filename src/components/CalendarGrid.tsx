@@ -54,8 +54,8 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
   return (
     <View>
       <View style={styles.weekRow}>
-        {WEEKDAY_SHORT.map((w, i) => (
-          <View key={`${w}-${i}`} style={styles.headCell}>
+        {WEEKDAY_SHORT.map((w) => (
+          <View key={w} style={styles.headCell}>
             <Text style={styles.headText}>{w}</Text>
           </View>
         ))}

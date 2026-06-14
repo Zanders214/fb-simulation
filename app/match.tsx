@@ -127,7 +127,7 @@ function GoalEntry({
       <View style={styles.timelineSide}>{isHome ? info : null}</View>
       <View style={styles.timelineCenter}>
         {isHome && <Text style={styles.ball}>⚽</Text>}
-        <Text style={styles.minute}>{event.minute}'</Text>
+        <Text style={styles.minute}>{`${event.minute}'`}</Text>
         {!isHome && <Text style={styles.ball}>⚽</Text>}
       </View>
       <View style={styles.timelineSide}>{isHome ? null : info}</View>

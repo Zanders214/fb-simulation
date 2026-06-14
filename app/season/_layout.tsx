@@ -3,7 +3,9 @@ import { Pressable, Text } from 'react-native';
 import { useTheme } from '../../src/theme';
 
 function tabIcon(emoji: string) {
-  return () => <Text style={{ fontSize: 18 }}>{emoji}</Text>;
+  const Icon = () => <Text style={{ fontSize: 18 }}>{emoji}</Text>;
+  Icon.displayName = `TabIcon-${emoji}`;
+  return Icon;
 }
 
 function HeaderHomeButton() {
