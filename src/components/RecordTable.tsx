@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RecordEntry } from '../engine';
 import { formatMoney, positionColor } from '../ui/format';
 import { useThemedStyles, type Theme } from '../theme';
+import { Card } from './Card';
 import { Chip } from './Chip';
 
 /**
@@ -25,23 +26,25 @@ export function RecordTable({
 }>) {
   const styles = useThemedStyles(makeStyles);
   return (
-    <View style={styles.table}>
+    <View style={styles.wrap}>
       <Text style={styles.title}>{title}</Text>
-      <View style={styles.header}>
-        <Text style={[styles.rPos, styles.hCell]}>#</Text>
-        <Text style={[styles.rName, styles.hCell]}>Player</Text>
-        <Text style={[styles.rPosTag, styles.hCell]}>Pos</Text>
-        <Text style={[styles.rTeam, styles.hCell]}>Team</Text>
-        <Text style={[styles.rStat, styles.hCell]}>{statLabel}</Text>
-        <Text style={[styles.rValue, styles.hCell]}>Value</Text>
-      </View>
-      {entries.length === 0 ? (
-        <Text style={styles.empty}>No data yet — play some matches.</Text>
-      ) : (
-        entries.map((e, i) => (
-          <Row key={e.player.id} entry={e} rank={i + 1} highlightClubId={highlightClubId} onPress={onPressRow} />
-        ))
-      )}
+      <Card style={styles.card}>
+        <View style={styles.header}>
+          <Text style={[styles.rPos, styles.hCell]}>#</Text>
+          <Text style={[styles.rName, styles.hCell]}>Player</Text>
+          <Text style={[styles.rPosTag, styles.hCell]}>Pos</Text>
+          <Text style={[styles.rTeam, styles.hCell]}>Team</Text>
+          <Text style={[styles.rStat, styles.hCell]}>{statLabel}</Text>
+          <Text style={[styles.rValue, styles.hCell]}>Value</Text>
+        </View>
+        {entries.length === 0 ? (
+          <Text style={styles.empty}>No data yet — play some matches.</Text>
+        ) : (
+          entries.map((e, i) => (
+            <Row key={e.player.id} entry={e} rank={i + 1} highlightClubId={highlightClubId} onPress={onPressRow} />
+          ))
+        )}
+      </Card>
     </View>
   );
 }
@@ -95,7 +98,8 @@ function Row({
 }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
-  table: { gap: theme.spacing(0.25) },
+  wrap: { gap: theme.spacing(0.5) },
+  card: { paddingHorizontal: theme.spacing(1.25), paddingVertical: theme.spacing(1), gap: theme.spacing(0.25) },
   title: {
     color: theme.colors.textMuted,
     fontSize: theme.font.small,
