@@ -275,9 +275,9 @@ describe('match simulation', () => {
     expect(byTaker).toBe(pens);
   });
 
-  it('hands penalty duties to the substitute once the taker is subbed off', () => {
-    const roles: SquadRoles = { penaltyTakerId: 'H_FWD0' };
-    let afterSub = 0; // penalties awarded after the taker was replaced
+  it('hands set-piece duties (penalties and free kicks) to the substitute once the taker is subbed off', () => {
+    const roles: SquadRoles = { penaltyTakerId: 'H_FWD0', freeKickTakerId: 'H_FWD0' };
+    let afterSub = 0; // set pieces awarded after the taker was replaced
     let byReplacement = 0;
     let byOriginal = 0;
     for (let s = 0; s < 9000; s++) {
@@ -288,7 +288,7 @@ describe('match simulation', () => {
       if (r.cards.some((c) => c.clubId === 'H' && c.type === 'red')) continue;
       const offToSub = new Map(r.subs.filter((x) => x.clubId === 'H').map((x) => [x.offPlayerId, x] as const));
       for (const e of r.events) {
-        if (e.type !== 'penalty' || e.clubId !== 'H') continue;
+        if ((e.type !== 'penalty' && e.type !== 'free_kick') || e.clubId !== 'H') continue;
         // follow the sub chain from the taker to whoever holds the role at this minute
         let id = 'H_FWD0';
         let replaced = false;

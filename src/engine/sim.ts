@@ -102,11 +102,6 @@ function goalWeight(p: Player): number {
   return Math.pow(effectiveArea(p, 'attacking'), SIM.SCORER_ATK_EXP) * SIM.posScoreMult[p.position];
 }
 
-function findRole(team: SimTeam, id?: string): Player | undefined {
-  if (!id) return undefined;
-  return team.players.find((p) => p.id === id);
-}
-
 function bestAttacker(players: Player[]): Player {
   return players.reduce(
     (best, p) => (effectiveArea(p, 'attacking') > effectiveArea(best, 'attacking') ? p : best),
@@ -126,9 +121,9 @@ interface ChanceKind {
 
 /**
  * Classify one chance (penalty / free kick / open play). Consumes exactly one Rng
- * draw. The free-kick conversion is scaled by the designated taker's skill (the
- * original role-holder, for the probability only); WHO is credited is resolved
- * later from the on-pitch lineup at the goal's minute.
+ * draw. The free-kick conversion is scaled by the skill of whoever holds the
+ * free-kick role at this minute (the taker, or the substitute who replaced him) —
+ * the same player who is then credited with the goal.
  */
 function classifyChance(rng: Rng, atkAreas: Areas, defAreas: Areas, shooters: Player[], fkTaker: Player | undefined): ChanceKind {
   const roll = rng.next();
@@ -184,7 +179,6 @@ function simulateSide(rng: Rng, atk: SimTeam, part: Participation, atkAreas: Are
   const shooters = pool.map((o) => o.player);
   const weights = pool.map((o) => goalWeight(o.player) * o.fraction);
   const byId = new Map(onPitch.map((o) => [o.player.id, o.player] as const));
-  const fkTaker = findRole(atk, atk.roles.freeKickTakerId);
   const events: GoalEvent[] = [];
   let xg = 0;
 
@@ -197,11 +191,14 @@ function simulateSide(rng: Rng, atk: SimTeam, part: Participation, atkAreas: Are
   };
 
   for (let c = 0; c < chanceCount; c++) {
+    // Draw the minute first so a free kick's conversion AND its scorer both reflect
+    // whoever holds the free-kick role at that moment (the taker, or his substitute).
+    const minute = randInt(rng, 1, 90);
+    const fkTaker = activeTaker(atk.roles.freeKickTakerId, part, byId, minute);
     const { type, pConv } = classifyChance(rng, atkAreas, defAreas, shooters, fkTaker);
     xg += pConv;
     if (rng.next() >= pConv) continue; // not scored
 
-    const minute = randInt(rng, 1, 90); // drawn before the scorer so set-piece duty follows the clock
     const scorer = scorerFor(type, minute);
 
     let goalType: GoalType = type;
