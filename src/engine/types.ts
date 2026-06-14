@@ -50,6 +50,15 @@ export interface Player {
   // ---- career totals (never reset; read via `?? 0` for pre-career saves) ----
   careerGoals: number;
   careerAssists: number;
+  careerApps: number;
+  careerCleanSheets: number; // GK/DEF matches finished without conceding
+  peakValue: number; // highest market value ever reached, in thousands
+}
+
+/** A player's all-time goal/assist tally while at a specific club. */
+export interface ClubContribution {
+  goals: number;
+  assists: number;
 }
 
 export interface Club {
@@ -63,6 +72,10 @@ export interface Club {
   secondaryColor: string;
   playerIds: PlayerId[];
   isUserClub?: boolean;
+  /** Running max of total squad value, in thousands (read via `?? 0`). */
+  peakSquadValue?: number;
+  /** All-time goals/assists scored while at this club, keyed by player id. */
+  playerContributions?: Record<PlayerId, ClubContribution>;
 }
 
 export interface League {

@@ -100,6 +100,14 @@ describe('applyMatchProgression training boost', () => {
     expect(devOf(hero)).toBeCloseTo(devOf(plain) * 6, 5);
   });
 
+  it('accumulates career apps across matches', () => {
+    const p = base();
+    applyMatchProgression(p, rating(7.0));
+    applyMatchProgression(p, rating(6.0));
+    expect(p.seasonApps).toBe(2);
+    expect(p.careerApps).toBe(2);
+  });
+
   it('gives a forward no clean-sheet bonus', () => {
     const a = base();
     const b = base();

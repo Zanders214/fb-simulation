@@ -33,6 +33,13 @@ export default function PlayerScreen() {
   const club = game.world.clubs[player.clubId];
   const careerGoals = player.careerGoals ?? 0;
   const careerAssists = player.careerAssists ?? 0;
+  const careerApps = player.careerApps ?? 0;
+  const careerCleanSheets = player.careerCleanSheets ?? 0;
+  const seasonCleanSheets = player.seasonCleanSheets ?? 0;
+  const value = playerValue(player);
+  // max(stored, current) keeps pre-update saves sensible before the next match.
+  const peakValue = Math.max(player.peakValue ?? 0, value);
+  const showCleanSheets = player.position === 'GK' || player.position === 'DEF';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -72,7 +79,11 @@ export default function PlayerScreen() {
         <Card style={styles.card}>
           <View style={styles.statLine}>
             <Text style={styles.statLabel}>Market value</Text>
-            <Text style={styles.statValue}>{formatMoney(playerValue(player))}</Text>
+            <Text style={styles.statValue}>{formatMoney(value)}</Text>
+          </View>
+          <View style={styles.statLine}>
+            <Text style={styles.statLabel}>Peak value</Text>
+            <Text style={styles.statValue}>{formatMoney(peakValue)}</Text>
           </View>
         </Card>
       </View>
@@ -83,6 +94,7 @@ export default function PlayerScreen() {
           <Stat label="Goals" value={`${player.seasonGoals}`} />
           <Stat label="Assists" value={`${player.seasonAssists}`} />
           <Stat label="Apps" value={`${player.seasonApps}`} />
+          {showCleanSheets ? <Stat label="Clean sheets" value={`${seasonCleanSheets}`} /> : null}
         </Card>
       </View>
 
@@ -91,6 +103,8 @@ export default function PlayerScreen() {
         <Card style={styles.statGrid}>
           <Stat label="Goals" value={`${careerGoals}`} />
           <Stat label="Assists" value={`${careerAssists}`} />
+          <Stat label="Apps" value={`${careerApps}`} />
+          {showCleanSheets ? <Stat label="Clean sheets" value={`${careerCleanSheets}`} /> : null}
         </Card>
       </View>
     </ScrollView>

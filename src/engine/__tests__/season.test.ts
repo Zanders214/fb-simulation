@@ -6,6 +6,7 @@ import {
   leagueTable,
   playMatchday,
 } from '../season';
+import { transferPlayer } from '../transfers';
 import { isPlayableXI } from '../world';
 
 function freshTakeover(seed = 2026) {
@@ -75,6 +76,63 @@ describe('season', () => {
     expect(s.history.length).toBe(1);
     expect(s.history[0].championClubId).toBeDefined();
     expect(s.world.players[samplePlayerId].age).toBe(ageBefore + 1);
+  });
+
+  it('credits clean sheets to defenders as well as keepers (season + career)', () => {
+    const s = freshTakeover(3);
+    playFullSeason(s);
+    const defs = Object.values(s.world.players).filter(
+      (p) => p.position === 'DEF' && (p.careerCleanSheets ?? 0) > 0,
+    );
+    expect(defs.length).toBeGreaterThan(0);
+    // outfield non-defenders never earn clean sheets
+    for (const p of Object.values(s.world.players)) {
+      if (p.position === 'MID' || p.position === 'FWD') {
+        expect(p.careerCleanSheets ?? 0).toBe(0);
+      }
+      // career is at least the current season's tally
+      expect(p.careerCleanSheets ?? 0).toBeGreaterThanOrEqual(p.seasonCleanSheets ?? 0);
+    }
+  });
+
+  it('accumulates career apps and career clean sheets across seasons', () => {
+    const s = freshTakeover(8);
+    const id = s.squad.startingXI[0]; // a regular who actually features
+    playFullSeason(s);
+    const appsAfterOne = s.world.players[id].careerApps;
+    expect(appsAfterOne).toBeGreaterThan(0);
+    const csAfterOne = s.world.players[id].careerCleanSheets;
+    advanceSeason(s);
+    // season counters reset, career totals carry over
+    expect(s.world.players[id].seasonApps).toBe(0);
+    expect(s.world.players[id].seasonCleanSheets).toBe(0);
+    expect(s.world.players[id].careerCleanSheets).toBe(csAfterOne);
+    playFullSeason(s);
+    expect(s.world.players[id].careerApps).toBeGreaterThan(appsAfterOne);
+  });
+
+  it('latches every active player\'s peak market value', () => {
+    const s = freshTakeover(4);
+    playFullSeason(s);
+    const played = Object.values(s.world.players).filter((p) => p.careerApps > 0);
+    expect(played.length).toBeGreaterThan(0);
+    for (const p of played) expect(p.peakValue).toBeGreaterThan(0);
+  });
+
+  it('records an all-time club contribution ledger that survives a transfer', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    const club = s.world.clubs[s.managedClubId];
+    const log = club.playerContributions ?? {};
+    const scorerId = Object.keys(log).find((id) => log[id].goals > 0);
+    expect(scorerId).toBeDefined();
+
+    // selling/transferring the scorer away leaves his tally on our record
+    const goalsBefore = log[scorerId!].goals;
+    const otherClub = s.world.leagues[s.season.leagueId].clubIds.find((c) => c !== s.managedClubId)!;
+    transferPlayer(s.world, scorerId!, otherClub);
+    expect(s.world.players[scorerId!].clubId).toBe(otherClub);
+    expect(club.playerContributions?.[scorerId!].goals).toBe(goalsBefore);
   });
 
   it('keeps all attributes within 1..99 after a full season of progression', () => {
