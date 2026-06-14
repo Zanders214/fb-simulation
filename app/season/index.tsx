@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../../src/components/Card';
 import { Chip } from '../../src/components/Chip';
+import { Meta } from '../../src/components/Meta';
 import { PlayerRow } from '../../src/components/PlayerRow';
 import { leagueTable } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
@@ -77,16 +78,6 @@ export default function SquadScreen() {
   );
 }
 
-function Meta({ label, value }: Readonly<{ label: string; value: string }>) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.meta}>
-      <Text style={styles.metaValue}>{value}</Text>
-      <Text style={styles.metaLabel}>{label}</Text>
-    </View>
-  );
-}
-
 function positionName(p: string): string {
   return { GK: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', FWD: 'Forwards' }[p] ?? p;
 }
@@ -98,9 +89,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1.5) },
   clubName: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '800', flex: 1 },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  meta: { alignItems: 'center', flex: 1 },
-  metaValue: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '800' },
-  metaLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 2 },
   clubStatsBtn: {
     marginTop: theme.spacing(0.5),
     paddingVertical: theme.spacing(1),
