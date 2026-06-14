@@ -12,5 +12,6 @@ export * from './fixtures';
 export * from './standings';
 export * from './world';
 export * from './season';
+export * from './calendar';
 export * from './transfers';
 export * from './records';

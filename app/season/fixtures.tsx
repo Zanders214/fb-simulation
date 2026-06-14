@@ -66,6 +66,13 @@ export default function FixturesScreen() {
         </Card>
       )}
 
+      <Button
+        label="📅  Open calendar"
+        variant="secondary"
+        onPress={() => router.push('/calendar')}
+        testID="open-calendar"
+      />
+
       <Text style={styles.sectionTitle}>Your season</Text>
       {userFixtures.map((f) => (
         <FixtureRow key={f.id} fixture={f} me={me} game={game} />
