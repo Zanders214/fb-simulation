@@ -120,6 +120,26 @@ describe('sellPlayer', () => {
     expect(clubBudget(s.world, s.managedClubId)).toBe(userBudget0 + res.fee!);
   });
 
+  it('keeps the XI at 11 by promoting a same-position replacement into the freed slot', () => {
+    const s = freshTakeover();
+    const slot = 5;
+    const soldId = s.squad.startingXI[slot];
+    const soldPos = s.world.players[soldId].position;
+
+    const res = sellPlayer(s, soldId);
+
+    expect(res.ok).toBe(true);
+    expect(s.squad.startingXI).toHaveLength(11);
+    expect(s.squad.startingXI).not.toContain(soldId);
+    const replacementId = s.squad.startingXI[slot];
+    // a different, owned player now occupies the same formation slot...
+    expect(replacementId).not.toBe(soldId);
+    expect(s.world.clubs[s.managedClubId].playerIds).toContain(replacementId);
+    // ...of the same position, and he is no longer on the bench.
+    expect(s.world.players[replacementId].position).toBe(soldPos);
+    expect(s.squad.bench).not.toContain(replacementId);
+  });
+
   it('clears any role held by the sold player', () => {
     const s = freshTakeover();
     const captainId = s.squad.roles.captainId!;

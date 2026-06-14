@@ -171,6 +171,46 @@ export function removeFromSquad(squad: SquadConfig, playerId: string): SquadConf
 }
 
 /**
+ * Remove a player who is leaving the club from the tactical setup, keeping the
+ * starting XI full. If he was a starter, his slot is filled in place — preserving
+ * the formation's slot order — by the best available owned replacement: the
+ * highest-overall player of the same position, falling back to best-available
+ * when none is left. The replacement is promoted out of the bench/reserves; any
+ * role the departing player held is cleared. He is also dropped from the bench.
+ *
+ * `playerId` may still be listed in the club's `playerIds` (this is called before
+ * the transfer is committed); he is always excluded from replacement candidates.
+ */
+export function replaceInSquad(world: World, squad: SquadConfig, clubId: ClubId, playerId: string): SquadConfig {
+  const xiIndex = squad.startingXI.indexOf(playerId);
+  if (xiIndex === -1) return removeFromSquad(squad, playerId);
+
+  const inXI = new Set(squad.startingXI);
+  const candidates = world.clubs[clubId].playerIds
+    .filter((id) => id !== playerId && !inXI.has(id))
+    .map((id) => world.players[id])
+    .filter(Boolean);
+  if (!candidates.length) return removeFromSquad(squad, playerId);
+
+  const pos = world.players[playerId]?.position;
+  const samePos = candidates.filter((p) => p.position === pos);
+  const replacement = (samePos.length ? samePos : candidates).slice().sort(byOverallDesc)[0];
+
+  const startingXI = squad.startingXI.slice();
+  startingXI[xiIndex] = replacement.id;
+  const roles: SquadRoles = { ...squad.roles };
+  for (const key of Object.keys(roles) as (keyof SquadRoles)[]) {
+    if (roles[key] === playerId) roles[key] = undefined;
+  }
+  return {
+    ...squad,
+    startingXI,
+    bench: squad.bench.filter((id) => id !== playerId && id !== replacement.id),
+    roles,
+  };
+}
+
+/**
  * Swap a player who is currently on the bench (or unused) into the XI in place
  * of a starter, keeping slot order. Any roles (captain, penalty/free-kick taker)
  * held by the outgoing player transfer to the incoming one, so the XI never ends
