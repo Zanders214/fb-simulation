@@ -253,12 +253,17 @@ describe('match simulation', () => {
     expect(redSum / redN).toBeLessThan(otherSum / otherN - 2); // clearly dragged down
   });
 
-  it('the designated penalty taker takes every penalty', () => {
+  it('the designated penalty taker takes every penalty while he is on the pitch', () => {
     const roles: SquadRoles = { penaltyTakerId: 'H_DEF0' };
     let pens = 0;
     let byTaker = 0;
     for (let s = 0; s < 3000; s++) {
       const r = simulateMatch({ home: makeTeam('H', 70, roles), away: makeTeam('A', 70), rng: makeRng(s) });
+      // no bench => the taker only leaves the pitch via a sending-off or an injury;
+      // count matches where he played the full 90, where he should take every penalty
+      const left = r.cards.some((c) => c.clubId === 'H' && c.playerId === 'H_DEF0' && c.type === 'red')
+        || r.injuries.some((i) => i.clubId === 'H' && i.playerId === 'H_DEF0');
+      if (left) continue;
       for (const e of r.events) {
         if (e.type === 'penalty' && e.clubId === 'H') {
           pens++;
@@ -268,5 +273,40 @@ describe('match simulation', () => {
     }
     expect(pens).toBeGreaterThan(20);
     expect(byTaker).toBe(pens);
+  });
+
+  it('hands penalty duties to the substitute once the taker is subbed off', () => {
+    const roles: SquadRoles = { penaltyTakerId: 'H_FWD0' };
+    let afterSub = 0; // penalties awarded after the taker was replaced
+    let byReplacement = 0;
+    let byOriginal = 0;
+    for (let s = 0; s < 9000; s++) {
+      const home = makeTeam('H', 72, roles, false, 66);
+      const away = makeTeam('A', 72, {}, false, 66);
+      const r = simulateMatch({ home, away, rng: makeRng(s) });
+      // isolate the substitution chain: skip matches with a home sending-off
+      if (r.cards.some((c) => c.clubId === 'H' && c.type === 'red')) continue;
+      const offToSub = new Map(r.subs.filter((x) => x.clubId === 'H').map((x) => [x.offPlayerId, x] as const));
+      for (const e of r.events) {
+        if (e.type !== 'penalty' || e.clubId !== 'H') continue;
+        // follow the sub chain from the taker to whoever holds the role at this minute
+        let id = 'H_FWD0';
+        let replaced = false;
+        for (let g = 0; g < 12; g++) {
+          const sub = offToSub.get(id);
+          if (sub && e.minute >= sub.minute) {
+            id = sub.onPlayerId;
+            replaced = true;
+          } else break;
+        }
+        if (!replaced) continue; // taker still on for this penalty (covered by the previous test)
+        afterSub++;
+        if (e.scorerId === id) byReplacement++;
+        if (e.scorerId === 'H_FWD0') byOriginal++;
+      }
+    }
+    expect(afterSub).toBeGreaterThan(20); // the inheritance path is actually exercised
+    expect(byOriginal).toBe(0); // the subbed-off taker never takes them
+    expect(byReplacement).toBe(afterSub); // his replacement takes them all
   });
 });

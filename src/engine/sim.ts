@@ -122,28 +122,43 @@ interface SideOutcome {
 interface ChanceKind {
   type: GoalType;
   pConv: number;
-  forcedScorer?: Player;
 }
 
-/** Classify one chance (penalty / free kick / open play). Consumes exactly one Rng draw. */
-function classifyChance(
-  rng: Rng,
-  atkAreas: Areas,
-  defAreas: Areas,
-  shooters: Player[],
-  penTaker: Player | undefined,
-  fkTaker: Player | undefined,
-): ChanceKind {
+/**
+ * Classify one chance (penalty / free kick / open play). Consumes exactly one Rng
+ * draw. The free-kick conversion is scaled by the designated taker's skill (the
+ * original role-holder, for the probability only); WHO is credited is resolved
+ * later from the on-pitch lineup at the goal's minute.
+ */
+function classifyChance(rng: Rng, atkAreas: Areas, defAreas: Areas, shooters: Player[], fkTaker: Player | undefined): ChanceKind {
   const roll = rng.next();
-  if (roll < SIM.PEN_RATE) {
-    return { type: 'penalty', pConv: SIM.P_PEN, forcedScorer: penTaker ?? bestAttacker(shooters) };
-  }
+  if (roll < SIM.PEN_RATE) return { type: 'penalty', pConv: SIM.P_PEN };
   if (roll < SIM.PEN_RATE + SIM.FK_RATE) {
     const taker = fkTaker ?? bestAttacker(shooters);
     const pConv = clamp((SIM.P_FK_BASE * effectiveArea(taker, 'attacking')) / 100, 0.02, 0.3);
-    return { type: 'free_kick', pConv, forcedScorer: taker };
+    return { type: 'free_kick', pConv };
   }
   return { type: 'open_play', pConv: convProb(atkAreas.atk, defAreas.def) };
+}
+
+/**
+ * The player holding a set-piece role at a given minute: the designated taker
+ * while he is on, otherwise the substitute who came on for him (following the
+ * chain if that sub is later replaced too). Returns undefined when he left
+ * without a replacement (a sending-off or an unreplaced injury) or never played,
+ * so the caller can fall back to the best attacker on the pitch.
+ */
+function activeTaker(roleId: string | undefined, part: Participation, byId: Map<string, Player>, minute: number): Player | undefined {
+  if (!roleId) return undefined;
+  let id = roleId;
+  for (let guard = 0; guard < 12; guard++) {
+    const left = part.leftAt.get(id);
+    if (left === undefined || minute < left) return byId.get(id); // still on at this minute
+    const sub = part.subs.find((s) => s.offPlayerId === id);
+    if (!sub) return undefined; // left with no replacement
+    id = sub.onPlayerId;
+  }
+  return byId.get(id);
 }
 
 /** Pick an assister for an open-play/header goal, or none. Consumes Rng draws. */
@@ -162,22 +177,32 @@ function pickAssist(rng: Rng, onPitch: OnPitch[], scorerId: string): string | un
  * AND substitutes), each weighted by their time on the pitch — so a substitute
  * can score, in proportion to the minutes he played.
  */
-function simulateSide(rng: Rng, atk: SimTeam, onPitch: OnPitch[], atkAreas: Areas, defAreas: Areas, chanceCount: number): SideOutcome {
+function simulateSide(rng: Rng, atk: SimTeam, part: Participation, atkAreas: Areas, defAreas: Areas, chanceCount: number): SideOutcome {
+  const onPitch = part.onPitch;
   const outfield = onPitch.filter((o) => o.player.position !== 'GK');
   const pool = outfield.length ? outfield : onPitch;
   const shooters = pool.map((o) => o.player);
   const weights = pool.map((o) => goalWeight(o.player) * o.fraction);
-  const penTaker = findRole(atk, atk.roles.penaltyTakerId);
+  const byId = new Map(onPitch.map((o) => [o.player.id, o.player] as const));
   const fkTaker = findRole(atk, atk.roles.freeKickTakerId);
   const events: GoalEvent[] = [];
   let xg = 0;
 
+  // Who is credited with a chance, resolved from the lineup at the goal's minute:
+  // the set-piece role's active holder (taker -> his substitute -> best attacker).
+  const scorerFor = (type: GoalType, minute: number): Player => {
+    if (type === 'penalty') return activeTaker(atk.roles.penaltyTakerId, part, byId, minute) ?? bestAttacker(shooters);
+    if (type === 'free_kick') return activeTaker(atk.roles.freeKickTakerId, part, byId, minute) ?? bestAttacker(shooters);
+    return shooters[pickWeightedIndex(rng, weights)] ?? shooters[0];
+  };
+
   for (let c = 0; c < chanceCount; c++) {
-    const { type, pConv, forcedScorer } = classifyChance(rng, atkAreas, defAreas, shooters, penTaker, fkTaker);
+    const { type, pConv } = classifyChance(rng, atkAreas, defAreas, shooters, fkTaker);
     xg += pConv;
     if (rng.next() >= pConv) continue; // not scored
 
-    const scorer = forcedScorer ?? shooters[pickWeightedIndex(rng, weights)] ?? shooters[0];
+    const minute = randInt(rng, 1, 90); // drawn before the scorer so set-piece duty follows the clock
+    const scorer = scorerFor(type, minute);
 
     let goalType: GoalType = type;
     if (type === 'open_play' && rng.next() < SIM.HEADER_SHARE) goalType = 'header';
@@ -185,7 +210,6 @@ function simulateSide(rng: Rng, atk: SimTeam, onPitch: OnPitch[], atkAreas: Area
     const assistId =
       goalType === 'open_play' || goalType === 'header' ? pickAssist(rng, onPitch, scorer.id) : undefined;
 
-    const minute = randInt(rng, 1, 90);
     events.push({ minute, clubId: atk.clubId, scorerId: scorer.id, assistId, type: goalType });
   }
 
@@ -275,6 +299,8 @@ interface Participation {
   subs: SubEvent[];
   /** Minutes a player left WITHOUT replacement (a red, or an injury after subs ran out). */
   offMinutes: number[];
+  /** Minute each departing player left the pitch (subbed, sent off, or unreplaced injury). */
+  leftAt: Map<string, number>;
 }
 
 /** Take the best fit substitute of a position from the bench (else best overall), removing him. */
@@ -431,7 +457,7 @@ function planParticipation(rng: Rng, team: SimTeam, reds: CardEvent[], injuries:
     onPitch.push({ player, fraction: (90 - minute) / 90 });
   }
 
-  return { areas: effectiveAreasOverSubs(team, plan.subs), onPitch, subs: plan.subs, offMinutes: plan.offMinutes };
+  return { areas: effectiveAreasOverSubs(team, plan.subs), onPitch, subs: plan.subs, offMinutes: plan.offMinutes, leftAt: plan.leftAt };
 }
 
 /**
@@ -472,8 +498,8 @@ export function simulateMatch(input: SimInput): MatchResult {
   // Draw chance counts first to keep RNG order stable, then resolve each side.
   const chancesHome = poisson(rng, lamHome);
   const chancesAway = poisson(rng, lamAway);
-  const homeOut = simulateSide(rng, home, partHome.onPitch, H, A, chancesHome);
-  const awayOut = simulateSide(rng, away, partAway.onPitch, A, H, chancesAway);
+  const homeOut = simulateSide(rng, home, partHome, H, A, chancesHome);
+  const awayOut = simulateSide(rng, away, partAway, A, H, chancesAway);
 
   const events = [...homeOut.events, ...awayOut.events].sort((a, b) => a.minute - b.minute);
   const homeGoals = homeOut.events.length;
