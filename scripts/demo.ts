@@ -38,7 +38,10 @@ for (let i = 0; i < 5; i++) {
     .filter((x) => x.clubId === myId)
     .map((x) => `🔁${w.players[x.onPlayerId].lastName} ${x.minute}'`)
     .join(' ');
-  console.log(`  ${h} ${userResult.homeGoals}-${userResult.awayGoals} ${a}    ${scorers}${cards ? `   ${cards}` : ''}${injuries ? `   ${injuries}` : ''}${subs ? `   ${subs}` : ''}`);
+  const cardsPart = cards ? `   ${cards}` : '';
+  const injuriesPart = injuries ? `   ${injuries}` : '';
+  const subsPart = subs ? `   ${subs}` : '';
+  console.log(`  ${h} ${userResult.homeGoals}-${userResult.awayGoals} ${a}    ${scorers}${cardsPart}${injuriesPart}${subsPart}`);
 }
 
 function playToEnd() {
