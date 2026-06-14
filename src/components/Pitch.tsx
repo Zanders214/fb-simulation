@@ -19,10 +19,12 @@ export function Pitch({
   slots,
   selectedId,
   onSelect,
+  onLongPressPlayer,
 }: Readonly<{
   slots: PitchSlot[];
   selectedId?: string | null;
   onSelect?: (playerId: string) => void;
+  onLongPressPlayer?: (playerId: string) => void;
 }>) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -40,6 +42,7 @@ export function Pitch({
           player={player}
           selected={selectedId === player.id}
           onPress={onSelect ? () => onSelect(player.id) : undefined}
+          onLongPress={onLongPressPlayer ? () => onLongPressPlayer(player.id) : undefined}
         />
       ))}
     </View>
@@ -51,11 +54,13 @@ function Marker({
   player,
   selected,
   onPress,
+  onLongPress,
 }: Readonly<{
   slot: FormationSlot;
   player: Player;
   selected?: boolean;
   onPress?: () => void;
+  onLongPress?: () => void;
 }>) {
   const styles = useThemedStyles(makeStyles);
   const wrap = [
@@ -79,10 +84,11 @@ function Marker({
     </>
   );
 
-  if (!onPress) return <View style={wrap}>{body}</View>;
+  if (!onPress && !onLongPress) return <View style={wrap}>{body}</View>;
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityLabel={`${slot.label}: ${player.name}`}
       style={({ pressed }) => [...wrap, pressed && styles.pressed]}

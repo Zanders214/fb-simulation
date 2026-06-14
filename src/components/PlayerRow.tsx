@@ -8,12 +8,14 @@ import { Chip } from './Chip';
 export function PlayerRow({
   player,
   onPress,
+  onLongPress,
   selected,
   subtitle,
   right,
 }: Readonly<{
   player: Player;
   onPress?: () => void;
+  onLongPress?: () => void;
   selected?: boolean;
   subtitle?: string;
   right?: ReactNode;
@@ -41,10 +43,11 @@ export function PlayerRow({
     </>
   );
 
-  if (onPress) {
+  if (onPress || onLongPress) {
     return (
       <Pressable
         onPress={onPress}
+        onLongPress={onLongPress}
         accessibilityRole="button"
         style={({ pressed }) => [styles.row, selected && styles.selected, pressed && styles.pressed]}
       >

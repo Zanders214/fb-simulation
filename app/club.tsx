@@ -1,4 +1,4 @@
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../src/components/Card';
@@ -9,7 +9,6 @@ import { Section } from '../src/components/Section';
 import { StatLine } from '../src/components/StatLine';
 import { clubRecords, type Movement } from '../src/engine';
 import { useGame } from '../src/store/gameStore';
-import { userClub } from '../src/store/selectors';
 import { formatMoney, ordinal } from '../src/ui/format';
 import { useThemedStyles, type Theme } from '../src/theme';
 
@@ -24,12 +23,17 @@ export default function ClubScreen() {
   const game = useGame();
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
-  const stats = useMemo(() => (game ? clubRecords(game) : null), [game]);
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const clubId = id ?? game?.managedClubId;
+  const stats = useMemo(() => (game && clubId ? clubRecords(game, clubId) : null), [game, clubId]);
 
-  if (!game || !stats) return <Redirect href="/" />;
-  const club = userClub(game);
-  const openPlayer = (id: string) => router.push(`/player?id=${id}`);
-  const history = [...game.history].reverse(); // most recent season first
+  if (!game || !clubId || !stats || !game.world.clubs[clubId]) return <Redirect href="/" />;
+  const club = game.world.clubs[clubId];
+  const openPlayer = (pid: string) => router.push(`/player?id=${pid}`);
+  // Season history is the user's own career (finishes + promotion/relegation), so
+  // only show it on their club's page — not when deep-linking to a rival club.
+  const isUserClub = clubId === game.managedClubId;
+  const history = isUserClub ? [...game.history].reverse() : []; // most recent season first
 
   const seasonDivision = (leagueId?: string, tier?: number): string => {
     const name = leagueId ? game.world.leagues[leagueId]?.name : undefined;

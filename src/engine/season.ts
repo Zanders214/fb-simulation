@@ -143,10 +143,11 @@ function applyTeamProgression(
 
 /**
  * Record a played match's lasting stats for one player: clean sheets (keepers &
- * defenders, season + career), the managed club's all-time goal/assist ledger
- * (kept by player id so a sold player's tally survives his departure), and the
- * player's peak market value. Mutates the player and (for the user's club) the
- * club. Season/career counters that the sim already owns are set elsewhere.
+ * defenders, season + career), the club's all-time goal/assist ledger — kept on
+ * the player's current club and keyed by player id, so a sold player's tally
+ * survives his departure — and the player's peak market value. Mutates the
+ * player and his club. Season/career counters that the sim already owns are set
+ * elsewhere.
  */
 function recordPlayerMatchStats(
   state: GameState,
@@ -158,8 +159,8 @@ function recordPlayerMatchStats(
     player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
     player.careerCleanSheets = (player.careerCleanSheets ?? 0) + 1;
   }
-  if (player.clubId === state.managedClubId && (r.goals > 0 || r.assists > 0)) {
-    const club = state.world.clubs[state.managedClubId];
+  if (r.goals > 0 || r.assists > 0) {
+    const club = state.world.clubs[player.clubId];
     club.playerContributions ??= {};
     const entry = club.playerContributions[player.id] ?? { goals: 0, assists: 0 };
     entry.goals += r.goals;
