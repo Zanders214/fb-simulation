@@ -8,6 +8,8 @@ function res(h: number, a: number): MatchResult {
     homeGoals: h,
     awayGoals: a,
     events: [],
+    cards: [],
+    injuries: [],
     ratings: {},
     stats: {
       home: { possession: 0.5, chances: 0, xg: 0, goals: h },

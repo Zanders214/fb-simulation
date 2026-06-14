@@ -33,11 +33,17 @@ export function makePlayer(
     seasonAssists: 0,
     seasonApps: 0,
     seasonCleanSheets: opts.seasonCleanSheets ?? 0,
+    seasonYellowCards: opts.seasonYellowCards ?? 0,
+    seasonRedCards: opts.seasonRedCards ?? 0,
     careerGoals: opts.careerGoals ?? 0,
     careerAssists: opts.careerAssists ?? 0,
     careerApps: opts.careerApps ?? 0,
     careerCleanSheets: opts.careerCleanSheets ?? 0,
+    careerYellowCards: opts.careerYellowCards ?? 0,
+    careerRedCards: opts.careerRedCards ?? 0,
     peakValue: opts.peakValue ?? 0,
+    injuredMatches: opts.injuredMatches,
+    suspendedMatches: opts.suspendedMatches,
   };
 }
 

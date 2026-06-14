@@ -181,4 +181,63 @@ describe('season', () => {
       }
     }
   });
+
+  it('accumulates yellow and red cards into season and career totals', () => {
+    const s = freshTakeover(3);
+    playFullSeason(s);
+
+    const booked = Object.values(s.world.players).filter((p) => (p.seasonYellowCards ?? 0) > 0);
+    expect(booked.length).toBeGreaterThan(0);
+    // a full league season produces at least one sending-off somewhere
+    const reds = Object.values(s.world.players).reduce((a, p) => a + (p.seasonRedCards ?? 0), 0);
+    expect(reds).toBeGreaterThan(0);
+    // career totals are always at least the current season's tally
+    for (const p of Object.values(s.world.players)) {
+      expect(p.careerYellowCards ?? 0).toBeGreaterThanOrEqual(p.seasonYellowCards ?? 0);
+      expect(p.careerRedCards ?? 0).toBeGreaterThanOrEqual(p.seasonRedCards ?? 0);
+    }
+  });
+
+  it('resets season cards but carries career cards across a season rollover', () => {
+    const s = freshTakeover(8);
+    playFullSeason(s);
+    const booked = Object.values(s.world.players).find((p) => (p.seasonYellowCards ?? 0) > 0)!;
+    const careerBefore = booked.careerYellowCards ?? 0;
+    expect(careerBefore).toBeGreaterThan(0);
+
+    advanceSeason(s);
+    expect(booked.seasonYellowCards).toBe(0);
+    expect(booked.seasonRedCards).toBe(0);
+    expect(booked.careerYellowCards).toBe(careerBefore);
+  });
+
+  it('sidelines an injured starter, backfills the XI, and heals him over time', () => {
+    const s = freshTakeover(12);
+    const starter = s.squad.startingXI[5];
+    s.world.players[starter].injuredMatches = 2;
+
+    const outcome = playMatchday(s);
+    expect(outcome.userResult).toBeDefined();
+    // the injured starter didn't feature, so he has no rating in the result
+    expect(outcome.userResult!.ratings[starter]).toBeUndefined();
+    // the user still fielded a full XI — a fit reserve came in
+    const fielded = Object.keys(outcome.userResult!.ratings).filter((id) =>
+      s.world.clubs[s.managedClubId].playerIds.includes(id),
+    );
+    expect(fielded.length).toBe(11);
+    // the absence ticks down one matchday at a time (he wasn't hurt this matchday)
+    expect(s.world.players[starter].injuredMatches).toBe(1);
+
+    playMatchday(s);
+    expect(s.world.players[starter].injuredMatches).toBe(0); // fit again
+  });
+
+  it('injures players over a season and never leaves an absence stuck negative', () => {
+    const s = freshTakeover(5);
+    playFullSeason(s);
+    for (const p of Object.values(s.world.players)) {
+      expect(p.injuredMatches ?? 0).toBeGreaterThanOrEqual(0);
+      expect(p.suspendedMatches ?? 0).toBeGreaterThanOrEqual(0);
+    }
+  });
 });

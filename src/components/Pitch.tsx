@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { overall, type Player } from '../engine';
 import { useThemedStyles, type Theme } from '../theme';
-import { positionColor } from '../ui/format';
+import { availabilityColor, playerAvailability, positionColor } from '../ui/format';
 import type { FormationSlot } from '../ui/formationLayout';
 
 /** One starting slot paired with the player currently occupying it. */
@@ -72,10 +72,16 @@ function Marker({
     { backgroundColor: positionColor(player.position) },
     selected && styles.shirtSelected,
   ];
+  const availability = playerAvailability(player);
   const body = (
     <>
       <View style={shirt}>
         <Text style={styles.shirtLabel}>{slot.label}</Text>
+        {availability && (
+          <View style={[styles.statusDot, { backgroundColor: availabilityColor(availability.kind) }]}>
+            <Text style={styles.statusDotText}>{availability.kind === 'injured' ? '✚' : '⊘'}</Text>
+          </View>
+        )}
       </View>
       <Text style={styles.name} numberOfLines={1}>
         {player.lastName}
@@ -159,6 +165,19 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   shirtSelected: { borderColor: theme.colors.accent, borderWidth: 3 },
   shirtLabel: { color: theme.colors.onPrimary, fontWeight: '900', fontSize: theme.font.small },
+  statusDot: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.3)',
+  },
+  statusDotText: { color: '#fff', fontSize: 10, fontWeight: '900' },
   name: {
     marginTop: 2,
     color: theme.colors.text,

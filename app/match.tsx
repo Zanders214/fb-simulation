@@ -3,10 +3,68 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
-import type { GoalEvent, MatchResult } from '../src/engine';
+import type { CardEvent, MatchResult } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
-import { formatMoney, goalTypeTag } from '../src/ui/format';
+import { cardEmoji, formatMoney, goalTypeTag, matchesLabel } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
+
+type Game = NonNullable<ReturnType<typeof useGame>>;
+
+/** The sub-line for a card: only reds carry one ("sent off" / "second yellow"). */
+function cardSecondary(c: CardEvent): string | undefined {
+  if (c.type !== 'red') return undefined;
+  return c.secondYellow ? 'second yellow' : 'sent off';
+}
+
+/** One entry on the match timeline: a goal, a card, or an injury. */
+interface TimelineItem {
+  key: string;
+  minute: number;
+  isHome: boolean;
+  icon: string;
+  primary: string;
+  primaryTag?: string; // muted suffix, e.g. a goal type
+  secondary?: string; // e.g. the assister, "second yellow", or time out
+}
+
+/** Flatten a result's goals, cards and injuries into one minute-sorted timeline. */
+function buildTimeline(r: MatchResult, game: Game): TimelineItem[] {
+  const name = (id: string) => game.world.players[id]?.name ?? 'Unknown';
+  const items: TimelineItem[] = [];
+
+  r.events.forEach((e, i) => {
+    items.push({
+      key: `g${i}`,
+      minute: e.minute,
+      isHome: e.clubId === r.homeClubId,
+      icon: '⚽',
+      primary: name(e.scorerId),
+      primaryTag: goalTypeTag(e.type),
+      secondary: e.assistId ? `assist: ${name(e.assistId)}` : undefined,
+    });
+  });
+  (r.cards ?? []).forEach((c, i) => {
+    items.push({
+      key: `c${i}`,
+      minute: c.minute,
+      isHome: c.clubId === r.homeClubId,
+      icon: cardEmoji(c.type),
+      primary: name(c.playerId),
+      secondary: cardSecondary(c),
+    });
+  });
+  (r.injuries ?? []).forEach((inj, i) => {
+    items.push({
+      key: `i${i}`,
+      minute: inj.minute,
+      isHome: inj.clubId === r.homeClubId,
+      icon: '🚑',
+      primary: name(inj.playerId),
+      secondary: `out ${matchesLabel(inj.matchesOut)}`,
+    });
+  });
+  return items.sort((a, b) => a.minute - b.minute);
+}
 
 type Outcome = 'WIN' | 'DRAW' | 'DEFEAT';
 
@@ -42,6 +100,7 @@ export default function MatchScreen() {
   const outcomeColor = outcomeColorFor(outcome, theme);
 
   const others = lastOutcome.results.filter((res) => res !== r);
+  const timeline = buildTimeline(r, game);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -68,18 +127,13 @@ export default function MatchScreen() {
       )}
 
       <Card style={styles.timelineCard}>
-        {r.events.length === 0 ? (
+        {timeline.length === 0 ? (
           <Text style={styles.noGoals}>No goals.</Text>
         ) : (
           <>
             <View style={styles.spine} />
-            {r.events.map((e) => (
-              <GoalEntry
-                key={`${e.minute}-${e.scorerId}-${e.type}`}
-                event={e}
-                isHome={e.clubId === r.homeClubId}
-                game={game}
-              />
+            {timeline.map((item) => (
+              <TimelineEntry key={item.key} item={item} />
             ))}
           </>
         )}
@@ -101,28 +155,17 @@ export default function MatchScreen() {
   );
 }
 
-function GoalEntry({
-  event,
-  isHome,
-  game,
-}: Readonly<{
-  event: GoalEvent;
-  isHome: boolean;
-  game: NonNullable<ReturnType<typeof useGame>>;
-}>) {
+function TimelineEntry({ item }: Readonly<{ item: TimelineItem }>) {
   const styles = useThemedStyles(makeStyles);
-  const scorer = game.world.players[event.scorerId];
-  const assist = event.assistId ? game.world.players[event.assistId] : undefined;
-
   const info = (
-    <View style={[styles.goalInfo, isHome ? styles.goalInfoHome : styles.goalInfoAway]}>
-      <Text style={[styles.scorer, isHome ? styles.alignEnd : styles.alignStart]} numberOfLines={1}>
-        {scorer?.name ?? 'Unknown'}
-        <Text style={styles.tag}>{goalTypeTag(event.type)}</Text>
+    <View style={[styles.goalInfo, item.isHome ? styles.goalInfoHome : styles.goalInfoAway]}>
+      <Text style={[styles.scorer, item.isHome ? styles.alignEnd : styles.alignStart]} numberOfLines={1}>
+        {item.primary}
+        {item.primaryTag ? <Text style={styles.tag}>{item.primaryTag}</Text> : null}
       </Text>
-      {assist && (
-        <Text style={[styles.assist, isHome ? styles.alignEnd : styles.alignStart]} numberOfLines={1}>
-          assist: {assist.name}
+      {item.secondary && (
+        <Text style={[styles.assist, item.isHome ? styles.alignEnd : styles.alignStart]} numberOfLines={1}>
+          {item.secondary}
         </Text>
       )}
     </View>
@@ -130,13 +173,13 @@ function GoalEntry({
 
   return (
     <View style={styles.timelineRow}>
-      <View style={styles.timelineSide}>{isHome ? info : null}</View>
+      <View style={styles.timelineSide}>{item.isHome ? info : null}</View>
       <View style={styles.timelineCenter}>
-        {isHome && <Text style={styles.ball}>⚽</Text>}
-        <Text style={styles.minute}>{`${event.minute}'`}</Text>
-        {!isHome && <Text style={styles.ball}>⚽</Text>}
+        {item.isHome && <Text style={styles.ball}>{item.icon}</Text>}
+        <Text style={styles.minute}>{`${item.minute}'`}</Text>
+        {!item.isHome && <Text style={styles.ball}>{item.icon}</Text>}
       </View>
-      <View style={styles.timelineSide}>{isHome ? null : info}</View>
+      <View style={styles.timelineSide}>{item.isHome ? null : info}</View>
     </View>
   );
 }

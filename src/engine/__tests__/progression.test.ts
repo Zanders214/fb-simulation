@@ -1,5 +1,6 @@
-import { applyMatchProgression, applyTrainingProgression } from '../progression';
-import type { PlayerRating } from '../types';
+import { SIM } from '../config';
+import { applyCard, applyInjury, applyMatchProgression, applySeasonEnd, applyTrainingProgression } from '../progression';
+import type { CardEvent, InjuryEvent, PlayerRating } from '../types';
 import { makePlayer } from './factory';
 
 function rating(r: number, goals = 0, assists = 0): PlayerRating {
@@ -126,6 +127,19 @@ describe('applyMatchProgression training boost', () => {
     expect(dev(scorer)).toBeLessThan(0); // still a setback
   });
 
+  it('resets season cards on season end but keeps career totals', () => {
+    const p = makePlayer({ position: 'MID' });
+    p.seasonYellowCards = 4;
+    p.seasonRedCards = 1;
+    p.careerYellowCards = 9;
+    p.careerRedCards = 2;
+    applySeasonEnd(p);
+    expect(p.seasonYellowCards).toBe(0);
+    expect(p.seasonRedCards).toBe(0);
+    expect(p.careerYellowCards).toBe(9);
+    expect(p.careerRedCards).toBe(2);
+  });
+
   it('raises every area when a player develops, not just the signature stat', () => {
     // enough XP to guarantee at least one whole-point bump
     const fwd = makePlayer({ position: 'FWD', age: 20, attacking: 60, defending: 30, midfield: 45, potential: 95 });
@@ -139,5 +153,44 @@ describe('applyMatchProgression training boost', () => {
     expect((fwd.attrs.attacking ?? 0) - (fwd.attrs.defending ?? 0)).toBe(
       (before.attacking ?? 0) - (before.defending ?? 0),
     );
+  });
+});
+
+describe('cards and injuries', () => {
+  const card = (type: CardEvent['type'], secondYellow = false): CardEvent => ({
+    minute: 30,
+    clubId: 'C',
+    playerId: 'x',
+    type,
+    secondYellow,
+  });
+  const injury = (matchesOut: number): InjuryEvent => ({ minute: 30, clubId: 'C', playerId: 'x', matchesOut });
+
+  it('tallies a yellow card to the season and career totals', () => {
+    const p = makePlayer({ position: 'DEF' });
+    applyCard(p, card('yellow'));
+    applyCard(p, card('yellow'));
+    expect(p.seasonYellowCards).toBe(2);
+    expect(p.careerYellowCards).toBe(2);
+    expect(p.seasonRedCards).toBe(0);
+    expect(p.suspendedMatches ?? 0).toBe(0); // a booking doesn't sideline you
+  });
+
+  it('tallies a red card and suspends the player', () => {
+    const p = makePlayer({ position: 'MID' });
+    applyCard(p, card('red', true));
+    expect(p.seasonRedCards).toBe(1);
+    expect(p.careerRedCards).toBe(1);
+    expect(p.suspendedMatches).toBe(SIM.RED_SUSPENSION);
+  });
+
+  it('sidelines an injured player, keeping the worse of overlapping knocks', () => {
+    const p = makePlayer({ position: 'FWD' });
+    applyInjury(p, injury(2));
+    expect(p.injuredMatches).toBe(2);
+    applyInjury(p, injury(5));
+    expect(p.injuredMatches).toBe(5); // a worse injury extends the lay-off
+    applyInjury(p, injury(1));
+    expect(p.injuredMatches).toBe(5); // a lighter knock never shortens it
   });
 });

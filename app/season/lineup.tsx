@@ -1,6 +1,6 @@
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { Pitch, type PitchSlot } from '../../src/components/Pitch';
@@ -10,6 +10,7 @@ import { useGame, useGameStore } from '../../src/store/gameStore';
 import { clubPlayers, trainingPlayers } from '../../src/store/selectors';
 import { useThemedStyles, type Theme } from '../../src/theme';
 import { FORMATION_LAYOUTS } from '../../src/ui/formationLayout';
+import { playerAvailability } from '../../src/ui/format';
 
 const FORMATION_KEYS = Object.keys(FORMATIONS) as Formation[];
 
@@ -40,6 +41,17 @@ export default function LineupScreen() {
 
   const openPlayer = (id: string) => router.push(`/player?id=${id}`);
 
+  // An injured/suspended player can't be put into the XI; warn and abort the swap.
+  const blockIfUnavailable = (incomingId: string): boolean => {
+    const p = game.world.players[incomingId];
+    const status = p ? playerAvailability(p) : null;
+    if (status) {
+      Alert.alert('Player unavailable', `${p.name} is ${status.kind} and can't be selected right now (${status.label}).`);
+      return true;
+    }
+    return false;
+  };
+
   const tap = (id: string) => {
     if (!selected) {
       setSelected(id);
@@ -51,10 +63,21 @@ export default function LineupScreen() {
     }
     const selInXI = xiSet.has(selected);
     const tapInXI = xiSet.has(id);
-    if (selInXI && tapInXI) swapPositions(selected, id);
-    else if (selInXI && !tapInXI) substitute(selected, id);
-    else if (!selInXI && tapInXI) substitute(id, selected);
-    else {
+    if (selInXI && tapInXI) {
+      swapPositions(selected, id);
+    } else if (selInXI && !tapInXI) {
+      if (blockIfUnavailable(id)) {
+        setSelected(null);
+        return;
+      }
+      substitute(selected, id);
+    } else if (!selInXI && tapInXI) {
+      if (blockIfUnavailable(selected)) {
+        setSelected(null);
+        return;
+      }
+      substitute(id, selected);
+    } else {
       setSelected(id);
       return;
     }

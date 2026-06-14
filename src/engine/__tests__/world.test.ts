@@ -30,6 +30,33 @@ describe('squad helpers', () => {
     expect(sq.startingXI).toContain(sq.roles.freeKickTakerId);
   });
 
+  it('leaves injured and suspended players out of an auto-picked XI', () => {
+    const fw = generateWorld(321); // fresh world so we don't mutate the shared one
+    const cid = fw.leagues['L0'].clubIds[0];
+    const baseline = autoPickSquad(fw, cid);
+    const injured = baseline.startingXI[1];
+    const suspended = baseline.startingXI[2];
+    fw.players[injured].injuredMatches = 3;
+    fw.players[suspended].suspendedMatches = 1;
+
+    const sq = autoPickSquad(fw, cid);
+    expect(sq.startingXI).not.toContain(injured);
+    expect(sq.startingXI).not.toContain(suspended);
+    expect(sq.startingXI.length).toBe(11); // backfilled from the rest of the squad
+    expect(sq.bench).not.toContain(injured);
+    expect(sq.bench).not.toContain(suspended);
+  });
+
+  it('warns (but stays playable) when a starter is injured', () => {
+    const fw = generateWorld(321);
+    const cid = fw.leagues['L0'].clubIds[0];
+    const sq = autoPickSquad(fw, cid);
+    fw.players[sq.startingXI[4]].injuredMatches = 2;
+    const issues = validateXI(fw, sq, cid);
+    expect(issues.some((i) => i.type === 'unavailable' && i.severity === 'warning')).toBe(true);
+    expect(isPlayableXI(fw, sq, cid)).toBe(true); // auto-replaced at kickoff, still playable
+  });
+
   it('flags a missing goalkeeper as a hard error', () => {
     const sq = autoPickSquad(w, clubId);
     const outfieldBench = sq.bench.find((id) => w.players[id].position !== 'GK');

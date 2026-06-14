@@ -1,6 +1,13 @@
+import { overall } from './attrs';
 import { MARKET, SAVE_VERSION } from './config';
 import { generateFixtures } from './fixtures';
-import { applyMatchProgression, applySeasonEnd, applyTrainingProgression } from './progression';
+import {
+  applyCard,
+  applyInjury,
+  applyMatchProgression,
+  applySeasonEnd,
+  applyTrainingProgression,
+} from './progression';
 import { applyPromotionRelegation, projectLeagueOrder } from './promotion';
 import { hashSeed, makeRng } from './rng';
 import { type SimTeam, simulateMatch } from './sim';
@@ -20,7 +27,7 @@ import type {
   World,
 } from './types';
 import { clubBudget, clubSquadValue, matchIncome, type MatchOutcome, playerValue, seasonPrize } from './transfers';
-import { autoPickSquad } from './world';
+import { autoPickSquad, isAvailable } from './world';
 
 export interface NewGameOptions {
   leagueId: LeagueId;
@@ -80,6 +87,30 @@ export function createGame(world: World, opts: NewGameOptions): GameState {
   };
 }
 
+/**
+ * Fill the gaps left by injured/suspended starters in a fixed lineup (the user's)
+ * with the best available reserves — bench first, then any other fit squad member
+ * — so the manager isn't punished with a short side for not pre-empting an injury.
+ */
+function backfillXI(world: World, clubId: ClubId, squad: SquadConfig, available: Player[]): Player[] {
+  const target = Math.min(11, squad.startingXI.length);
+  if (available.length >= target) return available;
+  const chosen = new Set(available.map((p) => p.id));
+  const pool = [...(squad.bench ?? []), ...world.clubs[clubId].playerIds]
+    .map((id) => world.players[id])
+    .filter((p): p is Player => Boolean(p) && isAvailable(p) && !chosen.has(p.id))
+    .sort((a, b) => overall(b) - overall(a));
+
+  const result = [...available];
+  for (const p of pool) {
+    if (result.length >= target) break;
+    if (chosen.has(p.id)) continue;
+    chosen.add(p.id);
+    result.push(p);
+  }
+  return result;
+}
+
 function simTeamFor(
   world: World,
   clubId: ClubId,
@@ -88,7 +119,12 @@ function simTeamFor(
   homeAdvantage: boolean,
 ): SimTeam {
   const squad = clubId === managedClubId ? managedSquad : autoPickSquad(world, clubId);
-  const players = squad.startingXI.map((id) => world.players[id]).filter(Boolean);
+  // AI squads are auto-picked already fit; the user's fixed XI may include an
+  // injured/suspended player, so drop them and backfill from the bench/reserves.
+  let players = squad.startingXI.map((id) => world.players[id]).filter((p) => p && isAvailable(p));
+  if (clubId === managedClubId && players.length < squad.startingXI.length) {
+    players = backfillXI(world, clubId, squad, players);
+  }
   return { clubId, players, roles: squad.roles, homeAdvantage };
 }
 
@@ -171,9 +207,45 @@ function recordPlayerMatchStats(
 }
 
 /**
+ * Apply a match's cards and injuries to player state: tally bookings, suspend
+ * sent-off players, and sideline the injured. Records everyone newly ruled out so
+ * the matchday's recovery tick doesn't immediately count down a fresh absence.
+ */
+function applyMatchDiscipline(world: World, result: MatchResult, newlyOut: Set<string>): void {
+  for (const card of result.cards ?? []) {
+    const player = world.players[card.playerId];
+    if (!player) continue;
+    applyCard(player, card);
+    if (card.type === 'red') newlyOut.add(player.id);
+  }
+  for (const injury of result.injuries ?? []) {
+    const player = world.players[injury.playerId];
+    if (!player) continue;
+    applyInjury(player, injury);
+    newlyOut.add(player.id);
+  }
+}
+
+/**
+ * Heal one matchday off every active injury/suspension, skipping anyone who was
+ * just ruled out this matchday (so a knock picked up today isn't already a day
+ * shorter). Runs once per matchday over the whole world — only sidelined players
+ * are touched — so absences tick down wherever the player now is.
+ */
+function recoverAbsences(world: World, newlyOut: Set<string>): void {
+  for (const id of Object.keys(world.players)) {
+    if (newlyOut.has(id)) continue;
+    const player = world.players[id];
+    if ((player.injuredMatches ?? 0) > 0) player.injuredMatches = (player.injuredMatches ?? 0) - 1;
+    if ((player.suspendedMatches ?? 0) > 0) player.suspendedMatches = (player.suspendedMatches ?? 0) - 1;
+  }
+}
+
+/**
  * Simulate every fixture of the current matchday (including the user's),
- * applying per-player progression to everyone who played, and advance the
- * matchday counter. Mutates `state` in place (and returns the outcome).
+ * applying per-player progression to everyone who played, recording cards and
+ * injuries, healing existing absences, and advancing the matchday counter.
+ * Mutates `state` in place (and returns the outcome).
  */
 export function playMatchday(state: GameState): MatchdayOutcome {
   const { world, season } = state;
@@ -186,6 +258,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   // Only the user's club has training slots; AI players never appear in this set.
   const training = new Set(state.squad.trainingIds ?? []);
   const played = new Set<string>();
+  const newlyOut = new Set<string>(); // injured/sent off this matchday
   const fixtures = season.fixtures.filter((f) => f.matchday === md);
   fixtures.forEach((f, i) => {
     const rng = makeRng(hashSeed(world.seed, season.number, md, i));
@@ -201,6 +274,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     }
     applyTeamProgression(state, home, result.awayGoals, training, played, result);
     applyTeamProgression(state, away, result.homeGoals, training, played, result);
+    applyMatchDiscipline(world, result, newlyOut);
   });
 
   // Track each club's highest-ever total squad value.
@@ -216,6 +290,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     if (player) applyTrainingProgression(player);
   }
 
+  recoverAbsences(world, newlyOut);
   season.currentMatchday = md + 1;
   return { results, userResult, userEarnings };
 }

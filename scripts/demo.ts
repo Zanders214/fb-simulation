@@ -31,7 +31,9 @@ for (let i = 0; i < 5; i++) {
   const h = w.clubs[userResult.homeClubId].shortName;
   const a = w.clubs[userResult.awayClubId].shortName;
   const scorers = userResult.events.map((e) => `${w.players[e.scorerId].lastName} ${e.minute}'`).join(', ');
-  console.log(`  ${h} ${userResult.homeGoals}-${userResult.awayGoals} ${a}    ${scorers}`);
+  const cards = userResult.cards.map((c) => `${c.type === 'yellow' ? '🟨' : '🟥'}${w.players[c.playerId].lastName}`).join(' ');
+  const injuries = userResult.injuries.map((iv) => `🚑${w.players[iv.playerId].lastName}(${iv.matchesOut})`).join(' ');
+  console.log(`  ${h} ${userResult.homeGoals}-${userResult.awayGoals} ${a}    ${scorers}${cards ? `   ${cards}` : ''}${injuries ? `   ${injuries}` : ''}`);
 }
 
 function playToEnd() {
@@ -40,6 +42,24 @@ function playToEnd() {
 }
 
 playToEnd();
+
+// Discipline & injury tally across the whole season just played (every fixture).
+let yellow = 0;
+let red = 0;
+let injuries = 0;
+for (const f of s.season.fixtures) {
+  if (!f.result) continue;
+  for (const c of f.result.cards) {
+    if (c.type === 'yellow') yellow++;
+    else red++;
+  }
+  injuries += f.result.injuries.length;
+}
+const games = s.season.fixtures.filter((f) => f.result).length;
+console.log(
+  `\nSeason discipline: ${yellow} yellow, ${red} red over ${games} games ` +
+    `(${(yellow / games).toFixed(2)} / ${(red / games).toFixed(2)} per game); ${injuries} injuries.`,
+);
 
 console.log('\nFinal table:');
 leagueTable(s).forEach((r, i) => {

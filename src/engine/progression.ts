@@ -1,7 +1,7 @@
 import { overall } from './attrs';
 import { ageGrowthMod, PROGRESSION, SIM, TRAINING } from './config';
 import type { Area } from './attrs';
-import type { Player, PlayerRating } from './types';
+import type { CardEvent, InjuryEvent, Player, PlayerRating } from './types';
 import { clamp } from './util';
 
 const AREAS: Area[] = ['attacking', 'defending', 'midfield'];
@@ -102,6 +102,31 @@ export function applyMatchProgression(player: Player, r: PlayerRating, ctx: Matc
 }
 
 /**
+ * Record a card shown to a player: bump the season + career tally, and put a
+ * sent-off (red-carded) player out for the next matchday or two. Mutates the
+ * player. Counters are read via `?? 0` so pre-update saves stay safe.
+ */
+export function applyCard(player: Player, card: CardEvent): void {
+  if (card.type === 'yellow') {
+    player.seasonYellowCards = (player.seasonYellowCards ?? 0) + 1;
+    player.careerYellowCards = (player.careerYellowCards ?? 0) + 1;
+    return;
+  }
+  player.seasonRedCards = (player.seasonRedCards ?? 0) + 1;
+  player.careerRedCards = (player.careerRedCards ?? 0) + 1;
+  player.suspendedMatches = Math.max(player.suspendedMatches ?? 0, SIM.RED_SUSPENSION);
+}
+
+/**
+ * Record a match injury: sideline the player for the injury's duration, keeping
+ * the worse of any overlapping knocks so a fresh light injury can't shorten a
+ * serious one. Mutates the player.
+ */
+export function applyInjury(player: Player, injury: InjuryEvent): void {
+  player.injuredMatches = Math.max(player.injuredMatches ?? 0, injury.matchesOut);
+}
+
+/**
  * Off-pitch development for a training-slot player who did NOT play this
  * matchday: a steady, potential- and age-capped nudge toward potential, with no
  * match rating involved. Bench players normally never develop, so this is the
@@ -125,6 +150,8 @@ export function applySeasonEnd(player: Player): void {
   player.seasonAssists = 0;
   player.seasonApps = 0;
   player.seasonCleanSheets = 0;
+  player.seasonYellowCards = 0;
+  player.seasonRedCards = 0;
   player.form = 0;
 
   if (player.age >= PROGRESSION.DECLINE_AGE) {

@@ -42,6 +42,28 @@ export const SIM = {
   CLEAN_SHEET_ADJ: 0.6, // GK/DEF bonus
   CONCEDE_PEN: 0.15, // GK/DEF per-goal-conceded penalty
   RATING_JITTER: 0.6, // ± seeded jitter span
+  // ---- discipline (cards) ----
+  CARD_LAMBDA: 1.7, // mean bookable incidents per team per match (~3.4 cards/match)
+  STRAIGHT_RED_SHARE: 0.018, // share of incidents that are a straight red
+  // chance a booked player's next bookable offence is actually a second yellow
+  // (most are waved away) — keeps two-yellow dismissals realistically rare.
+  SECOND_YELLOW_SHARE: 0.2,
+  RED_SUSPENSION: 1, // matchdays a sent-off (red-carded) player misses
+  // relative likelihood of being booked, by position (defenders/midfielders foul more)
+  cardPropensity: { GK: 0.25, DEF: 1.15, MID: 1.2, FWD: 0.85 } as Record<Position, number>,
+} as const;
+
+// ---- injuries ----
+// Match injuries are rare per game but force squad rotation: an injured player is
+// unavailable for `matchesOut` matchdays and recovers one matchday at a time.
+export const INJURY = {
+  LAMBDA: 0.18, // mean injuries per team per match (~1 every few matches for a club)
+  // severity bands -> matchdays out, chosen by weight (weights sum to 1)
+  BANDS: [
+    { weight: 0.6, min: 1, max: 2 }, // a knock
+    { weight: 0.3, min: 3, max: 5 }, // a few weeks out
+    { weight: 0.1, min: 6, max: 10 }, // a serious lay-off
+  ] as readonly { weight: number; min: number; max: number }[],
 } as const;
 
 // ---- content generation ----

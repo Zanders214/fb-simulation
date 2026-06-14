@@ -1,11 +1,13 @@
 import { effectiveArea } from './attrs';
-import { SIM } from './config';
+import { INJURY, SIM } from './config';
 import { computeRating } from './ratings';
 import { pickWeightedIndex, poisson, randInt, type Rng } from './rng';
 import type {
+  CardEvent,
   ClubId,
   GoalEvent,
   GoalType,
+  InjuryEvent,
   MatchResult,
   Player,
   PlayerRating,
@@ -174,11 +176,85 @@ function simulateSide(rng: Rng, atk: SimTeam, atkAreas: Areas, defAreas: Areas, 
   return { events, xg };
 }
 
+const byMinute = (a: { minute: number }, b: { minute: number }) => a.minute - b.minute;
+
+/**
+ * Book cards for one team. Each bookable incident falls on a player weighted by
+ * position (defenders/midfielders foul more). A fresh incident is almost always a
+ * first yellow (rarely a straight red); a player who is already booked usually
+ * gets away with it, occasionally collecting a second yellow that becomes a red.
+ * A sent-off player takes no further cards. Consumes a fixed three Rng draws per
+ * incident, so match RNG order stays stable.
+ */
+function simulateCards(rng: Rng, team: SimTeam): CardEvent[] {
+  const n = poisson(rng, SIM.CARD_LAMBDA);
+  if (n === 0 || team.players.length === 0) return [];
+  const weights = team.players.map((p) => SIM.cardPropensity[p.position]);
+  const booked = new Set<string>(); // already on a yellow
+  const sentOff = new Set<string>();
+  const events: CardEvent[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const player = team.players[pickWeightedIndex(rng, weights)];
+    const roll = rng.next();
+    const minute = randInt(rng, 1, 90);
+    if (sentOff.has(player.id)) continue; // already off — the incident is dead air
+
+    if (roll < SIM.STRAIGHT_RED_SHARE) {
+      sentOff.add(player.id);
+      events.push({ minute, clubId: team.clubId, playerId: player.id, type: 'red' });
+      continue;
+    }
+    if (booked.has(player.id)) {
+      // a second bookable offence — usually let off, occasionally a second yellow
+      if (roll < SIM.STRAIGHT_RED_SHARE + SIM.SECOND_YELLOW_SHARE) {
+        sentOff.add(player.id);
+        events.push({ minute, clubId: team.clubId, playerId: player.id, type: 'red', secondYellow: true });
+      }
+      continue;
+    }
+    booked.add(player.id);
+    events.push({ minute, clubId: team.clubId, playerId: player.id, type: 'yellow' });
+  }
+  return events.sort(byMinute);
+}
+
+/** Pick how many matchdays an injury keeps a player out, by weighted severity band. */
+function injuryDuration(rng: Rng): number {
+  const roll = rng.next();
+  const within = rng.next();
+  let cum = 0;
+  for (const band of INJURY.BANDS) {
+    cum += band.weight;
+    if (roll < cum) return band.min + Math.floor(within * (band.max - band.min + 1));
+  }
+  const last = INJURY.BANDS[INJURY.BANDS.length - 1];
+  return last.min + Math.floor(within * (last.max - last.min + 1));
+}
+
+/** Injure zero or more of a team's players this match. Four fixed Rng draws each. */
+function simulateInjuries(rng: Rng, team: SimTeam): InjuryEvent[] {
+  const n = poisson(rng, INJURY.LAMBDA);
+  if (n === 0 || team.players.length === 0) return [];
+  const hurt = new Set<string>();
+  const events: InjuryEvent[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const player = team.players[randInt(rng, 0, team.players.length - 1)];
+    const matchesOut = injuryDuration(rng);
+    const minute = randInt(rng, 1, 90);
+    if (hurt.has(player.id)) continue;
+    hurt.add(player.id);
+    events.push({ minute, clubId: team.clubId, playerId: player.id, matchesOut });
+  }
+  return events.sort(byMinute);
+}
+
 /**
  * Simulate a full match instantly and deterministically (given the injected
- * Rng). Returns the score, ordered goal events, per-player ratings, and a stats
- * panel. The RNG is consumed in a FIXED order so the same seed always
- * reproduces the same match — important for tests and save/replay.
+ * Rng). Returns the score, ordered goal events, cards, injuries, per-player
+ * ratings, and a stats panel. The RNG is consumed in a FIXED order so the same
+ * seed always reproduces the same match — important for tests and save/replay.
  */
 export function simulateMatch(input: SimInput): MatchResult {
   const { home, away, rng } = input;
@@ -241,6 +317,11 @@ export function simulateMatch(input: SimInput): MatchResult {
   rate(home, H, A, homeGoals, awayGoals);
   rate(away, A, H, awayGoals, homeGoals);
 
+  // Discipline & injuries draw AFTER ratings so adding them never perturbs the
+  // goal/rating RNG sequence for a given seed.
+  const cards = [...simulateCards(rng, home), ...simulateCards(rng, away)].sort(byMinute);
+  const injuries = [...simulateInjuries(rng, home), ...simulateInjuries(rng, away)].sort(byMinute);
+
   const homeStats: TeamMatchStats = { possession: possHome, chances: chancesHome, xg: homeOut.xg, goals: homeGoals };
   const awayStats: TeamMatchStats = { possession: possAway, chances: chancesAway, xg: awayOut.xg, goals: awayGoals };
 
@@ -250,6 +331,8 @@ export function simulateMatch(input: SimInput): MatchResult {
     homeGoals,
     awayGoals,
     events,
+    cards,
+    injuries,
     ratings,
     stats: { home: homeStats, away: awayStats },
   };

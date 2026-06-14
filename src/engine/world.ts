@@ -4,6 +4,21 @@ import type { ClubId, Formation, Player, Position, SquadConfig, SquadRoles, Worl
 
 const SLOT_ORDER: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 
+/** A player sidelined by injury this matchday (read defensively for old saves). */
+export function isInjured(player: Player): boolean {
+  return (player.injuredMatches ?? 0) > 0;
+}
+
+/** A player serving a suspension (e.g. after a red card). */
+export function isSuspended(player: Player): boolean {
+  return (player.suspendedMatches ?? 0) > 0;
+}
+
+/** Whether a player is fit and free to be selected (not injured, not suspended). */
+export function isAvailable(player: Player): boolean {
+  return !isInjured(player) && !isSuspended(player);
+}
+
 function clubPlayers(world: World, clubId: ClubId): Player[] {
   return world.clubs[clubId].playerIds.map((id) => world.players[id]).filter(Boolean);
 }
@@ -14,10 +29,12 @@ const byAttackingDesc = (a: Player, b: Player) => (b.attrs.attacking ?? 0) - (a.
 /**
  * Pick a sensible starting XI + bench + roles for a club, filling the formation
  * with the best players per position and falling back to best-available when a
- * position is short. Used for the user's initial squad and for every AI club.
+ * position is short. Injured/suspended players are skipped so an AI club always
+ * fields who it actually has available. Used for the user's initial squad and
+ * for every AI club, every matchday.
  */
 export function autoPickSquad(world: World, clubId: ClubId, formation: Formation = DEFAULT_FORMATION): SquadConfig {
-  const players = clubPlayers(world, clubId);
+  const players = clubPlayers(world, clubId).filter(isAvailable);
   const need = FORMATIONS[formation];
   const used = new Set<string>();
   const xi: Player[] = [];
@@ -55,13 +72,36 @@ export function autoPickSquad(world: World, clubId: ClubId, formation: Formation
   return { formation, startingXI, bench, roles: { captainId, penaltyTakerId, freeKickTakerId } };
 }
 
-export type XIIssueType = 'count' | 'duplicate' | 'not-owned' | 'no-gk' | 'off-position' | 'role-not-in-xi';
+export type XIIssueType =
+  | 'count'
+  | 'duplicate'
+  | 'not-owned'
+  | 'no-gk'
+  | 'off-position'
+  | 'role-not-in-xi'
+  | 'unavailable';
 
 export interface XIIssue {
   type: XIIssueType;
   message: string;
   /** Off-position is a soft warning (allowed with a rating penalty); the rest are hard errors. */
   severity: 'error' | 'warning';
+}
+
+/**
+ * Soft warnings for any injured/suspended starters: they're auto-replaced from
+ * the bench at kickoff, but the manager should know to fix the lineup themselves.
+ */
+function unavailableStarterIssues(players: Player[]): XIIssue[] {
+  const issues: XIIssue[] = [];
+  for (const p of players) {
+    if (isInjured(p)) {
+      issues.push({ type: 'unavailable', message: `${p.name} is injured and can't play.`, severity: 'warning' });
+    } else if (isSuspended(p)) {
+      issues.push({ type: 'unavailable', message: `${p.name} is suspended and can't play.`, severity: 'warning' });
+    }
+  }
+  return issues;
 }
 
 /** Validate a lineup. Returns all issues (errors + warnings); empty/warnings-only means playable. */
@@ -90,6 +130,7 @@ export function validateXI(world: World, squad: SquadConfig, clubId: ClubId): XI
   if (gkCount !== 1) {
     issues.push({ type: 'no-gk', message: `You need exactly one goalkeeper (have ${gkCount}).`, severity: 'error' });
   }
+  issues.push(...unavailableStarterIssues(players));
 
   const need = FORMATIONS[squad.formation];
   const have: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
