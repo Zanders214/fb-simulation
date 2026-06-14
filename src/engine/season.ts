@@ -109,6 +109,36 @@ function awardMatchIncome(world: World, result: MatchResult): void {
   world.clubs[awayClubId].budget = clubBudget(world, awayClubId) + matchIncome(outcomeFor(awayGoals, homeGoals));
 }
 
+/** Match income the managed club earns from one of its own results, in thousands. */
+function userMatchEarnings(managedClubId: ClubId, result: MatchResult): number {
+  const isHome = result.homeClubId === managedClubId;
+  const my = isHome ? result.homeGoals : result.awayGoals;
+  const opp = isHome ? result.awayGoals : result.homeGoals;
+  return matchIncome(outcomeFor(my, opp));
+}
+
+/** Apply post-match development to one team's players, tracking who featured. */
+function applyTeamProgression(
+  world: World,
+  team: SimTeam,
+  conceded: number,
+  training: Set<string>,
+  played: Set<string>,
+  result: MatchResult,
+): void {
+  const cleanSheet = conceded === 0;
+  for (const p of team.players) {
+    const r = result.ratings[p.id];
+    if (!r) continue;
+    const player = world.players[p.id];
+    applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
+    played.add(p.id);
+    if (p.position === 'GK' && cleanSheet) {
+      player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
+    }
+  }
+}
+
 /**
  * Simulate every fixture of the current matchday (including the user's),
  * applying per-player progression to everyone who played, and advance the
@@ -136,25 +166,10 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     awardMatchIncome(world, result);
     if (f.homeClubId === state.managedClubId || f.awayClubId === state.managedClubId) {
       userResult = result;
-      const isHome = f.homeClubId === state.managedClubId;
-      const my = isHome ? result.homeGoals : result.awayGoals;
-      const opp = isHome ? result.awayGoals : result.homeGoals;
-      userEarnings = matchIncome(outcomeFor(my, opp));
+      userEarnings = userMatchEarnings(state.managedClubId, result);
     }
-    for (const team of [home, away]) {
-      const conceded = team === home ? result.awayGoals : result.homeGoals;
-      const cleanSheet = conceded === 0;
-      for (const p of team.players) {
-        const r = result.ratings[p.id];
-        if (!r) continue;
-        const player = world.players[p.id];
-        applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
-        played.add(p.id);
-        if (p.position === 'GK' && cleanSheet) {
-          player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
-        }
-      }
-    }
+    applyTeamProgression(world, home, result.awayGoals, training, played, result);
+    applyTeamProgression(world, away, result.homeGoals, training, played, result);
   });
 
   // Training-slot players who didn't feature still develop on the training ground.
@@ -194,9 +209,9 @@ export function advanceSeason(state: GameState): GameState {
     const club = world.clubs[id];
     const position = positionById.get(id);
     const income =
-      position !== undefined
-        ? seasonPrize(position, clubIds.length)
-        : MARKET.SEASON_INCOME_BASE + Math.max(0, club.reputation - 40) * MARKET.SEASON_INCOME_REP;
+      position === undefined
+        ? MARKET.SEASON_INCOME_BASE + Math.max(0, club.reputation - 40) * MARKET.SEASON_INCOME_REP
+        : seasonPrize(position, clubIds.length);
     club.budget = clubBudget(world, id) + income;
   }
 
