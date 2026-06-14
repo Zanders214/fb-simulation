@@ -7,7 +7,7 @@ import { overall } from './attrs';
 import { CONTENT, MARKET } from './config';
 import type { ClubId, GameState, Player, PlayerId, World } from './types';
 import { clamp } from './util';
-import { removeFromSquad } from './world';
+import { replaceInSquad } from './world';
 
 /** Round a money amount (thousands) to the nearest €0.1M. */
 function roundTo100(x: number): number {
@@ -137,7 +137,8 @@ export function buyPlayer(state: GameState, playerId: PlayerId): TransferResult 
 /**
  * Sell a player from the managed club to an interested AI club. Validates the
  * minimum squad size and that a buyer exists; on success removes the player
- * from the lineup, moves him, and credits the (discounted) sale proceeds.
+ * from the lineup — promoting the best available same-position replacement into
+ * his starting slot — moves him, and credits the (discounted) sale proceeds.
  */
 export function sellPlayer(state: GameState, playerId: PlayerId): TransferResult {
   const { world, managedClubId } = state;
@@ -155,7 +156,7 @@ export function sellPlayer(state: GameState, playerId: PlayerId): TransferResult
   const proceeds = roundTo100(value * MARKET.SELL_RETURN);
   world.clubs[buyerId].budget = clubBudget(world, buyerId) - value;
   world.clubs[managedClubId].budget = clubBudget(world, managedClubId) + proceeds;
-  state.squad = removeFromSquad(state.squad, playerId);
+  state.squad = replaceInSquad(world, state.squad, managedClubId, playerId);
   transferPlayer(world, playerId, buyerId);
   return { ok: true, fee: proceeds, player, otherClubId: buyerId };
 }
