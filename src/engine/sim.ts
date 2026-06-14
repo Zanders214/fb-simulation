@@ -251,6 +251,25 @@ function simulateInjuries(rng: Rng, team: SimTeam): InjuryEvent[] {
 }
 
 /**
+ * Weaken a team's areas for the share of the match it plays a man down after a
+ * sending-off. A red late on barely moves the numbers; a red early on cuts a
+ * team's attack, midfield and defence sharply (which in turn lifts the
+ * opponent's chances and conversion, since those read this team's def/mid).
+ * Multiple reds stack. Mutates `areas` (a fresh per-match object).
+ */
+function applyRedCardImpact(areas: Areas, cards: CardEvent[], clubId: ClubId): void {
+  let fracDown = 0;
+  for (const c of cards) {
+    if (c.type === 'red' && c.clubId === clubId) fracDown += (90 - c.minute) / 90;
+  }
+  if (fracDown <= 0) return;
+  const mult = Math.max(0, 1 - fracDown * SIM.RED_STRENGTH_PENALTY);
+  areas.atk *= mult;
+  areas.mid *= mult;
+  areas.def *= mult;
+}
+
+/**
  * Simulate a full match instantly and deterministically (given the injected
  * Rng). Returns the score, ordered goal events, cards, injuries, per-player
  * ratings, and a stats panel. The RNG is consumed in a FIXED order so the same
@@ -260,6 +279,12 @@ export function simulateMatch(input: SimInput): MatchResult {
   const { home, away, rng } = input;
   const H = teamAreas(home);
   const A = teamAreas(away);
+
+  // Cards are drawn first: a sending-off weakens that team for the rest of the
+  // match, so reds must be known (and applied) before chances are generated.
+  const cards = [...simulateCards(rng, home), ...simulateCards(rng, away)].sort(byMinute);
+  applyRedCardImpact(H, cards, home.clubId);
+  applyRedCardImpact(A, cards, away.clubId);
 
   const possHome = logistic((H.mid - A.mid) / SIM.MID_TEMP);
   const possAway = 1 - possHome;
@@ -317,9 +342,8 @@ export function simulateMatch(input: SimInput): MatchResult {
   rate(home, H, A, homeGoals, awayGoals);
   rate(away, A, H, awayGoals, homeGoals);
 
-  // Discipline & injuries draw AFTER ratings so adding them never perturbs the
-  // goal/rating RNG sequence for a given seed.
-  const cards = [...simulateCards(rng, home), ...simulateCards(rng, away)].sort(byMinute);
+  // Injuries draw after ratings — they don't affect this match (no mid-match
+  // subs are modelled), only the player's availability for future matchdays.
   const injuries = [...simulateInjuries(rng, home), ...simulateInjuries(rng, away)].sort(byMinute);
 
   const homeStats: TeamMatchStats = { possession: possHome, chances: chancesHome, xg: homeOut.xg, goals: homeGoals };

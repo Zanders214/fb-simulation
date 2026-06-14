@@ -49,6 +49,10 @@ export const SIM = {
   // (most are waved away) — keeps two-yellow dismissals realistically rare.
   SECOND_YELLOW_SHARE: 0.2,
   RED_SUSPENSION: 1, // matchdays a sent-off (red-carded) player misses
+  // in-match cost of a sending-off: a team a man down is weakened across attack,
+  // midfield and defence in proportion to how long it plays short — so a red also
+  // lifts the opponent's scoring. (red at 70' ≈ -8% all over; red at 20' ≈ -27%.)
+  RED_STRENGTH_PENALTY: 0.35,
   // relative likelihood of being booked, by position (defenders/midfielders foul more)
   cardPropensity: { GK: 0.25, DEF: 1.15, MID: 1.2, FWD: 0.85 } as Record<Position, number>,
 } as const;

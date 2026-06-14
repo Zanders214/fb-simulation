@@ -117,6 +117,29 @@ describe('match simulation', () => {
     expect(secondYellowReds).toBeGreaterThan(0); // some reds come from two bookings
   });
 
+  it('a sending-off weakens the carded team and lifts the opponent', () => {
+    let downGoals = 0; // goals scored by the team that went a man down
+    let oppGoals = 0; // goals scored by the side that stayed at eleven
+    let n = 0;
+    for (let s = 0; s < 20000; s++) {
+      const r = play(s); // level 70 both, no home advantage -> symmetric at parity
+      const homeRed = r.cards.some((c) => c.type === 'red' && c.clubId === 'H');
+      const awayRed = r.cards.some((c) => c.type === 'red' && c.clubId === 'A');
+      if (homeRed === awayRed) continue; // need exactly one side reduced
+      if (homeRed) {
+        downGoals += r.homeGoals;
+        oppGoals += r.awayGoals;
+      } else {
+        downGoals += r.awayGoals;
+        oppGoals += r.homeGoals;
+      }
+      n++;
+    }
+    expect(n).toBeGreaterThan(200);
+    // the eleven-man side clearly outscores the team playing with ten
+    expect(oppGoals / n).toBeGreaterThan(downGoals / n + 0.5);
+  });
+
   it('never books or sends off the same player twice in one match', () => {
     for (let s = 0; s < 1500; s++) {
       const r = play(s);
