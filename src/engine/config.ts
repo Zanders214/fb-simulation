@@ -80,11 +80,23 @@ export const PROGRESSION = {
   PERF_CLAMP: 1.5,
   HEADROOM_DIV: 25,
   XP_THRESHOLD: 1,
+  EVENT_MULT: 3, // growth ×3 per match achievement — a goal/assist, or a clean sheet for GK/DEF; they stack
+  CONTRIB_DECLINE_MULT: 0.3, // a scorer/assister loses far less ability after a poor game
   FORM_ALPHA: 0.45, // EMA weight on the latest rating
   FORM_MIN: -5,
   FORM_MAX: 5,
   DECLINE_AGE: 31,
   RETIRE_AGE: 39,
+} as const;
+
+// ---- training ----
+// Players placed in the manager's training slots develop faster after matches:
+// good performances grow them much harder, while poor ones cost them far less.
+export const TRAINING = {
+  SLOTS: 3,
+  GROWTH_MULT: 5, // positive growth after a good match ×5
+  DECLINE_MULT: 0.3, // negative growth after a bad match softened (they lose less)
+  PASSIVE_RATE: 0.15, // off-pitch growth each matchday for a training player who didn't play
 } as const;
 
 // age modifier for growth speed
