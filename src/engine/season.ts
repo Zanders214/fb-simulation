@@ -156,10 +156,12 @@ function recordPlayerMatchStats(
     player.careerCleanSheets = (player.careerCleanSheets ?? 0) + 1;
   }
   if (player.clubId === state.managedClubId && (r.goals > 0 || r.assists > 0)) {
-    const log = (state.world.clubs[state.managedClubId].playerContributions ??= {});
-    const entry = (log[player.id] ??= { goals: 0, assists: 0 });
+    const club = state.world.clubs[state.managedClubId];
+    club.playerContributions ??= {};
+    const entry = club.playerContributions[player.id] ?? { goals: 0, assists: 0 };
     entry.goals += r.goals;
     entry.assists += r.assists;
+    club.playerContributions[player.id] = entry;
   }
   player.peakValue = Math.max(player.peakValue ?? 0, playerValue(player));
 }

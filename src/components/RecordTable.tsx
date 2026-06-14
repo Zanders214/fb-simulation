@@ -58,7 +58,7 @@ function Row({
   onPress?: (playerId: string) => void;
 }>) {
   const styles = useThemedStyles(makeStyles);
-  const isUser = highlightClubId != null && entry.club?.id === highlightClubId;
+  const isUser = highlightClubId != null && entry.club.id === highlightClubId;
   const body = (
     <>
       <Text style={[styles.rPos, styles.cell]}>{rank}</Text>
@@ -69,7 +69,7 @@ function Row({
         <Chip label={entry.player.position} color={positionColor(entry.player.position)} />
       </View>
       <View style={styles.rTeam}>
-        {entry.club ? <Chip label={entry.club.shortName} color={entry.club.primaryColor} /> : null}
+        <Chip label={entry.club.shortName} color={entry.club.primaryColor} />
       </View>
       <Text style={[styles.rStat, styles.cell, styles.statVal]}>{entry.value}</Text>
       <Text style={[styles.rValue, styles.cell]}>{formatMoney(entry.marketValue)}</Text>
