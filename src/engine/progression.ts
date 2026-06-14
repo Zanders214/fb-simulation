@@ -1,24 +1,23 @@
 import { overall } from './attrs';
 import { ageGrowthMod, PROGRESSION, SIM, TRAINING } from './config';
 import type { Area } from './attrs';
-import type { Player, PlayerRating, Position } from './types';
+import type { Player, PlayerRating } from './types';
 import { clamp } from './util';
 
-function signatureKey(pos: Position): Area {
-  switch (pos) {
-    case 'GK':
-    case 'DEF':
-      return 'defending';
-    case 'MID':
-      return 'midfield';
-    case 'FWD':
-      return 'attacking';
-  }
-}
+const AREAS: Area[] = ['attacking', 'defending', 'midfield'];
 
-function bump(player: Player, key: Area, delta: number): void {
-  const cur = player.attrs[key] ?? 50;
-  player.attrs[key] = Math.round(clamp(cur + delta, 1, 99));
+/**
+ * Nudge a player's whole coarse profile by `delta`, clamped to [1, 99]. Moving
+ * all three areas together raises (or lowers) overall ability while keeping the
+ * player's identity intact — the gaps between, say, a forward's attacking and
+ * defending are preserved, so a striker who develops gets better all round
+ * without ever stopping being a striker. Used for both growth and decline.
+ */
+function bump(player: Player, delta: number): void {
+  for (const area of AREAS) {
+    const cur = player.attrs[area] ?? 50;
+    player.attrs[area] = Math.round(clamp(cur + delta, 1, 99));
+  }
 }
 
 /**
@@ -55,13 +54,12 @@ export function applyMatchProgression(player: Player, r: PlayerRating, inTrainin
   }
   player.growthXp += growth;
 
-  const key = signatureKey(player.position);
   while (player.growthXp >= PROGRESSION.XP_THRESHOLD) {
-    bump(player, key, +1);
+    bump(player, +1);
     player.growthXp -= PROGRESSION.XP_THRESHOLD;
   }
   while (player.growthXp <= -PROGRESSION.XP_THRESHOLD) {
-    bump(player, key, -1);
+    bump(player, -1);
     player.growthXp += PROGRESSION.XP_THRESHOLD;
   }
 }
@@ -78,9 +76,8 @@ export function applyTrainingProgression(player: Player): void {
   const growth = TRAINING.PASSIVE_RATE * ageGrowthMod(player.age) * (headroom / PROGRESSION.HEADROOM_DIV);
   player.growthXp += growth;
 
-  const key = signatureKey(player.position);
   while (player.growthXp >= PROGRESSION.XP_THRESHOLD) {
-    bump(player, key, +1);
+    bump(player, +1);
     player.growthXp -= PROGRESSION.XP_THRESHOLD;
   }
 }
@@ -99,6 +96,6 @@ export function applySeasonEnd(player: Player): void {
 
   if (player.age >= PROGRESSION.DECLINE_AGE) {
     const drop = player.age >= 34 ? 2 : 1;
-    bump(player, signatureKey(player.position), -drop);
+    bump(player, -drop);
   }
 }

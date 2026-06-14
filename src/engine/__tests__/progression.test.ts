@@ -67,4 +67,19 @@ describe('applyMatchProgression training boost', () => {
     applyTrainingProgression(capped);
     expect(capped.growthXp).toBe(before);
   });
+
+  it('raises every area when a player develops, not just the signature stat', () => {
+    // enough XP to guarantee at least one whole-point bump
+    const fwd = makePlayer({ position: 'FWD', age: 20, attacking: 60, defending: 30, midfield: 45, potential: 95 });
+    const before = { ...fwd.attrs };
+    for (let i = 0; i < 10; i++) applyTrainingProgression(fwd);
+
+    expect(fwd.attrs.attacking).toBeGreaterThan(before.attacking ?? 0);
+    expect(fwd.attrs.defending).toBeGreaterThan(before.defending ?? 0);
+    expect(fwd.attrs.midfield).toBeGreaterThan(before.midfield ?? 0);
+    // identity preserved: the gaps between areas are unchanged (all moved equally)
+    expect((fwd.attrs.attacking ?? 0) - (fwd.attrs.defending ?? 0)).toBe(
+      (before.attacking ?? 0) - (before.defending ?? 0),
+    );
+  });
 });
