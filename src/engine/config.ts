@@ -94,6 +94,7 @@ export const TRAINING = {
   SLOTS: 3,
   GROWTH_MULT: 5, // positive growth after a good match ×5
   DECLINE_MULT: 0.3, // negative growth after a bad match softened (they lose less)
+  PASSIVE_RATE: 0.15, // off-pitch growth each matchday for a training player who didn't play
 } as const;
 
 // age modifier for growth speed

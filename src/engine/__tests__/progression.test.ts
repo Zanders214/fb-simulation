@@ -1,4 +1,4 @@
-import { applyMatchProgression } from '../progression';
+import { applyMatchProgression, applyTrainingProgression } from '../progression';
 import type { PlayerRating } from '../types';
 import { makePlayer } from './factory';
 
@@ -51,5 +51,20 @@ describe('applyMatchProgression training boost', () => {
     applyMatchProgression(a, rating(7.5));
     applyMatchProgression(b, rating(7.5), false);
     expect(a.growthXp).toBe(b.growthXp);
+  });
+
+  it('develops a benched training player off the pitch (no form change)', () => {
+    const benched = base();
+    applyTrainingProgression(benched);
+    expect(dev(benched)).toBeGreaterThan(0);
+    expect(benched.form).toBe(0); // didn't play, so form is untouched
+    expect(benched.seasonApps).toBe(0); // no appearance recorded
+  });
+
+  it('does not develop a maxed-out player with no headroom', () => {
+    const capped = makePlayer({ position: 'FWD', age: 20, attacking: 90, potential: 50 });
+    const before = capped.growthXp;
+    applyTrainingProgression(capped);
+    expect(capped.growthXp).toBe(before);
   });
 });

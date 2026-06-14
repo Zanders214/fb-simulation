@@ -25,9 +25,9 @@ export default function TrainingScreen() {
         Training · {used}/{TRAINING.SLOTS} slots
       </Text>
       <Text style={styles.hint}>
-        Pick up to {TRAINING.SLOTS} players to train. After a match they develop much faster from a
-        good performance and lose far less from a bad one. Players who don&apos;t play still gain
-        nothing — training amplifies match form, it doesn&apos;t replace minutes.
+        Pick up to {TRAINING.SLOTS} players to train. If they play, they develop much faster from a
+        good performance and lose far less from a bad one. If they&apos;re left out, they keep
+        improving on the training ground while benched players normally wouldn&apos;t.
       </Text>
 
       <Card style={styles.listCard}>

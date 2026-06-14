@@ -1,6 +1,6 @@
 import { MARKET, SAVE_VERSION } from './config';
 import { generateFixtures } from './fixtures';
-import { applyMatchProgression, applySeasonEnd } from './progression';
+import { applyMatchProgression, applySeasonEnd, applyTrainingProgression } from './progression';
 import { hashSeed, makeRng } from './rng';
 import { type SimTeam, simulateMatch } from './sim';
 import { computeTable } from './standings';
@@ -107,6 +107,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
 
   // Only the user's club has training slots; AI players never appear in this set.
   const training = new Set(state.squad.trainingIds ?? []);
+  const played = new Set<string>();
   const fixtures = season.fixtures.filter((f) => f.matchday === md);
   fixtures.forEach((f, i) => {
     const rng = makeRng(hashSeed(world.seed, season.number, md, i));
@@ -125,12 +126,20 @@ export function playMatchday(state: GameState): MatchdayOutcome {
         if (!r) continue;
         const player = world.players[p.id];
         applyMatchProgression(player, r, training.has(p.id));
+        played.add(p.id);
         if (p.position === 'GK' && conceded === 0) {
           player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
         }
       }
     }
   });
+
+  // Training-slot players who didn't feature still develop on the training ground.
+  for (const id of training) {
+    if (played.has(id)) continue;
+    const player = world.players[id];
+    if (player) applyTrainingProgression(player);
+  }
 
   season.currentMatchday = md + 1;
   return { results, userResult };

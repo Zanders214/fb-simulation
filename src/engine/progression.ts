@@ -67,6 +67,25 @@ export function applyMatchProgression(player: Player, r: PlayerRating, inTrainin
 }
 
 /**
+ * Off-pitch development for a training-slot player who did NOT play this
+ * matchday: a steady, potential- and age-capped nudge toward potential, with no
+ * match rating involved. Bench players normally never develop, so this is the
+ * payoff for dedicating a training slot to someone who isn't in the XI. Purely
+ * positive — the training ground never costs ability. Mutates the player.
+ */
+export function applyTrainingProgression(player: Player): void {
+  const headroom = Math.max(0, player.potential - overall(player));
+  const growth = TRAINING.PASSIVE_RATE * ageGrowthMod(player.age) * (headroom / PROGRESSION.HEADROOM_DIV);
+  player.growthXp += growth;
+
+  const key = signatureKey(player.position);
+  while (player.growthXp >= PROGRESSION.XP_THRESHOLD) {
+    bump(player, key, +1);
+    player.growthXp -= PROGRESSION.XP_THRESHOLD;
+  }
+}
+
+/**
  * End-of-season tick for EVERY player: age +1, reset season counters/form, and
  * apply a small decline to veterans.
  */
