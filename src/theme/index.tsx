@@ -233,10 +233,10 @@ const styleCache = new WeakMap<StyleFactory<unknown>, Map<ThemeName, unknown>>()
 export function useThemedStyles<T extends object>(factory: StyleFactory<T>): T {
   const theme = useTheme();
   return useMemo(() => {
-    let byTheme = styleCache.get(factory as StyleFactory<unknown>);
+    let byTheme = styleCache.get(factory);
     if (!byTheme) {
       byTheme = new Map();
-      styleCache.set(factory as StyleFactory<unknown>, byTheme);
+      styleCache.set(factory, byTheme);
     }
     let styles = byTheme.get(theme.name) as T | undefined;
     if (!styles) {
