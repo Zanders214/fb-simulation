@@ -1,6 +1,7 @@
 import type { GoalType, Position } from '../engine';
-import { theme } from '../theme';
+import type { Theme } from '../theme';
 
+/** Position tag colours are conventional (GK gold, DEF blue, …) and theme-independent. */
 export function positionColor(pos: Position): string {
   switch (pos) {
     case 'GK':
@@ -14,14 +15,14 @@ export function positionColor(pos: Position): string {
   }
 }
 
-export function ratingColor(r: number): string {
+export function ratingColor(r: number, theme: Theme): string {
   if (r >= 7.5) return theme.colors.win;
   if (r >= 6.5) return '#8bc34a';
   if (r >= 5.5) return theme.colors.draw;
   return theme.colors.loss;
 }
 
-export function overallColor(ovr: number): string {
+export function overallColor(ovr: number, theme: Theme): string {
   if (ovr >= 82) return theme.colors.win;
   if (ovr >= 72) return '#8bc34a';
   if (ovr >= 62) return theme.colors.draw;
@@ -63,7 +64,7 @@ export function formSymbol(form: number): string {
   return '–';
 }
 
-export function formColor(form: number): string {
+export function formColor(form: number, theme: Theme): string {
   if (form >= 1.5) return theme.colors.win;
   if (form <= -1.5) return theme.colors.loss;
   return theme.colors.textMuted;

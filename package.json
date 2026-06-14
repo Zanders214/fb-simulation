@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "demo": "tsx scripts/demo.ts",
+    "icons": "node scripts/generate-icons.mjs",
     "lint": "expo lint"
   },
   "dependencies": {

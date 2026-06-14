@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
-import { theme } from '../theme';
+import { useThemedStyles, type Theme } from '../theme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -13,6 +13,7 @@ type Props = {
 };
 
 export function Button({ label, onPress, variant = 'primary', disabled = false, style, testID }: Readonly<Props>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       testID={testID}
@@ -43,7 +44,7 @@ export function Button({ label, onPress, variant = 'primary', disabled = false, 
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   base: {
     minHeight: 52,
     paddingHorizontal: theme.spacing(2.5),

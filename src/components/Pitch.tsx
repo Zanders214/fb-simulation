@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { overall, type Player } from '../engine';
-import { theme } from '../theme';
+import { useThemedStyles, type Theme } from '../theme';
 import { positionColor } from '../ui/format';
 import type { FormationSlot } from '../ui/formationLayout';
 
@@ -24,6 +24,7 @@ export function Pitch({
   selectedId?: string | null;
   onSelect?: (playerId: string) => void;
 }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.pitch}>
       {/* field markings */}
@@ -56,6 +57,7 @@ function Marker({
   selected?: boolean;
   onPress?: () => void;
 }>) {
+  const styles = useThemedStyles(makeStyles);
   const wrap = [
     styles.marker,
     { left: `${slot.x * 100}%` as const, top: `${slot.y * 100}%` as const },
@@ -92,11 +94,11 @@ function Marker({
 
 const MARKER_W = 60;
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   pitch: {
     width: '100%',
     aspectRatio: 0.74,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.field,
     borderRadius: theme.radius.md,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.25)',

@@ -6,7 +6,7 @@ import { Chip } from '../src/components/Chip';
 import type { GoalEvent, MatchResult } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { goalTypeTag } from '../src/ui/format';
-import { theme } from '../src/theme';
+import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 type Outcome = 'WIN' | 'DRAW' | 'DEFEAT';
 
@@ -16,7 +16,7 @@ function matchOutcome(my: number, opp: number): Outcome {
   return 'DRAW';
 }
 
-function outcomeColorFor(outcome: Outcome): string {
+function outcomeColorFor(outcome: Outcome, theme: Theme): string {
   if (outcome === 'WIN') return theme.colors.win;
   if (outcome === 'DEFEAT') return theme.colors.loss;
   return theme.colors.draw;
@@ -25,6 +25,8 @@ function outcomeColorFor(outcome: Outcome): string {
 export default function MatchScreen() {
   const router = useRouter();
   const game = useGame();
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const lastOutcome = useGameStore((s) => s.lastOutcome);
 
   if (!game || !lastOutcome?.userResult) return <Redirect href="/season" />;
@@ -37,7 +39,7 @@ export default function MatchScreen() {
   const myGoals = isHome ? r.homeGoals : r.awayGoals;
   const oppGoals = isHome ? r.awayGoals : r.homeGoals;
   const outcome = matchOutcome(myGoals, oppGoals);
-  const outcomeColor = outcomeColorFor(outcome);
+  const outcomeColor = outcomeColorFor(outcome, theme);
 
   const others = lastOutcome.results.filter((res) => res !== r);
 
@@ -102,6 +104,7 @@ function GoalEntry({
   isHome: boolean;
   game: NonNullable<ReturnType<typeof useGame>>;
 }>) {
+  const styles = useThemedStyles(makeStyles);
   const scorer = game.world.players[event.scorerId];
   const assist = event.assistId ? game.world.players[event.assistId] : undefined;
 
@@ -133,6 +136,7 @@ function GoalEntry({
 }
 
 function OtherResult({ res, game }: Readonly<{ res: MatchResult; game: NonNullable<ReturnType<typeof useGame>> }>) {
+  const styles = useThemedStyles(makeStyles);
   const h = game.world.clubs[res.homeClubId];
   const a = game.world.clubs[res.awayClubId];
   return (
@@ -144,7 +148,7 @@ function OtherResult({ res, game }: Readonly<{ res: MatchResult; game: NonNullab
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1), paddingBottom: theme.spacing(4) },
   outcome: { fontSize: theme.font.heading, fontWeight: '900', textAlign: 'center', letterSpacing: 2, marginTop: theme.spacing(1) },

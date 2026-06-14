@@ -1,6 +1,6 @@
 import { Tabs, useRouter } from 'expo-router';
 import { Pressable, Text } from 'react-native';
-import { theme } from '../../src/theme';
+import { useTheme } from '../../src/theme';
 
 function tabIcon(emoji: string) {
   return () => <Text style={{ fontSize: 18 }}>{emoji}</Text>;
@@ -8,9 +8,11 @@ function tabIcon(emoji: string) {
 
 function HeaderHomeButton() {
   const router = useRouter();
+  const theme = useTheme();
+  const color = theme.dark ? theme.colors.onPrimary : theme.colors.text;
   return (
     <Pressable onPress={() => router.dismissTo('/')} hitSlop={10} style={{ paddingHorizontal: 14 }}>
-      <Text style={{ color: theme.colors.onPrimary, fontSize: 22 }}>⌂</Text>
+      <Text style={{ color, fontSize: 22 }}>⌂</Text>
     </Pressable>
   );
 }
@@ -18,11 +20,15 @@ function HeaderHomeButton() {
 const renderHeaderHome = () => <HeaderHomeButton />;
 
 export default function SeasonLayout() {
+  const theme = useTheme();
+  const headerBg = theme.dark ? theme.colors.primaryDark : theme.colors.surface;
+  const headerText = theme.dark ? theme.colors.onPrimary : theme.colors.text;
+
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: theme.colors.primaryDark },
-        headerTintColor: theme.colors.onPrimary,
+        headerStyle: { backgroundColor: headerBg },
+        headerTintColor: headerText,
         headerTitleStyle: { fontWeight: '700' },
         tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border },
         tabBarActiveTintColor: theme.colors.accent,

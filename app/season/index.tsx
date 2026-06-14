@@ -8,11 +8,12 @@ import { leagueTable } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
 import { squadByPosition, userClub } from '../../src/store/selectors';
 import { ordinal } from '../../src/ui/format';
-import { theme } from '../../src/theme';
+import { useThemedStyles, type Theme } from '../../src/theme';
 
 export default function SquadScreen() {
   const game = useGame();
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const summary = useMemo(() => {
     if (!game) return null;
     const table = leagueTable(game);
@@ -70,6 +71,7 @@ export default function SquadScreen() {
 }
 
 function Meta({ label, value }: Readonly<{ label: string; value: string }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.meta}>
       <Text style={styles.metaValue}>{value}</Text>
@@ -82,7 +84,7 @@ function positionName(p: string): string {
   return { GK: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', FWD: 'Forwards' }[p] ?? p;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1.5), paddingBottom: theme.spacing(4) },
   header: { gap: theme.spacing(1.5) },
