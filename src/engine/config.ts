@@ -80,6 +80,8 @@ export const PROGRESSION = {
   PERF_CLAMP: 1.5,
   HEADROOM_DIV: 25,
   XP_THRESHOLD: 1,
+  EVENT_MULT: 3, // growth ×3 per match achievement — a goal/assist, or a clean sheet for GK/DEF; they stack
+  CONTRIB_DECLINE_MULT: 0.3, // a scorer/assister loses far less ability after a poor game
   FORM_ALPHA: 0.45, // EMA weight on the latest rating
   FORM_MIN: -5,
   FORM_MAX: 5,

@@ -21,15 +21,28 @@ function bump(player: Player, delta: number): void {
 }
 
 /**
+ * What happened to the player's team in the match, used to bias development.
+ */
+export interface MatchContext {
+  /** Player occupies one of the manager's training slots. */
+  inTraining?: boolean;
+  /** The player's team conceded no goals this match. */
+  cleanSheet?: boolean;
+}
+
+/**
  * Apply one match's outcome to a player who PLAYED: updates season counters,
  * form (EMA of recent performance), and slowly nudges ability toward potential.
  * Bench players are simply never passed here, so rotation has a real cost.
  * Mutates the player (it is mutable game state owned by the save).
  *
- * When `inTraining` is set, development is biased in the player's favour: good
- * matches grow ability much faster, while poor matches cost far less than usual.
+ * Tangible contributions accelerate development: a goal or assist multiplies
+ * growth by EVENT_MULT, and a clean sheet does the same for keepers/defenders;
+ * the two stack (a defender who scores AND keeps a clean sheet gets EVENT_MULT
+ * twice). When `inTraining` is set, growth is boosted further still. After a poor
+ * game a contributor — or a training-slot player — loses far less than usual.
  */
-export function applyMatchProgression(player: Player, r: PlayerRating, inTraining = false): void {
+export function applyMatchProgression(player: Player, r: PlayerRating, ctx: MatchContext = {}): void {
   player.seasonApps += 1;
   player.seasonGoals += r.goals;
   player.seasonAssists += r.assists;
@@ -49,8 +62,21 @@ export function applyMatchProgression(player: Player, r: PlayerRating, inTrainin
   const perf = clamp(r.rating - PROGRESSION.PERF_PIVOT, -PROGRESSION.PERF_CLAMP, PROGRESSION.PERF_CLAMP);
   let growth =
     perf * PROGRESSION.GROWTH_RATE * ageGrowthMod(player.age) * (headroom / PROGRESSION.HEADROOM_DIV);
-  if (inTraining) {
-    growth *= growth >= 0 ? TRAINING.GROWTH_MULT : TRAINING.DECLINE_MULT;
+
+  const contributed = r.goals > 0 || r.assists > 0;
+  const keptCleanSheet = Boolean(ctx.cleanSheet) && (player.position === 'GK' || player.position === 'DEF');
+
+  if (growth >= 0) {
+    // each achievement is worth EVENT_MULT and they stack (e.g. clean sheet + goal = 2×EVENT_MULT)
+    let eventMult = 0;
+    if (contributed) eventMult += PROGRESSION.EVENT_MULT;
+    if (keptCleanSheet) eventMult += PROGRESSION.EVENT_MULT;
+    if (eventMult > 0) growth *= eventMult;
+    if (ctx.inTraining) growth *= TRAINING.GROWTH_MULT;
+  } else {
+    // a poor game costs a contributor far less, mirroring the training cushion
+    if (contributed) growth *= PROGRESSION.CONTRIB_DECLINE_MULT;
+    if (ctx.inTraining) growth *= TRAINING.DECLINE_MULT;
   }
   player.growthXp += growth;
 

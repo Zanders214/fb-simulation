@@ -2,8 +2,8 @@ import { applyMatchProgression, applyTrainingProgression } from '../progression'
 import type { PlayerRating } from '../types';
 import { makePlayer } from './factory';
 
-function rating(r: number): PlayerRating {
-  return { playerId: 'x', rating: r, goals: 0, assists: 0 };
+function rating(r: number, goals = 0, assists = 0): PlayerRating {
+  return { playerId: 'x', rating: r, goals, assists };
 }
 
 describe('applyMatchProgression training boost', () => {
@@ -16,8 +16,8 @@ describe('applyMatchProgression training boost', () => {
   it('develops faster from a good match when in training', () => {
     const normal = base();
     const trained = base();
-    applyMatchProgression(normal, rating(8.5), false);
-    applyMatchProgression(trained, rating(8.5), true);
+    applyMatchProgression(normal, rating(8.5), {});
+    applyMatchProgression(trained, rating(8.5), { inTraining: true });
 
     expect(dev(normal)).toBeGreaterThan(0);
     expect(dev(trained)).toBeGreaterThan(dev(normal));
@@ -28,8 +28,8 @@ describe('applyMatchProgression training boost', () => {
   it('loses less from a bad match when in training', () => {
     const normal = base();
     const trained = base();
-    applyMatchProgression(normal, rating(4.0), false);
-    applyMatchProgression(trained, rating(4.0), true);
+    applyMatchProgression(normal, rating(4.0), {});
+    applyMatchProgression(trained, rating(4.0), { inTraining: true });
 
     expect(dev(normal)).toBeLessThan(0);
     // training softens the decline, so it stays closer to zero (less negative)
@@ -40,16 +40,16 @@ describe('applyMatchProgression training boost', () => {
   it('leaves form unchanged by the training flag', () => {
     const normal = base();
     const trained = base();
-    applyMatchProgression(normal, rating(8.5), false);
-    applyMatchProgression(trained, rating(8.5), true);
+    applyMatchProgression(normal, rating(8.5), {});
+    applyMatchProgression(trained, rating(8.5), { inTraining: true });
     expect(trained.form).toBeCloseTo(normal.form, 5);
   });
 
-  it('matches the legacy behaviour when the flag is omitted', () => {
+  it('matches the default behaviour when no context is passed', () => {
     const a = base();
     const b = base();
     applyMatchProgression(a, rating(7.5));
-    applyMatchProgression(b, rating(7.5), false);
+    applyMatchProgression(b, rating(7.5), {});
     expect(a.growthXp).toBe(b.growthXp);
   });
 
@@ -66,6 +66,56 @@ describe('applyMatchProgression training boost', () => {
     const before = capped.growthXp;
     applyTrainingProgression(capped);
     expect(capped.growthXp).toBe(before);
+  });
+
+  // development banked + leftover XP, measured off a fixed start of 50 (any area works,
+  // since development moves all three areas together)
+  const devOf = (p: ReturnType<typeof makePlayer>) => (p.attrs.attacking ?? 0) - 50 + p.growthXp;
+
+  it('rewards a goal or assist with ~3x development', () => {
+    const plain = base();
+    const scorer = base();
+    applyMatchProgression(plain, rating(7.5, 0, 0));
+    applyMatchProgression(scorer, rating(7.5, 1, 0));
+    expect(devOf(plain)).toBeGreaterThan(0);
+    expect(devOf(scorer)).toBeCloseTo(devOf(plain) * 3, 5);
+  });
+
+  it('rewards a defender for a clean sheet with ~3x development', () => {
+    const baseDef = () => makePlayer({ position: 'DEF', age: 20, defending: 50, attacking: 50, potential: 90 });
+    const exposed = baseDef();
+    const solid = baseDef();
+    applyMatchProgression(exposed, rating(7.0), { cleanSheet: false });
+    applyMatchProgression(solid, rating(7.0), { cleanSheet: true });
+    expect(devOf(exposed)).toBeGreaterThan(0);
+    expect(devOf(solid)).toBeCloseTo(devOf(exposed) * 3, 5);
+  });
+
+  it('stacks a clean sheet and a goal to ~6x for a defender', () => {
+    const baseDef = () => makePlayer({ position: 'DEF', age: 20, defending: 50, attacking: 50, potential: 90 });
+    const plain = baseDef();
+    const hero = baseDef();
+    applyMatchProgression(plain, rating(7.0, 0, 0), {});
+    applyMatchProgression(hero, rating(7.0, 1, 0), { cleanSheet: true });
+    expect(devOf(hero)).toBeCloseTo(devOf(plain) * 6, 5);
+  });
+
+  it('gives a forward no clean-sheet bonus', () => {
+    const a = base();
+    const b = base();
+    applyMatchProgression(a, rating(7.5), { cleanSheet: false });
+    applyMatchProgression(b, rating(7.5), { cleanSheet: true });
+    expect(dev(b)).toBeCloseTo(dev(a), 5);
+  });
+
+  it('softens the loss of ability when a scorer has a poor game', () => {
+    const plain = base();
+    const scorer = base();
+    applyMatchProgression(plain, rating(4.0, 0, 0));
+    applyMatchProgression(scorer, rating(4.0, 1, 0));
+    expect(dev(plain)).toBeLessThan(0);
+    expect(dev(scorer)).toBeGreaterThan(dev(plain)); // hurt less for contributing
+    expect(dev(scorer)).toBeLessThan(0); // still a setback
   });
 
   it('raises every area when a player develops, not just the signature stat', () => {

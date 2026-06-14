@@ -121,13 +121,14 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     }
     for (const team of [home, away]) {
       const conceded = team === home ? result.awayGoals : result.homeGoals;
+      const cleanSheet = conceded === 0;
       for (const p of team.players) {
         const r = result.ratings[p.id];
         if (!r) continue;
         const player = world.players[p.id];
-        applyMatchProgression(player, r, training.has(p.id));
+        applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
         played.add(p.id);
-        if (p.position === 'GK' && conceded === 0) {
+        if (p.position === 'GK' && cleanSheet) {
           player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
         }
       }
