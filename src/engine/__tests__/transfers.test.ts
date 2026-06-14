@@ -10,6 +10,7 @@ import {
   playerValue,
   sellPlayer,
 } from '../transfers';
+import { toggleTraining } from '../world';
 
 function freshTakeover(seed = 2026): GameState {
   const w = generateWorld(seed);
@@ -125,6 +126,17 @@ describe('sellPlayer', () => {
     const res = sellPlayer(s, captainId);
     expect(res.ok).toBe(true);
     expect(s.squad.roles.captainId).toBeUndefined();
+  });
+
+  it('frees the training slot held by the sold player', () => {
+    const s = freshTakeover();
+    const playerId = s.squad.startingXI[5];
+    s.squad = toggleTraining(s.squad, playerId);
+    expect(s.squad.trainingIds).toContain(playerId);
+
+    const res = sellPlayer(s, playerId);
+    expect(res.ok).toBe(true);
+    expect(s.squad.trainingIds ?? []).not.toContain(playerId);
   });
 
   it('refuses to sell below the minimum squad size', () => {

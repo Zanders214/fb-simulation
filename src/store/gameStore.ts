@@ -88,7 +88,11 @@ export const useGameStore = create<GameStore>()(
       toggleTraining: (playerId) => {
         const game = get().game;
         if (!game) return;
-        game.squad = toggleTraining(game.squad, playerId);
+        // self-heal: drop any training ids the club no longer owns (e.g. a sold
+        // player) before toggling, so a stale slot can never block a new pick.
+        const owned = new Set(game.world.clubs[game.managedClubId].playerIds);
+        const pruned = (game.squad.trainingIds ?? []).filter((id) => owned.has(id));
+        game.squad = toggleTraining({ ...game.squad, trainingIds: pruned }, playerId);
         set({ game: { ...game } });
       },
 

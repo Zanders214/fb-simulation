@@ -7,7 +7,7 @@ import { Pitch, type PitchSlot } from '../../src/components/Pitch';
 import { PlayerRow } from '../../src/components/PlayerRow';
 import { FORMATIONS, type Formation, overall, TRAINING, validateXI } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
-import { clubPlayers } from '../../src/store/selectors';
+import { clubPlayers, trainingPlayers } from '../../src/store/selectors';
 import { theme } from '../../src/theme';
 import { FORMATION_LAYOUTS } from '../../src/ui/formationLayout';
 
@@ -32,7 +32,7 @@ export default function LineupScreen() {
     .filter((p) => !xiSet.has(p.id))
     .sort((a, b) => overall(b) - overall(a));
 
-  const trainingCount = squad.trainingIds?.length ?? 0;
+  const trainingCount = trainingPlayers(game).length;
   const issues = validateXI(game.world, squad, game.managedClubId);
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');

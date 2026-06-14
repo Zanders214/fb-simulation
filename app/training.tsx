@@ -4,7 +4,7 @@ import { Card } from '../src/components/Card';
 import { PlayerRow } from '../src/components/PlayerRow';
 import { overall, TRAINING } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
-import { clubPlayers } from '../src/store/selectors';
+import { clubPlayers, trainingPlayers } from '../src/store/selectors';
 import { theme } from '../src/theme';
 
 export default function TrainingScreen() {
@@ -12,8 +12,7 @@ export default function TrainingScreen() {
   const toggleTraining = useGameStore((s) => s.toggleTraining);
 
   if (!game) return <Redirect href="/" />;
-  const { squad } = game;
-  const trainingSet = new Set(squad.trainingIds ?? []);
+  const trainingSet = new Set(trainingPlayers(game).map((p) => p.id));
   const used = trainingSet.size;
   const full = used >= TRAINING.SLOTS;
 

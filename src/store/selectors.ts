@@ -19,4 +19,18 @@ export function userClub(game: GameState) {
   return game.world.clubs[game.managedClubId];
 }
 
+/**
+ * Players currently occupying the manager's training slots, restricted to those
+ * still at the club. Training ids are soft references into the squad (like
+ * roles), so a player who has left — e.g. been sold — is dropped here rather
+ * than stranding a slot. Order follows `trainingIds`.
+ */
+export function trainingPlayers(game: GameState): Player[] {
+  const owned = new Set(userClub(game).playerIds);
+  return (game.squad.trainingIds ?? [])
+    .filter((id) => owned.has(id))
+    .map((id) => game.world.players[id])
+    .filter(Boolean);
+}
+
 export const POSITION_ORDER = POS_ORDER;
