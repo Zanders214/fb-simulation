@@ -5,10 +5,11 @@ import { Chip } from '../../src/components/Chip';
 import { leagueRecords, leagueTable, type RecordEntry } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
 import { formatMoney, positionColor } from '../../src/ui/format';
-import { theme } from '../../src/theme';
+import { useThemedStyles, type Theme } from '../../src/theme';
 
 export default function TableScreen() {
   const game = useGame();
+  const styles = useThemedStyles(makeStyles);
   const [showRecords, setShowRecords] = useState(false);
   const records = useMemo(() => (game ? leagueRecords(game, 5) : null), [game]);
   if (!game || !records) return <Redirect href="/" />;
@@ -79,6 +80,7 @@ function RecordTable({
   entries: RecordEntry[];
   game: NonNullable<ReturnType<typeof useGame>>;
 }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.recordTable}>
       <Text style={styles.recordTitle}>{title}</Text>
@@ -117,7 +119,7 @@ function RecordTable({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(1.5), paddingBottom: theme.spacing(4) },
   headerRow: {

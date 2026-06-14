@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../src/components/Button';
 import { useGameStore } from '../src/store/gameStore';
 import { confirmAction } from '../src/ui/confirm';
-import { theme } from '../src/theme';
+import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 export default function Home() {
   const router = useRouter();
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const hasHydrated = useGameStore((s) => s.hasHydrated);
   const hasSave = useGameStore((s) => s.game !== null);
 
@@ -59,7 +61,7 @@ export default function Home() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   center: { flex: 1, backgroundColor: theme.colors.bg, alignItems: 'center', justifyContent: 'center' },
   container: {
     flex: 1,

@@ -23,7 +23,7 @@ import {
 } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
 import { clubPlayers } from '../../src/store/selectors';
-import { theme } from '../../src/theme';
+import { useTheme, useThemedStyles, type Theme } from '../../src/theme';
 import { formatMoney } from '../../src/ui/format';
 
 type Mode = 'buy' | 'sell';
@@ -49,6 +49,8 @@ const ROLE_LABELS = ['Starting XI', 'Substitute', 'Reserve'];
 
 export default function MarketScreen() {
   const game = useGame();
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const buy = useGameStore((s) => s.buy);
   const sell = useGameStore((s) => s.sell);
 
@@ -223,6 +225,7 @@ function Action({
   enabled,
   onPress,
 }: Readonly<{ label: string; amount: number; enabled: boolean; onPress: () => void }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.action}>
       <Text style={styles.fee}>{formatMoney(amount)}</Text>
@@ -243,6 +246,7 @@ function FilterChip({
   active,
   onPress,
 }: Readonly<{ label: string; active: boolean; onPress: () => void }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}>
       <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
@@ -250,7 +254,7 @@ function FilterChip({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg, padding: theme.spacing(2), gap: theme.spacing(1) },
   header: { gap: theme.spacing(0.5) },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

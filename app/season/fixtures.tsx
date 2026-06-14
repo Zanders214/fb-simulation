@@ -6,9 +6,9 @@ import { Chip } from '../../src/components/Chip';
 import { isSeasonComplete, leagueTable, type Fixture } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
 import { confirmAction } from '../../src/ui/confirm';
-import { theme } from '../../src/theme';
+import { useTheme, useThemedStyles, type Theme } from '../../src/theme';
 
-function resultColor(my: number, opp: number): string {
+function resultColor(my: number, opp: number, theme: Theme): string {
   if (my > opp) return theme.colors.win;
   if (my < opp) return theme.colors.loss;
   return theme.colors.draw;
@@ -17,6 +17,7 @@ function resultColor(my: number, opp: number): string {
 export default function FixturesScreen() {
   const router = useRouter();
   const game = useGame();
+  const styles = useThemedStyles(makeStyles);
   const playNextMatchday = useGameStore((s) => s.playNextMatchday);
   const advanceToNextSeason = useGameStore((s) => s.advanceToNextSeason);
 
@@ -87,6 +88,7 @@ function opponentOf(f: Fixture, me: string) {
 }
 
 function NextOpponent({ game }: Readonly<{ game: NonNullable<ReturnType<typeof useGame>> }>) {
+  const styles = useThemedStyles(makeStyles);
   const me = game.managedClubId;
   const next = game.season.fixtures.find(
     (f) => !f.result && (f.homeClubId === me || f.awayClubId === me),
@@ -112,6 +114,8 @@ function FixtureRow({
   me: string;
   game: NonNullable<ReturnType<typeof useGame>>;
 }>) {
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { oppId, isHome } = opponentOf(fixture, me);
   const opp = game.world.clubs[oppId];
   const r = fixture.result;
@@ -121,7 +125,7 @@ function FixtureRow({
     const myGoals = isHome ? r.homeGoals : r.awayGoals;
     const oppGoals = isHome ? r.awayGoals : r.homeGoals;
     resultText = `${myGoals}-${oppGoals}`;
-    color = resultColor(myGoals, oppGoals);
+    color = resultColor(myGoals, oppGoals, theme);
   }
   return (
     <View style={styles.fixtureRow}>
@@ -136,7 +140,7 @@ function FixtureRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1), paddingBottom: theme.spacing(4) },
   playCard: { alignItems: 'center', gap: theme.spacing(0.5), paddingVertical: theme.spacing(2.5) },

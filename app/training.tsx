@@ -5,10 +5,11 @@ import { PlayerRow } from '../src/components/PlayerRow';
 import { overall, TRAINING } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { clubPlayers, trainingPlayers } from '../src/store/selectors';
-import { theme } from '../src/theme';
+import { useThemedStyles, type Theme } from '../src/theme';
 
 export default function TrainingScreen() {
   const game = useGame();
+  const styles = useThemedStyles(makeStyles);
   const toggleTraining = useGameStore((s) => s.toggleTraining);
 
   if (!game) return <Redirect href="/" />;
@@ -53,7 +54,7 @@ export default function TrainingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1.5), paddingBottom: theme.spacing(4) },
   title: {

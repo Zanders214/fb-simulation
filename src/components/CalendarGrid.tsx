@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { dateKey, daysInMonth, WEEKDAY_SHORT } from '../engine/calendar';
-import { theme } from '../theme';
+import { useThemedStyles, type Theme } from '../theme';
 
 /** What to draw on a day that has the user's match. */
 export interface DayMarker {
@@ -28,6 +28,7 @@ type Props = Readonly<{
 }>;
 
 export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, canSelect }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const year = month.getUTCFullYear();
   const m = month.getUTCMonth();
   const lead = new Date(Date.UTC(year, m, 1)).getUTCDay(); // 0=Sun
@@ -120,7 +121,7 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   weekRow: { flexDirection: 'row' },
   headCell: { flex: 1, alignItems: 'center', paddingVertical: theme.spacing(0.5) },
   headText: {

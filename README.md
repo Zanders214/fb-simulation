@@ -39,6 +39,7 @@ Then install **Expo Go** (App Store / Google Play) and scan the QR code.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run web` | Run in a browser at http://localhost:8082 |
 | `npm run demo` | Print a fully-simulated season to the console (balance/sanity check) |
+| `npm run icons` | Regenerate the app icons (`assets/*.png`) from `scripts/generate-icons.mjs` |
 
 ## Project structure
 
@@ -46,11 +47,20 @@ Then install **Expo Go** (App Store / Google Play) and scan the QR code.
 app/             Expo Router screens (Home, New Game, season hub tabs, match result)
 src/engine/      Pure game engine: match sim, world generation, fixtures, standings,
                  progression — no React, deterministic, unit-tested
-src/store/       Zustand store + persistence seam
+src/store/       Zustand store + persistence seam (game save + user preferences)
 src/components/  Shared UI components
+src/theme/       Theme system: palettes + provider/hooks (light, dark & extra themes)
 src/ui/          Formatting helpers
-scripts/demo.ts  Console balance/sanity tool
+scripts/         Console balance tool (demo.ts) + icon generator (generate-icons.mjs)
 ```
+
+## Theming
+
+The standard theme follows the device's light/dark setting; a few extra themes
+(Midnight, Claret, Sunset, Graphite) can be picked in **Settings → Appearance**.
+Screens read the active theme via `useTheme()` / `useThemedStyles()` from
+`src/theme`, so a change re-skins the whole app live. The choice is persisted
+separately from the save game.
 
 ## Tests
 

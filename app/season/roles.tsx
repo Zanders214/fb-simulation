@@ -5,7 +5,7 @@ import { Card } from '../../src/components/Card';
 import { PlayerRow } from '../../src/components/PlayerRow';
 import type { SquadRoles } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
-import { theme } from '../../src/theme';
+import { useThemedStyles, type Theme } from '../../src/theme';
 
 const ROLES: { key: keyof SquadRoles; label: string }[] = [
   { key: 'captainId', label: 'Captain' },
@@ -15,6 +15,7 @@ const ROLES: { key: keyof SquadRoles; label: string }[] = [
 
 export default function RolesScreen() {
   const game = useGame();
+  const styles = useThemedStyles(makeStyles);
   const assignRole = useGameStore((s) => s.assignRole);
   const [activeRole, setActiveRole] = useState<keyof SquadRoles>('captainId');
 
@@ -61,7 +62,7 @@ function labelFor(key: keyof SquadRoles): string {
   return ROLES.find((r) => r.key === key)?.label ?? 'role';
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1.5), paddingBottom: theme.spacing(4) },
   roleRow: { flexDirection: 'row', gap: theme.spacing(1) },

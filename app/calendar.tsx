@@ -20,7 +20,7 @@ import {
   startOfMonth,
 } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
-import { theme } from '../src/theme';
+import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 import { confirmAction } from '../src/ui/confirm';
 
 const INTERVAL_MS = 110;
@@ -28,6 +28,8 @@ const TARGET_FRAMES = 28; // a jump of any length sweeps in roughly this many ti
 
 export default function CalendarScreen() {
   const game = useGame();
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const simulateToDate = useGameStore((s) => s.simulateToDate);
 
   const [viewMonth, setViewMonth] = useState(() =>
@@ -75,7 +77,7 @@ export default function CalendarScreen() {
       map.set(dateKey(date), marker);
     }
     return map;
-  }, [game]);
+  }, [game, theme]);
 
   if (!game) return <Redirect href="/" />;
 
@@ -214,7 +216,7 @@ export default function CalendarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1.5), paddingBottom: theme.spacing(4) },
   statusCard: { alignItems: 'center', gap: theme.spacing(0.25), paddingVertical: theme.spacing(2) },

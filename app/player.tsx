@@ -5,7 +5,7 @@ import { Chip } from '../src/components/Chip';
 import { areaRating, overall, playerValue, type Area } from '../src/engine';
 import { useGame } from '../src/store/gameStore';
 import { formatMoney, overallColor, positionColor } from '../src/ui/format';
-import { theme } from '../src/theme';
+import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 const POSITION_NAME: Record<string, string> = {
   GK: 'Goalkeeper',
@@ -22,6 +22,8 @@ const AREAS: { key: Area; label: string }[] = [
 
 export default function PlayerScreen() {
   const game = useGame();
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const player = game && id ? game.world.players[id] : undefined;
 
@@ -47,7 +49,7 @@ export default function PlayerScreen() {
               </Text>
             ) : null}
           </View>
-          <Text style={[styles.ovr, { color: overallColor(ovr) }]}>{ovr}</Text>
+          <Text style={[styles.ovr, { color: overallColor(ovr, theme) }]}>{ovr}</Text>
         </View>
         <View style={styles.metaRow}>
           <Meta label="Position" value={POSITION_NAME[player.position] ?? player.position} />
@@ -96,6 +98,7 @@ export default function PlayerScreen() {
 }
 
 function Meta({ label, value }: Readonly<{ label: string; value: string }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.meta}>
       <Text style={styles.metaValue} numberOfLines={1}>
@@ -107,6 +110,7 @@ function Meta({ label, value }: Readonly<{ label: string; value: string }>) {
 }
 
 function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.stat}>
       <Text style={styles.statBig}>{value}</Text>
@@ -116,18 +120,20 @@ function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
 }
 
 function StatBar({ label, value }: Readonly<{ label: string; value: number }>) {
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.barRow}>
       <Text style={styles.barLabel}>{label}</Text>
       <View style={styles.barTrack}>
-        <View style={[styles.barFill, { width: `${value}%`, backgroundColor: overallColor(value) }]} />
+        <View style={[styles.barFill, { width: `${value}%`, backgroundColor: overallColor(value, theme) }]} />
       </View>
-      <Text style={[styles.barValue, { color: overallColor(value) }]}>{value}</Text>
+      <Text style={[styles.barValue, { color: overallColor(value, theme) }]}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1.5), paddingBottom: theme.spacing(4) },
   header: { gap: theme.spacing(1.5) },

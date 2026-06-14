@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { overall, type Player } from '../engine';
 import { formColor, formSymbol, overallColor, positionColor } from '../ui/format';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles, type Theme } from '../theme';
 import { Chip } from './Chip';
 
 export function PlayerRow({
@@ -18,6 +18,8 @@ export function PlayerRow({
   subtitle?: string;
   right?: ReactNode;
 }>) {
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const ovr = overall(player);
   const body = (
     <>
@@ -32,8 +34,8 @@ export function PlayerRow({
       </View>
       {right ?? (
         <View style={styles.stat}>
-          <Text style={[styles.ovr, { color: overallColor(ovr) }]}>{ovr}</Text>
-          <Text style={[styles.form, { color: formColor(player.form) }]}>{formSymbol(player.form)}</Text>
+          <Text style={[styles.ovr, { color: overallColor(ovr, theme) }]}>{ovr}</Text>
+          <Text style={[styles.form, { color: formColor(player.form, theme) }]}>{formSymbol(player.form)}</Text>
         </View>
       )}
     </>
@@ -53,7 +55,7 @@ export function PlayerRow({
   return <View style={[styles.row, selected && styles.selected]}>{body}</View>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',

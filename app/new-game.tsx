@@ -6,7 +6,7 @@ import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
 import { generateWorld, type ClubId, type LeagueId } from '../src/engine';
 import { useGameStore } from '../src/store/gameStore';
-import { theme } from '../src/theme';
+import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 type Mode = 'create' | 'takeover';
 type Step = 'mode' | 'league' | 'configure';
@@ -18,6 +18,8 @@ const COLOR_SWATCHES = [
 
 export default function NewGame() {
   const router = useRouter();
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const newGame = useGameStore((s) => s.newGame);
 
   // One fresh seed per visit; the engine regenerates this exact world on start.
@@ -168,6 +170,7 @@ export default function NewGame() {
 }
 
 function Swatches({ selected, onSelect }: Readonly<{ selected: string; onSelect: (c: string) => void }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.swatches}>
       {COLOR_SWATCHES.map((c) => (
@@ -181,7 +184,7 @@ function Swatches({ selected, onSelect }: Readonly<{ selected: string; onSelect:
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1.5), paddingBottom: theme.spacing(6) },
   h: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '700', marginBottom: theme.spacing(0.5) },

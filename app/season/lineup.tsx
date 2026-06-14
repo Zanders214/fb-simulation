@@ -8,13 +8,14 @@ import { PlayerRow } from '../../src/components/PlayerRow';
 import { FORMATIONS, type Formation, overall, TRAINING, validateXI } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
 import { clubPlayers, trainingPlayers } from '../../src/store/selectors';
-import { theme } from '../../src/theme';
+import { useThemedStyles, type Theme } from '../../src/theme';
 import { FORMATION_LAYOUTS } from '../../src/ui/formationLayout';
 
 const FORMATION_KEYS = Object.keys(FORMATIONS) as Formation[];
 
 export default function LineupScreen() {
   const game = useGame();
+  const styles = useThemedStyles(makeStyles);
   const changeFormation = useGameStore((s) => s.changeFormation);
   const substitute = useGameStore((s) => s.substitute);
   const swapPositions = useGameStore((s) => s.swapPositions);
@@ -112,7 +113,7 @@ export default function LineupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1), paddingBottom: theme.spacing(4) },
   sectionTitle: {
@@ -137,8 +138,8 @@ const styles = StyleSheet.create({
   formTextActive: { color: theme.colors.onPrimary },
   listCard: { gap: theme.spacing(0.25), paddingVertical: theme.spacing(1) },
   hint: { color: theme.colors.textMuted, fontSize: theme.font.small },
-  errorBanner: { backgroundColor: '#3a1d1f', borderColor: theme.colors.danger },
-  errorText: { color: '#ff9b9e', fontSize: theme.font.small },
-  warnBanner: { backgroundColor: '#3a3320', borderColor: theme.colors.draw },
-  warnText: { color: '#e6cf86', fontSize: theme.font.small },
+  errorBanner: { backgroundColor: theme.dark ? '#3a1d1f' : '#fdecea', borderColor: theme.colors.danger },
+  errorText: { color: theme.dark ? '#ff9b9e' : theme.colors.danger, fontSize: theme.font.small },
+  warnBanner: { backgroundColor: theme.dark ? '#3a3320' : '#fdf3d6', borderColor: theme.colors.draw },
+  warnText: { color: theme.dark ? '#e6cf86' : theme.colors.draw, fontSize: theme.font.small },
 });
