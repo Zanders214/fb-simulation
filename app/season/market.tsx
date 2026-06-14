@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Alert,
@@ -49,6 +49,7 @@ const ROLE_LABELS = ['Starting XI', 'Substitute', 'Reserve'];
 
 export default function MarketScreen() {
   const game = useGame();
+  const router = useRouter();
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
   const buy = useGameStore((s) => s.buy);
@@ -108,6 +109,7 @@ export default function MarketScreen() {
       <PlayerRow
         player={item}
         subtitle={`${club.shortName} · OVR ${overall(item)} · Age ${item.age}`}
+        onPress={() => router.push(`/player?id=${item.id}`)}
         right={
           <Action label="Buy" amount={fee} enabled={affordable} onPress={() => onBuy(item.id)} />
         }
@@ -122,6 +124,7 @@ export default function MarketScreen() {
       <PlayerRow
         player={item}
         subtitle={`${ROLE_LABELS[squadRole(game, item.id)]} · OVR ${overall(item)} · Age ${item.age}`}
+        onPress={() => router.push(`/player?id=${item.id}`)}
         right={
           <Action label="Sell" amount={proceeds} enabled={canSell} onPress={() => onSell(item.id)} />
         }

@@ -96,11 +96,14 @@ export function clubRecords(state: GameState, clubId = state.managedClubId, limi
         return { player, club: world.clubs[player.clubId], value: stat(c), marketValue: playerValue(player) };
       });
 
+  // `userPosition` in history is the managed club's finish, so a best-finish is
+  // only meaningful for that club; other clubs report 0 (rendered as "–").
   const positions = history.map((h) => h.userPosition).filter((p) => p > 0);
+  const bestFinish = clubId === state.managedClubId && positions.length ? Math.min(...positions) : 0;
   return {
     trophies: history.filter((h) => h.championClubId === clubId).length,
     seasonsPlayed: history.length,
-    bestFinish: positions.length ? Math.min(...positions) : 0,
+    bestFinish,
     squadValue: clubSquadValue(world, clubId),
     peakSquadValue: Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, clubId)),
     topScorers: toEntries((c) => c.goals),
