@@ -15,6 +15,10 @@ module.exports = [
   {
     files: ['**/*.{ts,tsx}'],
     plugins: { sonarjs },
+    // Enable type-aware linting (builds the TS program) for the rules below.
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: __dirname },
+    },
     rules: {
       'sonarjs/no-nested-conditional': 'error', // SonarCloud S3358
       'sonarjs/cognitive-complexity': ['error', 15], // S3776
@@ -25,6 +29,12 @@ module.exports = [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
       ], // S1128
+      // ---- type-aware rules (the reason for typed linting) ----
+      '@typescript-eslint/no-floating-promises': 'error', // forgotten await on IO/async
+      '@typescript-eslint/no-misused-promises': 'error', // promise in a sync/boolean slot
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/prefer-optional-chain': 'error', // S6582
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error', // S4325
     },
   },
   {

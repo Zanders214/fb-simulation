@@ -1,7 +1,7 @@
 import { MARKET } from '../config';
 import { generateWorld } from '../content';
 import { createGame } from '../season';
-import type { GameState, Player, Position } from '../types';
+import type { GameState, Player } from '../types';
 import {
   buyPlayer,
   clubBudget,
@@ -28,7 +28,7 @@ function makeMid(overall: number, age: number, potential = overall): Player {
     lastName: 'Player',
     nationality: 'Testland',
     age,
-    position: 'MID' as Position,
+    position: 'MID',
     attrs: { attacking: overall, defending: overall, midfield: overall },
     potential,
     form: 0,
