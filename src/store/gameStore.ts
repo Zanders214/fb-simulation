@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { dateToTargetMatchday } from '../engine/calendar';
 import { SAVE_VERSION } from '../engine/config';
 import { generateWorld } from '../engine/content';
 import {
   advanceSeason,
   createGame,
+  isSeasonComplete,
   type MatchdayOutcome,
   type NewGameOptions,
   playMatchday,
@@ -24,6 +26,10 @@ interface GameStore {
   setHasHydrated: (v: boolean) => void;
   newGame: (opts: NewGameOptions, seed: number) => void;
   playNextMatchday: () => MatchdayOutcome | null;
+  /** Simulate forward through `target` (clamped to the current season). Returns matchdays played. */
+  simulateToMatchday: (target: number) => number;
+  /** Simulate to the last matchday on or before `date`. Returns matchdays played (0 = no-op). */
+  simulateToDate: (date: Date) => number;
   advanceToNextSeason: () => void;
   changeFormation: (formation: Formation) => void;
   assignRole: (role: keyof SquadRoles, playerId: string | undefined) => void;
@@ -62,6 +68,28 @@ export const useGameStore = create<GameStore>()(
         const outcome = playMatchday(game);
         set({ game: { ...game }, lastOutcome: outcome });
         return outcome;
+      },
+
+      simulateToMatchday: (target) => {
+        const game = get().game;
+        if (!game) return 0;
+        let played = 0;
+        // Reuse the engine; stop at the season boundary so a jump never rolls the
+        // season over silently (the Fixtures advance-season flow owns that).
+        while (game.season.currentMatchday <= target && !isSeasonComplete(game)) {
+          playMatchday(game);
+          played += 1;
+        }
+        if (played > 0) set({ game: { ...game }, lastOutcome: null });
+        return played;
+      },
+
+      simulateToDate: (date) => {
+        const game = get().game;
+        if (!game) return 0;
+        const target = dateToTargetMatchday(game, date);
+        if (target == null) return 0;
+        return get().simulateToMatchday(target);
       },
 
       advanceToNextSeason: () => {

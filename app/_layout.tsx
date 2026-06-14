@@ -25,6 +25,7 @@ export default function RootLayout() {
         <Stack.Screen name="new-game" options={{ title: 'New Game' }} />
         <Stack.Screen name="season" options={{ headerShown: false }} />
         <Stack.Screen name="match" options={{ title: 'Match Result', headerBackVisible: false }} />
+        <Stack.Screen name="calendar" options={{ title: 'Calendar' }} />
         <Stack.Screen name="player" options={{ title: 'Player' }} />
         <Stack.Screen name="training" options={{ title: 'Training' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
