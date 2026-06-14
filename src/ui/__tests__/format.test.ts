@@ -1,0 +1,25 @@
+import { NATIONALITIES } from '../../engine/names';
+import { flagFor } from '../format';
+
+describe('flagFor', () => {
+  it('maps known nationalities to their emoji flag', () => {
+    expect(flagFor('Italy')).toBe('🇮🇹');
+    expect(flagFor('Brazil')).toBe('🇧🇷');
+    expect(flagFor('United States')).toBe('🇺🇸');
+  });
+
+  it('uses the St George\'s cross for England', () => {
+    expect(flagFor('England')).toBe('🏴󠁧󠁢󠁥󠁮󠁧󠁿');
+  });
+
+  it('has a flag for every generated nationality', () => {
+    for (const nation of NATIONALITIES) {
+      // A mapped nation returns its flag, never the name fallback.
+      expect(flagFor(nation)).not.toBe(nation);
+    }
+  });
+
+  it('falls back to the original string when unmapped', () => {
+    expect(flagFor('Testland')).toBe('Testland');
+  });
+});

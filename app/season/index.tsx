@@ -8,7 +8,7 @@ import { PlayerRow } from '../../src/components/PlayerRow';
 import { leagueTable } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
 import { squadByPosition, userClub } from '../../src/store/selectors';
-import { ordinal } from '../../src/ui/format';
+import { flagFor, ordinal } from '../../src/ui/format';
 import { useThemedStyles, type Theme } from '../../src/theme';
 
 export default function SquadScreen() {
@@ -63,7 +63,7 @@ export default function SquadScreen() {
               const subtitle =
                 p.seasonApps > 0
                   ? `${p.seasonGoals}G ${p.seasonAssists}A · ${p.seasonApps} apps`
-                  : `Age ${p.age} · ${p.nationality}`;
+                  : `Age ${p.age} · ${flagFor(p.nationality)}`;
               return (
                 <PlayerRow
                   key={p.id}

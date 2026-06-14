@@ -69,3 +69,44 @@ export function formColor(form: number, theme: Theme): string {
   if (form <= -1.5) return theme.colors.loss;
   return theme.colors.textMuted;
 }
+
+/**
+ * Emoji flag per nationality. Keys match the names in engine `NATIONALITIES`.
+ * England has no country-code emoji, so it uses the St George's cross tag
+ * sequence; every other nation is a regional-indicator pair.
+ */
+const NATIONALITY_FLAGS: Record<string, string> = {
+  England: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  Spain: '🇪🇸',
+  Italy: '🇮🇹',
+  Germany: '🇩🇪',
+  France: '🇫🇷',
+  Netherlands: '🇳🇱',
+  Portugal: '🇵🇹',
+  Brazil: '🇧🇷',
+  Argentina: '🇦🇷',
+  Belgium: '🇧🇪',
+  Croatia: '🇭🇷',
+  Denmark: '🇩🇰',
+  Sweden: '🇸🇪',
+  Norway: '🇳🇴',
+  Poland: '🇵🇱',
+  Switzerland: '🇨🇭',
+  Austria: '🇦🇹',
+  Greece: '🇬🇷',
+  Turkey: '🇹🇷',
+  Japan: '🇯🇵',
+  'United States': '🇺🇸',
+  Mexico: '🇲🇽',
+  Nigeria: '🇳🇬',
+  Senegal: '🇸🇳',
+  Colombia: '🇨🇴',
+  Uruguay: '🇺🇾',
+  Ghana: '🇬🇭',
+  Morocco: '🇲🇦',
+};
+
+/** Emoji flag for a player's nationality; falls back to the name if unmapped. */
+export function flagFor(nationality: string): string {
+  return NATIONALITY_FLAGS[nationality] ?? nationality;
+}

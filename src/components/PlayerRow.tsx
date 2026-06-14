@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { overall, type Player } from '../engine';
-import { formColor, formSymbol, overallColor, positionColor } from '../ui/format';
+import { flagFor, formColor, formSymbol, overallColor, positionColor } from '../ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import { Chip } from './Chip';
 
@@ -31,7 +31,7 @@ export function PlayerRow({
           {player.name}
         </Text>
         <Text style={styles.sub} numberOfLines={1}>
-          {subtitle ?? `Age ${player.age} · ${player.nationality}`}
+          {subtitle ?? `Age ${player.age} · ${flagFor(player.nationality)}`}
         </Text>
       </View>
       {right ?? (
