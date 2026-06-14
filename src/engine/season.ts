@@ -1,15 +1,18 @@
 import { MARKET, SAVE_VERSION } from './config';
 import { generateFixtures } from './fixtures';
 import { applyMatchProgression, applySeasonEnd, applyTrainingProgression } from './progression';
+import { applyPromotionRelegation, projectLeagueOrder } from './promotion';
 import { hashSeed, makeRng } from './rng';
 import { type SimTeam, simulateMatch } from './sim';
 import { computeTable } from './standings';
 import type {
   ClubId,
+  Country,
   Fixture,
   GameState,
   LeagueId,
   MatchResult,
+  Movement,
   Player,
   Season,
   SquadConfig,
@@ -221,18 +224,71 @@ export function isSeasonComplete(state: GameState): boolean {
   return state.season.currentMatchday > state.season.totalMatchdays;
 }
 
+/** Numeric suffix of a league id (`L7` -> 7), for deriving stable per-league seeds. */
+function leagueSeedIndex(leagueId: LeagueId): number {
+  return Number(leagueId.slice(1)) || 0;
+}
+
 /**
- * Roll over to the next season: record champion + the user's finishing
- * position, age & decline every player, regenerate fixtures, and reset the
- * table. Squads and player development carry over. Mutates and returns `state`.
+ * Final finishing orders (best → worst) for every league in the user's country:
+ * the *real* table for the league they actually played, and a cheap seeded
+ * projection for the other tiers (which are never simulated match-by-match).
+ */
+function countryFinalOrders(
+  state: GameState,
+  country: Country,
+  playedOrder: ClubId[],
+): Record<LeagueId, ClubId[]> {
+  const { world, season } = state;
+  const orders: Record<LeagueId, ClubId[]> = {};
+  for (const lid of country.leagueIds) {
+    if (lid === season.leagueId) {
+      orders[lid] = playedOrder;
+    } else {
+      const rng = makeRng(hashSeed(world.seed, 9091, season.number, leagueSeedIndex(lid)));
+      orders[lid] = projectLeagueOrder(world, lid, rng);
+    }
+  }
+  return orders;
+}
+
+/**
+ * Run promotion/relegation across the user's country and move the live season to
+ * follow the managed club into its new tier. Returns how the user's club moved.
+ */
+function applyUserCountryPyramid(state: GameState, playedTable: TableRow[]): Movement {
+  const { world, season } = state;
+  const league = world.leagues[season.leagueId];
+  const country = world.countries[league.countryId];
+  if (!country) return 'stayed';
+
+  const prevTier = league.tier;
+  const orders = countryFinalOrders(state, country, playedTable.map((r) => r.clubId));
+  applyPromotionRelegation(world, country, orders);
+
+  const newLeagueId = world.clubs[state.managedClubId].leagueId;
+  season.leagueId = newLeagueId;
+  const newTier = world.leagues[newLeagueId].tier;
+  if (newTier < prevTier) return 'promoted';
+  if (newTier > prevTier) return 'relegated';
+  return 'stayed';
+}
+
+/**
+ * Roll over to the next season: record champion + the user's finishing position,
+ * age & decline every player, pay end-of-season income, apply promotion /
+ * relegation across the user's country (the managed club carries its squad into
+ * its new tier), then regenerate fixtures. Squads and development carry over.
+ * Mutates and returns `state`.
  */
 export function advanceSeason(state: GameState): GameState {
   const { world, season } = state;
-  const clubIds = world.leagues[season.leagueId].clubIds;
+  const playedLeagueId = season.leagueId;
+  const clubIds = world.leagues[playedLeagueId].clubIds;
   const table = computeTable(season, clubIds);
   const championClubId = table[0]?.clubId ?? state.managedClubId;
   const userPosition = table.findIndex((r) => r.clubId === state.managedClubId) + 1;
-  state.history.push({ season: season.number, championClubId, userPosition });
+  const playedTier = world.leagues[playedLeagueId].tier;
 
   for (const id of Object.keys(world.players)) applySeasonEnd(world.players[id]);
 
@@ -242,8 +298,9 @@ export function advanceSeason(state: GameState): GameState {
     p.peakValue = Math.max(p.peakValue ?? 0, playerValue(p));
   }
 
-  // End-of-season income. Clubs in the played league earn a position-based prize;
-  // every other club gets a flat top-up so the wider transfer market stays liquid.
+  // End-of-season income, on the league membership that was just played. Clubs in
+  // the played league earn a position-based prize; every other club gets a flat
+  // top-up so the wider transfer market stays liquid.
   const positionById = new Map(table.map((r, i) => [r.clubId, i + 1]));
   for (const id of Object.keys(world.clubs)) {
     const club = world.clubs[id];
@@ -256,13 +313,26 @@ export function advanceSeason(state: GameState): GameState {
     club.peakSquadValue = Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, id));
   }
 
+  // Promotion / relegation (mutates leagues + the managed club's tier), then
+  // record the season just played with the user's resulting movement.
+  const movement = applyUserCountryPyramid(state, table);
+  state.history.push({
+    season: season.number,
+    championClubId,
+    userPosition,
+    leagueId: playedLeagueId,
+    tier: playedTier,
+    movement,
+  });
+
   const newNumber = season.number + 1;
+  const newLeagueId = season.leagueId; // updated by the pyramid if the user moved
   state.season = {
     number: newNumber,
-    leagueId: season.leagueId,
-    fixtures: generateFixtures(clubIds, world.seed, newNumber),
+    leagueId: newLeagueId,
+    fixtures: generateFixtures(world.leagues[newLeagueId].clubIds, world.seed, newNumber),
     currentMatchday: 1,
-    totalMatchdays: totalMatchdaysFor(world, season.leagueId),
+    totalMatchdays: totalMatchdaysFor(world, newLeagueId),
   };
   return state;
 }

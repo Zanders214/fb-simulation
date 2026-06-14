@@ -20,11 +20,12 @@ export default function SquadScreen() {
     const table = leagueTable(game);
     const pos = table.findIndex((r) => r.clubId === game.managedClubId) + 1;
     const row = table.find((r) => r.clubId === game.managedClubId);
-    return { pos, row, groups: squadByPosition(game, game.managedClubId), club: userClub(game) };
+    const league = game.world.leagues[game.season.leagueId];
+    return { pos, row, league, groups: squadByPosition(game, game.managedClubId), club: userClub(game) };
   }, [game]);
 
   if (!game || !summary) return <Redirect href="/" />;
-  const { club, pos, row, groups } = summary;
+  const { club, pos, row, league, groups } = summary;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -35,6 +36,9 @@ export default function SquadScreen() {
             {club.name}
           </Text>
         </View>
+        <Text style={styles.leagueLine} numberOfLines={1}>
+          {league.name}{league.tier === 1 ? ' · Top flight' : ` · Tier ${league.tier}`}
+        </Text>
         <View style={styles.metaRow}>
           <Meta label="Season" value={`${game.season.number}`} />
           <Meta label="Position" value={pos > 0 ? ordinal(pos) : '–'} />
@@ -88,6 +92,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   header: { gap: theme.spacing(1.5) },
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1.5) },
   clubName: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '800', flex: 1 },
+  leagueLine: { color: theme.colors.textMuted, fontSize: theme.font.small, fontWeight: '600' },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
   clubStatsBtn: {
     marginTop: theme.spacing(0.5),

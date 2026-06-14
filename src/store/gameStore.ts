@@ -58,6 +58,9 @@ function isValidSavedGame(value: unknown): value is GameState {
   return (
     typeof value.managedClubId === 'string' &&
     isRecord(world) &&
+    // `countries` arrived with the division-pyramid world; its absence marks a
+    // pre-pyramid save, which we drop rather than crash the season screens on.
+    isRecord(world.countries) &&
     isRecord(world.clubs) &&
     isRecord(world.players) &&
     isRecord(squad) &&

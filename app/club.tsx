@@ -7,10 +7,17 @@ import { Meta } from '../src/components/Meta';
 import { RecordTable } from '../src/components/RecordTable';
 import { Section } from '../src/components/Section';
 import { StatLine } from '../src/components/StatLine';
-import { clubRecords } from '../src/engine';
+import { clubRecords, type Movement } from '../src/engine';
 import { useGame } from '../src/store/gameStore';
 import { formatMoney, ordinal } from '../src/ui/format';
 import { useThemedStyles, type Theme } from '../src/theme';
+
+/** Up/down/level arrow for a season's promotion-relegation outcome. */
+function movementSymbol(movement?: Movement): string {
+  if (movement === 'promoted') return '↑';
+  if (movement === 'relegated') return '↓';
+  return '–';
+}
 
 export default function ClubScreen() {
   const game = useGame();
@@ -23,6 +30,16 @@ export default function ClubScreen() {
   if (!game || !clubId || !stats || !game.world.clubs[clubId]) return <Redirect href="/" />;
   const club = game.world.clubs[clubId];
   const openPlayer = (pid: string) => router.push(`/player?id=${pid}`);
+  // Season history is the user's own career (finishes + promotion/relegation), so
+  // only show it on their club's page — not when deep-linking to a rival club.
+  const isUserClub = clubId === game.managedClubId;
+  const history = isUserClub ? [...game.history].reverse() : []; // most recent season first
+
+  const seasonDivision = (leagueId?: string, tier?: number): string => {
+    const name = leagueId ? game.world.leagues[leagueId]?.name : undefined;
+    if (name) return name;
+    return tier ? `Tier ${tier}` : '—';
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -47,6 +64,31 @@ export default function ClubScreen() {
         </Card>
       </Section>
 
+      {history.length > 0 && (
+        <Section title="Season history">
+          <Card style={styles.historyCard}>
+            {history.map((h) => (
+              <View key={h.season} style={styles.histRow}>
+                <Text style={styles.histSeason}>S{h.season}</Text>
+                <Text style={styles.histLeague} numberOfLines={1}>
+                  {seasonDivision(h.leagueId, h.tier)}
+                </Text>
+                <Text style={styles.histPos}>{h.userPosition > 0 ? ordinal(h.userPosition) : '—'}</Text>
+                <Text
+                  style={[
+                    styles.histMove,
+                    h.movement === 'promoted' && styles.histPromoted,
+                    h.movement === 'relegated' && styles.histRelegated,
+                  ]}
+                >
+                  {movementSymbol(h.movement)}
+                </Text>
+              </View>
+            ))}
+          </Card>
+        </Section>
+      )}
+
       <RecordTable title="All-time Top Scorers" statLabel="G" entries={stats.topScorers} onPressRow={openPlayer} />
       <RecordTable title="All-time Top Assisters" statLabel="A" entries={stats.topAssisters} onPressRow={openPlayer} />
     </ScrollView>
@@ -61,4 +103,12 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   clubName: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '800', flex: 1 },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
   card: { gap: theme.spacing(1.25) },
+  historyCard: { gap: theme.spacing(0.5) },
+  histRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1) },
+  histSeason: { color: theme.colors.textMuted, fontSize: theme.font.small, fontWeight: '700', minWidth: 28 },
+  histLeague: { color: theme.colors.text, fontSize: theme.font.small, flex: 1 },
+  histPos: { color: theme.colors.textMuted, fontSize: theme.font.small, fontWeight: '700', minWidth: 36, textAlign: 'right' },
+  histMove: { color: theme.colors.textMuted, fontSize: theme.font.body, fontWeight: '900', minWidth: 18, textAlign: 'center' },
+  histPromoted: { color: theme.colors.win },
+  histRelegated: { color: theme.colors.loss },
 });

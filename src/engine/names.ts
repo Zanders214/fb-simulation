@@ -1,7 +1,9 @@
 /**
- * Fictional name pools. Everything here is invented so the generated world has
- * no real-player likeness, club crest, or league IP exposure. Combinations give
- * plenty of variety; exact uniqueness is guaranteed by ids, not names.
+ * Name pools for world generation. Player names and club names are invented so
+ * the generated world carries no real-player likeness, club crest, or league IP
+ * exposure. Countries and player nationalities use REAL nation names (those carry
+ * no IP), so the world reads naturally — fictional clubs and players, real flags.
+ * Combinations give plenty of variety; exact uniqueness is guaranteed by ids.
  */
 
 export const FIRST_NAMES: string[] = [
@@ -23,23 +25,34 @@ export const LAST_NAMES: string[] = [
   'Madsen', 'Neri', 'Ostrowski', 'Petit', 'Rask', 'Storm', 'Turi', 'Vidic', 'Wolff', 'Zander',
 ];
 
+// Real nations a generated player can hail from — a broad spread across
+// confederations for variety. A player's nationality is independent of the
+// country he plays in (the world has an open transfer market).
 export const NATIONALITIES: string[] = [
-  'Albia', 'Brevia', 'Caldonia', 'Drennia', 'Esmark', 'Fjordal', 'Granland', 'Holvik',
-  'Iberica', 'Jutland', 'Korvale', 'Lysmark', 'Marenia', 'Norvik', 'Ostmark', 'Pelagia',
+  'England', 'Spain', 'Italy', 'Germany', 'France', 'Netherlands', 'Portugal', 'Brazil',
+  'Argentina', 'Belgium', 'Croatia', 'Denmark', 'Sweden', 'Norway', 'Poland', 'Switzerland',
+  'Austria', 'Greece', 'Turkey', 'Japan', 'United States', 'Mexico', 'Nigeria', 'Senegal',
+  'Colombia', 'Uruguay', 'Ghana', 'Morocco',
 ];
 
-// fictional countries that host the leagues
+// Real countries that host the leagues, each with its own division pyramid. Only
+// the first CONTENT.COUNTRY_COUNT are used, so the strongest footballing nations
+// lead the list.
 export const COUNTRIES: string[] = [
-  'Albia', 'Brevia', 'Caldonia', 'Drennia', 'Esmark', 'Fjordal', 'Granland', 'Holvik',
+  'England', 'Spain', 'Italy', 'Germany', 'France', 'Netherlands', 'Portugal', 'Brazil',
 ];
 
-export const LEAGUE_SUFFIXES: string[] = [
-  'Premier Division',
-  'Elite League',
+/**
+ * Division names by tier, top first: `TIER_SUFFIXES[0]` is the top flight. A
+ * league is named `${country} ${TIER_SUFFIXES[tier - 1]}` (e.g. "Albia First
+ * Division"). Lower index = higher tier, so winning the Second Division earns
+ * promotion to the First Division.
+ */
+export const TIER_SUFFIXES: string[] = [
   'First Division',
-  'Super Liga',
-  'Top Flight',
-  'Pro League',
+  'Second Division',
+  'Third Division',
+  'Fourth Division',
 ];
 
 // city-ish prefixes for club names (invented)

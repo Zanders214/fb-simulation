@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Chip } from '../../src/components/Chip';
 import { RecordTable } from '../../src/components/RecordTable';
-import { leagueRecords, leagueTable } from '../../src/engine';
+import { leagueRecords, leagueTable, PYRAMID } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
 import { useThemedStyles, type Theme } from '../../src/theme';
 
@@ -16,6 +16,15 @@ export default function TableScreen() {
   if (!game || !records) return <Redirect href="/" />;
   const rows = leagueTable(game);
   const openPlayer = (id: string) => router.push(`/player?id=${id}`);
+
+  // Highlight the promotion (top) and relegation (bottom) bands, but only where a
+  // tier actually exists above / below in this country's pyramid.
+  const league = game.world.leagues[game.season.leagueId];
+  const country = game.world.countries[league.countryId];
+  const tierIdx = country ? country.leagueIds.indexOf(league.id) : 0;
+  const hasAbove = tierIdx > 0;
+  const hasBelow = country ? tierIdx < country.leagueIds.length - 1 : false;
+  const slots = PYRAMID.PROMOTION_SLOTS;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -33,6 +42,8 @@ export default function TableScreen() {
       {rows.map((r, i) => {
         const club = game.world.clubs[r.clubId];
         const isUser = r.clubId === game.managedClubId;
+        const promo = hasAbove && i < slots;
+        const releg = hasBelow && i >= rows.length - slots;
         return (
           <Pressable
             key={r.clubId}
@@ -40,7 +51,7 @@ export default function TableScreen() {
             accessibilityRole="button"
             style={({ pressed }) => [styles.row, isUser && styles.userRow, pressed && styles.rowPressed]}
           >
-            <Text style={[styles.pos, styles.cell]}>{i + 1}</Text>
+            <Text style={[styles.pos, styles.cell, promo && styles.posPromo, releg && styles.posReleg]}>{i + 1}</Text>
             <View style={styles.clubCell}>
               <Chip label={club.shortName} color={club.primaryColor} />
               <Text style={[styles.clubName, isUser && styles.userText]} numberOfLines={1}>
@@ -56,6 +67,23 @@ export default function TableScreen() {
           </Pressable>
         );
       })}
+
+      {(hasAbove || hasBelow) && (
+        <View style={styles.legend}>
+          {hasAbove && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotPromo]} />
+              <Text style={styles.legendText}>Promotion</Text>
+            </View>
+          )}
+          {hasBelow && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotReleg]} />
+              <Text style={styles.legendText}>Relegation</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       <Pressable
         onPress={() => setShowRecords((v) => !v)}
@@ -101,12 +129,22 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   cell: { color: theme.colors.text, fontSize: theme.font.small },
   userText: { fontWeight: '800' },
   pos: { width: 22, textAlign: 'center' },
+  posPromo: { color: theme.colors.win, fontWeight: '800' },
+  posReleg: { color: theme.colors.loss, fontWeight: '800' },
   club: { flex: 1 },
   clubCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1) },
   clubName: { color: theme.colors.text, fontSize: theme.font.small, flex: 1 },
   num: { width: 26, textAlign: 'center' },
   pts: { width: 34, textAlign: 'center', fontWeight: '800' },
   ptsVal: { color: theme.colors.accent },
+
+  // promotion / relegation legend
+  legend: { flexDirection: 'row', gap: theme.spacing(2), marginTop: theme.spacing(1.5), paddingHorizontal: theme.spacing(0.5) },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(0.75) },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendDotPromo: { backgroundColor: theme.colors.win },
+  legendDotReleg: { backgroundColor: theme.colors.loss },
+  legendText: { color: theme.colors.textMuted, fontSize: theme.font.small },
 
   // records toggle + section
   recordsBtn: {
