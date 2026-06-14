@@ -7,7 +7,7 @@ import { Meta } from '../src/components/Meta';
 import { RecordTable } from '../src/components/RecordTable';
 import { Section } from '../src/components/Section';
 import { StatLine } from '../src/components/StatLine';
-import { clubRecords, type Movement } from '../src/engine';
+import { clubRanking, clubRecords, rankingFraction, type Movement } from '../src/engine';
 import { useGame } from '../src/store/gameStore';
 import { flagFor, formatMoney, ordinal } from '../src/ui/format';
 import { useThemedStyles, type Theme } from '../src/theme';
@@ -54,6 +54,12 @@ export default function ClubScreen() {
         {country ? (
           <Text style={styles.countryLine} numberOfLines={1}>{`${flagFor(country)} ${country}`}</Text>
         ) : null}
+        <View style={styles.rankingRow}>
+          <Text style={styles.rankingLabel}>Ranking</Text>
+          <View style={styles.rankingTrack}>
+            <View style={[styles.rankingFill, { width: `${Math.round(rankingFraction(clubRanking(game.world, clubId)) * 100)}%` }]} />
+          </View>
+        </View>
         <View style={styles.metaRow}>
           <Meta label="Trophies" value={`${stats.trophies}`} />
           <Meta label="Seasons" value={`${stats.seasonsPlayed}`} />
@@ -107,6 +113,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   clubName: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '800', flex: 1 },
   countryLine: { color: theme.colors.textMuted, fontSize: theme.font.small, fontWeight: '600' },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  rankingRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1.25) },
+  rankingLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, fontWeight: '700' },
+  rankingTrack: { flex: 1, height: 10, borderRadius: theme.radius.pill, backgroundColor: theme.colors.surfaceAlt, overflow: 'hidden' },
+  rankingFill: { height: '100%', borderRadius: theme.radius.pill, backgroundColor: theme.colors.accent },
   card: { gap: theme.spacing(1.25) },
   historyCard: { gap: theme.spacing(0.5) },
   histRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1) },

@@ -9,6 +9,7 @@ import {
   NATIONALITIES,
   TIER_SUFFIXES,
 } from './names';
+import { initialRanking } from './ranking';
 import { gaussian, randInt, type Rng, streamFor } from './rng';
 import { initialBudget } from './transfers';
 import type { Club, Country, League, Player, Position, World } from './types';
@@ -176,6 +177,7 @@ function generateLeague(
       shortName,
       reputation,
       budget: initialBudget(reputation),
+      ranking: initialRanking(reputation),
       primaryColor,
       secondaryColor,
       playerIds: [],
