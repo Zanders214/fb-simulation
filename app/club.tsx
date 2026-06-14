@@ -7,7 +7,7 @@ import { Meta } from '../src/components/Meta';
 import { RecordTable } from '../src/components/RecordTable';
 import { Section } from '../src/components/Section';
 import { StatLine } from '../src/components/StatLine';
-import { clubRecords, type Movement } from '../src/engine';
+import { clubRanking, clubRecords, type Movement } from '../src/engine';
 import { useGame } from '../src/store/gameStore';
 import { formatMoney, ordinal } from '../src/ui/format';
 import { useThemedStyles, type Theme } from '../src/theme';
@@ -51,6 +51,7 @@ export default function ClubScreen() {
           </Text>
         </View>
         <View style={styles.metaRow}>
+          <Meta label="Ranking" value={`${Math.round(clubRanking(game.world, clubId))}`} />
           <Meta label="Trophies" value={`${stats.trophies}`} />
           <Meta label="Seasons" value={`${stats.seasonsPlayed}`} />
           <Meta label="Best finish" value={stats.bestFinish > 0 ? ordinal(stats.bestFinish) : '–'} />

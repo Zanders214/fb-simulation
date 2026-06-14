@@ -5,6 +5,7 @@
  */
 import { overall } from './attrs';
 import { CONTENT, MARKET } from './config';
+import { rankingRewardMultiplier } from './ranking';
 import type { ClubId, GameState, Player, PlayerId, World } from './types';
 import { clamp } from './util';
 import { replaceInSquad } from './world';
@@ -42,9 +43,17 @@ export function playerValue(player: Player): number {
 
 export type MatchOutcome = 'win' | 'draw' | 'loss';
 
-/** Money a club earns for a single match result, in thousands. */
-export function matchIncome(outcome: MatchOutcome): number {
-  if (outcome === 'win') return MARKET.MATCH_INCOME.WIN;
+/**
+ * Money a club earns for a single match result, in thousands. A win is scaled by
+ * how the club's ranking compares to its opponent's — beating a stronger side
+ * pays more (up to 2x), a weaker side less (down to 0.5x). An even match, or a
+ * call with the rankings omitted, pays the base. Draws and losses are flat.
+ */
+export function matchIncome(outcome: MatchOutcome, myRating?: number, oppRating?: number): number {
+  if (outcome === 'win') {
+    const mult = myRating != null && oppRating != null ? rankingRewardMultiplier(myRating, oppRating) : 1;
+    return roundTo100(MARKET.MATCH_INCOME.WIN * mult);
+  }
   if (outcome === 'draw') return MARKET.MATCH_INCOME.DRAW;
   return MARKET.MATCH_INCOME.LOSS;
 }
