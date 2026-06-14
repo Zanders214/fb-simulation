@@ -40,6 +40,27 @@ export function playerValue(player: Player): number {
   return Math.max(250, roundTo100(raw));
 }
 
+export type MatchOutcome = 'win' | 'draw' | 'loss';
+
+/** Money a club earns for a single match result, in thousands. */
+export function matchIncome(outcome: MatchOutcome): number {
+  if (outcome === 'win') return MARKET.MATCH_INCOME.WIN;
+  if (outcome === 'draw') return MARKET.MATCH_INCOME.DRAW;
+  return MARKET.MATCH_INCOME.LOSS;
+}
+
+/**
+ * End-of-season prize for a club finishing `position` (1-based) of `clubCount`,
+ * in thousands. Higher finishes pay more, with a champion bonus for 1st.
+ */
+export function seasonPrize(position: number, clubCount: number): number {
+  return (
+    MARKET.SEASON_PRIZE_BASE +
+    Math.max(0, clubCount - position) * MARKET.SEASON_PRIZE_PER_PLACE +
+    (position === 1 ? MARKET.SEASON_PRIZE_CHAMPION : 0)
+  );
+}
+
 /** Starting transfer budget for a club, derived convexly from its reputation. */
 export function initialBudget(reputation: number): number {
   const t = clamp((reputation - 40) / 60, 0, 1);
