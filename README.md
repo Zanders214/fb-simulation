@@ -4,7 +4,7 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=fb-simulator_fb-simulator&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fb-simulator_fb-simulator)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fb-simulator_fb-simulator&metric=coverage)](https://sonarcloud.io/summary/new_code?id=fb-simulator_fb-simulator)
 
-A **BitLife-style football (soccer) management simulation** for iOS and Android. Pick a country and one of its divisions, then create or take over a club, manage your lineup, formation and roles, and play instant-result matches across a full season while your players develop. Each country runs a stacked **league pyramid** with **promotion and relegation** between tiers, so winning your division climbs you up and finishing bottom sends you down. Countries and player nationalities are real, but the clubs, players and league names are **fictional and generated** — no licensed content.
+A **BitLife-style football (soccer) management simulation** for iOS and Android. Pick a country and one of its divisions, then create or take over a club, manage your lineup, formation and roles, and play instant-result matches — complete with goals, **yellow/red cards** and **injuries** — across a full season while your players develop. Sendings-off carry a suspension and injuries sideline players for a spell, so squad depth and rotation matter. Each country runs a stacked **league pyramid** with **promotion and relegation** between tiers, so winning your division climbs you up and finishing bottom sends you down. Countries and player nationalities are real, but the clubs, players and league names are **fictional and generated** — no licensed content.
 
 > **Status:** pre-alpha. The v1 season loop is playable end to end.
 
@@ -66,7 +66,7 @@ separately from the save game.
 
 ## Tests
 
-The simulation engine is covered by a Jest suite (`src/engine/__tests__/`, plus a save round-trip test in `src/store/__tests__/`): match determinism, scoreline distribution, role behaviour, fixture scheduling, standings, full-season play, the country/division pyramid with promotion/relegation, and progression bounds. The UI screens are verified by running the app. Run them with `npm test`.
+The simulation engine is covered by a Jest suite (`src/engine/__tests__/`, plus a save round-trip test in `src/store/__tests__/`): match determinism, scoreline distribution, role behaviour, cards and injuries (rates, suspensions, and that sidelined players never feature), fixture scheduling, standings, full-season play, the country/division pyramid with promotion/relegation, and progression bounds. The UI screens are verified by running the app. Run them with `npm test`.
 
 ## Development workflow
 

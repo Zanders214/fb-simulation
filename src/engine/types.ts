@@ -46,20 +46,33 @@ export interface Player {
   // ---- season counters (reset each season, for UI like top scorers) ----
   seasonGoals: number;
   seasonAssists: number;
-  seasonApps: number;
+  seasonApps: number; // matches STARTED in the first XI
+  seasonSubApps: number; // matches come on as a substitute
   seasonCleanSheets: number; // matches a GK finished without conceding
+  seasonYellowCards: number; // bookings this season
+  seasonRedCards: number; // sendings-off this season
   // ---- career totals (never reset; read via `?? 0` for pre-career saves) ----
   careerGoals: number;
   careerAssists: number;
-  careerApps: number;
+  careerApps: number; // career starts
+  careerSubApps: number; // career substitute appearances
   careerCleanSheets: number; // GK/DEF matches finished without conceding
+  careerYellowCards: number;
+  careerRedCards: number;
   peakValue: number; // highest market value ever reached, in thousands
+  // ---- availability (absent/0 = fully fit and selectable) ----
+  /** Matchdays still to be missed through injury; counts down as matchdays play. */
+  injuredMatches?: number;
+  /** Matchdays still to be missed through suspension (e.g. after a red card). */
+  suspendedMatches?: number;
 }
 
-/** A player's all-time goal/assist tally while at a specific club. */
+/** A player's all-time tally while at a specific club. */
 export interface ClubContribution {
   goals: number;
   assists: number;
+  yellow?: number; // bookings shown while at this club (read via `?? 0`)
+  red?: number; // sendings-off while at this club (read via `?? 0`)
 }
 
 export interface Club {
@@ -119,6 +132,31 @@ export interface GoalEvent {
   type: GoalType;
 }
 
+export type CardType = 'yellow' | 'red';
+
+export interface CardEvent {
+  minute: number; // 1..90
+  clubId: ClubId;
+  playerId: PlayerId;
+  type: CardType;
+  /** A red shown for a second bookable offence (i.e. a second yellow). */
+  secondYellow?: boolean;
+}
+
+export interface InjuryEvent {
+  minute: number; // 1..90
+  clubId: ClubId;
+  playerId: PlayerId;
+  matchesOut: number; // matchdays the player is expected to miss
+}
+
+export interface SubEvent {
+  minute: number; // 1..90
+  clubId: ClubId;
+  offPlayerId: PlayerId; // the player coming off
+  onPlayerId: PlayerId; // the substitute coming on
+}
+
 export interface PlayerRating {
   playerId: PlayerId;
   rating: number; // 1.0..10.0
@@ -139,6 +177,9 @@ export interface MatchResult {
   homeGoals: number;
   awayGoals: number;
   events: GoalEvent[]; // sorted by minute asc
+  cards: CardEvent[]; // sorted by minute asc
+  injuries: InjuryEvent[]; // sorted by minute asc
+  subs: SubEvent[]; // sorted by minute asc
   ratings: Record<PlayerId, PlayerRating>;
   stats: { home: TeamMatchStats; away: TeamMatchStats };
 }

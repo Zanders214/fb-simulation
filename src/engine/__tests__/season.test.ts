@@ -1,3 +1,4 @@
+import { overall } from '../attrs';
 import { generateWorld } from '../content';
 import {
   advanceSeason,
@@ -210,6 +211,111 @@ describe('season', () => {
         expect(v).toBeGreaterThanOrEqual(1);
         expect(v).toBeLessThanOrEqual(99);
       }
+    }
+  });
+
+  it('accumulates yellow and red cards into season and career totals', () => {
+    const s = freshTakeover(3);
+    playFullSeason(s);
+
+    const booked = Object.values(s.world.players).filter((p) => (p.seasonYellowCards ?? 0) > 0);
+    expect(booked.length).toBeGreaterThan(0);
+    // a full league season produces at least one sending-off somewhere
+    const reds = Object.values(s.world.players).reduce((a, p) => a + (p.seasonRedCards ?? 0), 0);
+    expect(reds).toBeGreaterThan(0);
+    // career totals are always at least the current season's tally
+    for (const p of Object.values(s.world.players)) {
+      expect(p.careerYellowCards ?? 0).toBeGreaterThanOrEqual(p.seasonYellowCards ?? 0);
+      expect(p.careerRedCards ?? 0).toBeGreaterThanOrEqual(p.seasonRedCards ?? 0);
+    }
+  });
+
+  it('resets season cards but carries career cards across a season rollover', () => {
+    const s = freshTakeover(8);
+    playFullSeason(s);
+    const booked = Object.values(s.world.players).find((p) => (p.seasonYellowCards ?? 0) > 0)!;
+    const careerBefore = booked.careerYellowCards ?? 0;
+    expect(careerBefore).toBeGreaterThan(0);
+
+    advanceSeason(s);
+    expect(booked.seasonYellowCards).toBe(0);
+    expect(booked.seasonRedCards).toBe(0);
+    expect(booked.careerYellowCards).toBe(careerBefore);
+  });
+
+  it('sidelines an injured starter, backfills the XI, and heals him over time', () => {
+    const s = freshTakeover(12);
+    const starter = s.squad.startingXI[5];
+    s.world.players[starter].injuredMatches = 2;
+
+    const outcome = playMatchday(s);
+    const r = outcome.userResult!;
+    expect(r).toBeDefined();
+    // the injured starter didn't feature, so he has no rating in the result
+    expect(r.ratings[starter]).toBeUndefined();
+    // the user still STARTED a full XI — a fit reserve came in (subs add more on top)
+    const subbedOn = new Set(r.subs.filter((su) => su.clubId === s.managedClubId).map((su) => su.onPlayerId));
+    const started = Object.keys(r.ratings).filter(
+      (id) => s.world.clubs[s.managedClubId].playerIds.includes(id) && !subbedOn.has(id),
+    );
+    expect(started.length).toBe(11);
+    // the absence ticks down one matchday at a time (he wasn't hurt this matchday)
+    expect(s.world.players[starter].injuredMatches).toBe(1);
+
+    playMatchday(s);
+    expect(s.world.players[starter].injuredMatches).toBe(0); // fit again
+  });
+
+  it('replaces an injured starter with the best fit reserve of the same position', () => {
+    const s = freshTakeover(12);
+    const inXI = new Set(s.squad.startingXI);
+    const starterFwd = s.squad.startingXI
+      .map((id) => s.world.players[id])
+      .find((p) => p.position === 'FWD')!;
+    // the club's fit forward reserves (all fit on matchday 1)
+    const reserveFwds = s.world.clubs[s.managedClubId].playerIds
+      .map((id) => s.world.players[id])
+      .filter((p) => p.position === 'FWD' && !inXI.has(p.id));
+    expect(reserveFwds.length).toBeGreaterThan(0);
+    const bestOverall = Math.max(...reserveFwds.map(overall));
+
+    s.world.players[starterFwd.id].injuredMatches = 1;
+    const r = playMatchday(s).userResult!;
+
+    // the injured forward sat out; the best reserve forward STARTED in his place
+    // (others may appear as in-match subs, so look only at who started)
+    expect(r.ratings[starterFwd.id]).toBeUndefined();
+    const subbedOn = new Set(r.subs.filter((su) => su.clubId === s.managedClubId).map((su) => su.onPlayerId));
+    const startedReserveFwds = reserveFwds.filter((p) => r.ratings[p.id] && !subbedOn.has(p.id));
+    expect(startedReserveFwds.length).toBe(1);
+    expect(overall(startedReserveFwds[0])).toBe(bestOverall);
+  });
+
+  it('records substitute appearances separately from starts, and carries them across seasons', () => {
+    const s = freshTakeover(4);
+    playFullSeason(s);
+
+    const subbed = Object.values(s.world.players).filter((p) => (p.seasonSubApps ?? 0) > 0);
+    expect(subbed.length).toBeGreaterThan(0); // players came off the bench
+    // every player's career totals are at least the current season's
+    for (const p of Object.values(s.world.players)) {
+      expect(p.careerSubApps ?? 0).toBeGreaterThanOrEqual(p.seasonSubApps ?? 0);
+      expect(p.careerApps ?? 0).toBeGreaterThanOrEqual(p.seasonApps);
+    }
+
+    const sample = subbed[0];
+    const careerSubBefore = sample.careerSubApps;
+    advanceSeason(s);
+    expect(sample.seasonSubApps).toBe(0); // season tally resets
+    expect(sample.careerSubApps).toBe(careerSubBefore); // career tally carries over
+  });
+
+  it('injures players over a season and never leaves an absence stuck negative', () => {
+    const s = freshTakeover(5);
+    playFullSeason(s);
+    for (const p of Object.values(s.world.players)) {
+      expect(p.injuredMatches ?? 0).toBeGreaterThanOrEqual(0);
+      expect(p.suspendedMatches ?? 0).toBeGreaterThanOrEqual(0);
     }
   });
 });

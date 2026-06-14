@@ -41,6 +41,9 @@ function result(homeGoals: number, awayGoals: number): MatchResult {
     homeGoals,
     awayGoals,
     events: [],
+    cards: [],
+    injuries: [],
+    subs: [],
     ratings: {},
     stats: {
       home: { possession: 0.5, chances: 0, xg: 0, goals: homeGoals },

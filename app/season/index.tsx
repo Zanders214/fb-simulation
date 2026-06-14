@@ -60,9 +60,10 @@ export default function SquadScreen() {
           <Card style={styles.groupCard}>
             {players.map((p) => {
               const inXI = game.squad.startingXI.includes(p.id);
+              const subApps = p.seasonSubApps ?? 0;
               const subtitle =
-                p.seasonApps > 0
-                  ? `${p.seasonGoals}G ${p.seasonAssists}A · ${p.seasonApps} apps`
+                p.seasonApps > 0 || subApps > 0
+                  ? `${p.seasonGoals}G ${p.seasonAssists}A · ${p.seasonApps} (${subApps}) apps`
                   : `Age ${p.age} · ${flagFor(p.nationality)}`;
               return (
                 <PlayerRow

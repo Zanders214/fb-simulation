@@ -1,5 +1,41 @@
-import type { GoalType, Position } from '../engine';
+import type { CardType, GoalType, Player, Position } from '../engine';
 import type { Theme } from '../theme';
+
+/** Conventional, theme-independent card colours (amber / red). */
+export const CARD_COLORS: Record<CardType, string> = {
+  yellow: '#f1c40f',
+  red: '#e74c3c',
+};
+
+export function cardEmoji(type: CardType): string {
+  return type === 'yellow' ? '🟨' : '🟥';
+}
+
+/** `1 match` / `3 matches`. */
+export function matchesLabel(n: number): string {
+  return `${n} ${n === 1 ? 'match' : 'matches'}`;
+}
+
+export interface Availability {
+  kind: 'injured' | 'suspended';
+  matches: number;
+  /** Short status line, e.g. "Injured · 3 matches". */
+  label: string;
+}
+
+/** A player's current unavailability (injury takes precedence), or null if fit. */
+export function playerAvailability(player: Player): Availability | null {
+  const injured = player.injuredMatches ?? 0;
+  if (injured > 0) return { kind: 'injured', matches: injured, label: `Injured · ${matchesLabel(injured)}` };
+  const suspended = player.suspendedMatches ?? 0;
+  if (suspended > 0) return { kind: 'suspended', matches: suspended, label: `Suspended · ${matchesLabel(suspended)}` };
+  return null;
+}
+
+/** Colour for an availability status: amber for injuries, red for suspensions. */
+export function availabilityColor(kind: Availability['kind']): string {
+  return kind === 'injured' ? '#e67e22' : CARD_COLORS.red;
+}
 
 /** Position tag colours are conventional (GK gold, DEF blue, …) and theme-independent. */
 export function positionColor(pos: Position): string {

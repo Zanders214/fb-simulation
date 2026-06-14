@@ -23,6 +23,7 @@ describe('leagueRecords', () => {
     expect(r.topScorers).toHaveLength(0);
     expect(r.topAssisters).toHaveLength(0);
     expect(r.topGoalkeepers).toHaveLength(0);
+    expect(r.mostCards).toHaveLength(0);
   });
 
   it('ranks scorers, assisters and goalkeepers after a season', () => {
@@ -55,6 +56,17 @@ describe('leagueRecords', () => {
       expect(e.marketValue).toBeGreaterThan(0);
       expect(e.value).toBe(e.player.seasonGoals);
     }
+
+    // most-carded table: sorted by total cards, with the yellow/red split
+    expect(r.mostCards.length).toBeGreaterThan(0);
+    for (let i = 1; i < r.mostCards.length; i++) {
+      expect(r.mostCards[i - 1].value).toBeGreaterThanOrEqual(r.mostCards[i].value);
+    }
+    for (const e of r.mostCards) {
+      expect(e.value).toBeGreaterThan(0);
+      expect(e.value).toBe((e.yellow ?? 0) + (e.red ?? 0));
+      expect(e.value).toBe((e.player.seasonYellowCards ?? 0) + (e.player.seasonRedCards ?? 0));
+    }
   });
 
   it('only includes players from the managed league', () => {
@@ -86,6 +98,7 @@ describe('clubRecords', () => {
     const c = clubRecords(s);
     expect(c.topScorers).toHaveLength(0);
     expect(c.topAssisters).toHaveLength(0);
+    expect(c.mostCards).toHaveLength(0);
     expect(c.trophies).toBe(0);
     expect(c.seasonsPlayed).toBe(0);
     expect(c.bestFinish).toBe(0);
@@ -155,6 +168,38 @@ describe('clubRecords', () => {
     const careerGoals = Object.values(s.world.players).reduce((sum, p) => sum + (p.careerGoals ?? 0), 0);
     expect(ledgerGoals).toBeGreaterThan(0);
     expect(ledgerGoals).toBe(careerGoals);
+  });
+
+  it('ranks the club all-time most-carded players with a yellow/red split', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    const c = clubRecords(s, s.managedClubId, 5);
+    expect(c.mostCards.length).toBeGreaterThan(0);
+    for (let i = 1; i < c.mostCards.length; i++) {
+      expect(c.mostCards[i - 1].value).toBeGreaterThanOrEqual(c.mostCards[i].value);
+    }
+    for (const e of c.mostCards) {
+      expect(e.value).toBe((e.yellow ?? 0) + (e.red ?? 0));
+      expect(e.value).toBeGreaterThan(0);
+    }
+  });
+
+  it('attributes every card to exactly one club (discipline ledger integrity)', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    let ledgerY = 0;
+    let ledgerR = 0;
+    for (const club of Object.values(s.world.clubs)) {
+      for (const c of Object.values(club.playerContributions ?? {})) {
+        ledgerY += c.yellow ?? 0;
+        ledgerR += c.red ?? 0;
+      }
+    }
+    const careerY = Object.values(s.world.players).reduce((sum, p) => sum + (p.careerYellowCards ?? 0), 0);
+    const careerR = Object.values(s.world.players).reduce((sum, p) => sum + (p.careerRedCards ?? 0), 0);
+    expect(ledgerY).toBeGreaterThan(0);
+    expect(ledgerY).toBe(careerY); // every booking logged to exactly one club
+    expect(ledgerR).toBe(careerR); // every sending-off logged to exactly one club
   });
 
   it('reports a best finish only for the managed club', () => {

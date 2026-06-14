@@ -9,7 +9,7 @@ import { StatLine } from '../src/components/StatLine';
 import { areaRating, clubBudget, findBuyer, MARKET, overall, playerValue, type Area, type GameState, type Player } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { confirmAction } from '../src/ui/confirm';
-import { flagFor, formatMoney, overallColor, positionColor } from '../src/ui/format';
+import { availabilityColor, flagFor, formatMoney, matchesLabel, overallColor, playerAvailability, positionColor } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 const POSITION_NAME: Record<string, string> = {
@@ -24,6 +24,10 @@ const AREAS: { key: Area; label: string }[] = [
   { key: 'midfield', label: 'Midfield' },
   { key: 'defending', label: 'Defending' },
 ];
+
+// Readable gold for the yellow-card count (the literal card amber is too light on
+// a white background); reds use the theme's loss colour.
+const YELLOW_TEXT = '#d4a017';
 
 export default function PlayerScreen() {
   const game = useGame();
@@ -42,8 +46,11 @@ export default function PlayerScreen() {
   const careerGoals = player.careerGoals ?? 0;
   const careerAssists = player.careerAssists ?? 0;
   const careerApps = player.careerApps ?? 0;
+  const seasonSubApps = player.seasonSubApps ?? 0;
+  const careerSubApps = player.careerSubApps ?? 0;
   const careerCleanSheets = player.careerCleanSheets ?? 0;
   const seasonCleanSheets = player.seasonCleanSheets ?? 0;
+  const availability = playerAvailability(player);
   const value = playerValue(player);
   // max(stored, current) keeps pre-update saves sensible before the next match.
   const peakValue = Math.max(player.peakValue ?? 0, value);
@@ -101,6 +108,14 @@ export default function PlayerScreen() {
         </View>
       </Card>
 
+      {availability && (
+        <Card style={[styles.statusBanner, { borderColor: availabilityColor(availability.kind) }]}>
+          <Text style={[styles.statusText, { color: availabilityColor(availability.kind) }]}>
+            {availability.kind === 'injured' ? '✚ Injured' : '⊘ Suspended'} · out {matchesLabel(availability.matches)}
+          </Text>
+        </Card>
+      )}
+
       <Section title="Attributes">
         <Card style={styles.card}>
           {AREAS.map(({ key, label }) => (
@@ -132,8 +147,10 @@ export default function PlayerScreen() {
         <Card style={styles.statGrid}>
           <Stat label="Goals" value={`${player.seasonGoals}`} />
           <Stat label="Assists" value={`${player.seasonAssists}`} />
-          <Stat label="Apps" value={`${player.seasonApps}`} />
+          <Stat label="Apps (sub)" value={`${player.seasonApps} (${seasonSubApps})`} />
           {showCleanSheets ? <Stat label="Clean sheets" value={`${seasonCleanSheets}`} /> : null}
+          <Stat label="Yellows" value={`${player.seasonYellowCards ?? 0}`} color={YELLOW_TEXT} />
+          <Stat label="Reds" value={`${player.seasonRedCards ?? 0}`} color={theme.colors.loss} />
         </Card>
       </Section>
 
@@ -141,8 +158,10 @@ export default function PlayerScreen() {
         <Card style={styles.statGrid}>
           <Stat label="Goals" value={`${careerGoals}`} />
           <Stat label="Assists" value={`${careerAssists}`} />
-          <Stat label="Apps" value={`${careerApps}`} />
+          <Stat label="Apps (sub)" value={`${careerApps} (${careerSubApps})`} />
           {showCleanSheets ? <Stat label="Clean sheets" value={`${careerCleanSheets}`} /> : null}
+          <Stat label="Yellows" value={`${player.careerYellowCards ?? 0}`} color={YELLOW_TEXT} />
+          <Stat label="Reds" value={`${player.careerRedCards ?? 0}`} color={theme.colors.loss} />
         </Card>
       </Section>
     </ScrollView>
@@ -184,11 +203,11 @@ function transferState(game: GameState, player: Player, value: number): Transfer
   return { mode: 'buy', amount, enabled: true };
 }
 
-function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
+function Stat({ label, value, color }: Readonly<{ label: string; value: string; color?: string }>) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.stat}>
-      <Text style={styles.statBig}>{value}</Text>
+      <Text style={[styles.statBig, color ? { color } : null]}>{value}</Text>
       <Text style={styles.statTileLabel}>{label}</Text>
     </View>
   );
@@ -220,8 +239,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
   card: { gap: theme.spacing(1.25) },
   reason: { color: theme.colors.textMuted, fontSize: theme.font.small, textAlign: 'center' },
-  statGrid: { flexDirection: 'row', justifyContent: 'space-around' },
-  stat: { alignItems: 'center', flex: 1 },
+  statusBanner: { borderWidth: 1, alignItems: 'center', paddingVertical: theme.spacing(1.25) },
+  statusText: { fontSize: theme.font.body, fontWeight: '800', letterSpacing: 0.3 },
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', rowGap: theme.spacing(2) },
+  stat: { alignItems: 'center', width: '30%' },
   statBig: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '900' },
   statTileLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 2 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1) },

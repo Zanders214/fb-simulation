@@ -1,6 +1,13 @@
+import { overall } from './attrs';
 import { MARKET, SAVE_VERSION } from './config';
 import { generateFixtures } from './fixtures';
-import { applyMatchProgression, applySeasonEnd, applyTrainingProgression } from './progression';
+import {
+  applyCard,
+  applyInjury,
+  applyMatchProgression,
+  applySeasonEnd,
+  applyTrainingProgression,
+} from './progression';
 import { applyPromotionRelegation, projectLeagueOrder } from './promotion';
 import { applyMatchRanking, clubRanking, rankingPositionDelta } from './ranking';
 import { hashSeed, makeRng } from './rng';
@@ -14,13 +21,15 @@ import type {
   MatchResult,
   Movement,
   Player,
+  PlayerId,
+  Position,
   Season,
   SquadConfig,
   TableRow,
   World,
 } from './types';
 import { clubBudget, clubSquadValue, matchIncome, type MatchOutcome, playerValue, seasonPrize } from './transfers';
-import { autoPickSquad } from './world';
+import { autoPickSquad, isAvailable } from './world';
 
 export interface NewGameOptions {
   leagueId: LeagueId;
@@ -80,6 +89,60 @@ export function createGame(world: World, opts: NewGameOptions): GameState {
   };
 }
 
+/**
+ * Best available reserve for a slot: the highest-overall fit player of `position`
+ * if there is one, otherwise the highest-overall fit player of any position.
+ * `taken` holds everyone already in the XI so no one is fielded twice.
+ */
+function bestFitReserve(world: World, clubId: ClubId, position: Position, taken: Set<string>): Player | undefined {
+  const candidates = world.clubs[clubId].playerIds
+    .map((id) => world.players[id])
+    .filter((p): p is Player => Boolean(p) && isAvailable(p) && !taken.has(p.id))
+    .sort((a, b) => overall(b) - overall(a));
+  if (!candidates.length) return undefined;
+  return candidates.find((p) => p.position === position) ?? candidates[0];
+}
+
+/**
+ * Build the user's XI from their saved lineup, replacing each injured/suspended
+ * starter — in their own slot — with the best available reserve of the SAME
+ * position (falling back to the best available reserve of any position only when
+ * no fit same-position player is left). Reserves are never fielded twice. The XI
+ * can only drop below 11 if the entire squad has fewer than 11 fit players, which
+ * the squad-size rules (min 18) make effectively impossible — so the team never
+ * lines up a man short just because a starter is unavailable.
+ */
+function fieldUserXI(world: World, clubId: ClubId, squad: SquadConfig): Player[] {
+  const taken = new Set<string>();
+  // reserve the fit starters' own slots first so they can't be used as cover
+  for (const id of squad.startingXI) {
+    const p = world.players[id];
+    if (p && isAvailable(p)) taken.add(id);
+  }
+
+  const xi: Player[] = [];
+  for (const id of squad.startingXI) {
+    const starter = world.players[id];
+    if (starter && isAvailable(starter)) {
+      xi.push(starter);
+      continue;
+    }
+    const replacement = bestFitReserve(world, clubId, starter?.position ?? 'MID', taken);
+    if (replacement) {
+      taken.add(replacement.id);
+      xi.push(replacement);
+    }
+  }
+  return xi;
+}
+
+/** Fit players from a list of ids that aren't already in the starting XI — the in-match sub pool. */
+function benchFrom(world: World, ids: PlayerId[], inXI: Set<string>): Player[] {
+  return ids
+    .map((id) => world.players[id])
+    .filter((p): p is Player => Boolean(p) && isAvailable(p) && !inXI.has(p.id));
+}
+
 function simTeamFor(
   world: World,
   clubId: ClubId,
@@ -87,9 +150,17 @@ function simTeamFor(
   managedSquad: SquadConfig,
   homeAdvantage: boolean,
 ): SimTeam {
-  const squad = clubId === managedClubId ? managedSquad : autoPickSquad(world, clubId);
-  const players = squad.startingXI.map((id) => world.players[id]).filter(Boolean);
-  return { clubId, players, roles: squad.roles, homeAdvantage };
+  // AI squads are auto-picked from fit players already; the user's fixed XI may
+  // include an injured/suspended starter, so swap in a same-position replacement.
+  if (clubId !== managedClubId) {
+    const squad = autoPickSquad(world, clubId);
+    const players = squad.startingXI.map((id) => world.players[id]).filter(Boolean);
+    const bench = benchFrom(world, squad.bench, new Set(squad.startingXI));
+    return { clubId, players, bench, roles: squad.roles, homeAdvantage };
+  }
+  const players = fieldUserXI(world, clubId, managedSquad);
+  const bench = benchFrom(world, managedSquad.bench ?? [], new Set(players.map((p) => p.id)));
+  return { clubId, players, bench, roles: managedSquad.roles, homeAdvantage };
 }
 
 export interface MatchdayOutcome {
@@ -127,7 +198,12 @@ function userMatchEarnings(world: World, managedClubId: ClubId, result: MatchRes
   return matchIncome(outcomeFor(my, opp), clubRanking(world, managedClubId), clubRanking(world, oppClubId));
 }
 
-/** Apply post-match development to one team's players, tracking who featured. */
+/**
+ * Apply post-match development to everyone who featured for one team — the
+ * starting XI (credited as a start) and any players brought on (credited as a
+ * substitute appearance) — tracking who featured so benched players don't also
+ * collect off-pitch training growth.
+ */
 function applyTeamProgression(
   state: GameState,
   team: SimTeam,
@@ -137,14 +213,16 @@ function applyTeamProgression(
   result: MatchResult,
 ): void {
   const cleanSheet = conceded === 0;
-  for (const p of team.players) {
-    const r = result.ratings[p.id];
-    if (!r) continue;
-    const player = state.world.players[p.id];
-    applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
-    played.add(p.id);
+  const develop = (id: PlayerId, appearance: 'start' | 'sub') => {
+    const r = result.ratings[id];
+    const player = state.world.players[id];
+    if (!r || !player) return;
+    applyMatchProgression(player, r, { inTraining: training.has(id), cleanSheet, appearance });
+    played.add(id);
     recordPlayerMatchStats(state, player, r, cleanSheet);
-  }
+  };
+  for (const p of team.players) develop(p.id, 'start');
+  for (const s of result.subs) if (s.clubId === team.clubId) develop(s.onPlayerId, 'sub');
 }
 
 /**
@@ -177,9 +255,62 @@ function recordPlayerMatchStats(
 }
 
 /**
+ * Add a card to a club's all-time per-player ledger (the same one that tracks
+ * goals/assists), keyed by the club the player turned out for. Survives a later
+ * transfer, like the goal/assist ledger. Mutates the club.
+ */
+function recordClubCard(world: World, card: MatchResult['cards'][number]): void {
+  const club = world.clubs[card.clubId];
+  if (!club) return;
+  club.playerContributions ??= {};
+  const entry = club.playerContributions[card.playerId] ?? { goals: 0, assists: 0 };
+  if (card.type === 'yellow') entry.yellow = (entry.yellow ?? 0) + 1;
+  else entry.red = (entry.red ?? 0) + 1;
+  club.playerContributions[card.playerId] = entry;
+}
+
+/**
+ * Apply a match's cards and injuries to player state: tally bookings, suspend
+ * sent-off players, sideline the injured, and log cards to the club's all-time
+ * ledger. Records everyone newly ruled out so the matchday's recovery tick
+ * doesn't immediately count down a fresh absence.
+ */
+function applyMatchDiscipline(world: World, result: MatchResult, newlyOut: Set<string>): void {
+  for (const card of result.cards ?? []) {
+    const player = world.players[card.playerId];
+    if (!player) continue;
+    applyCard(player, card);
+    recordClubCard(world, card);
+    if (card.type === 'red') newlyOut.add(player.id);
+  }
+  for (const injury of result.injuries ?? []) {
+    const player = world.players[injury.playerId];
+    if (!player) continue;
+    applyInjury(player, injury);
+    newlyOut.add(player.id);
+  }
+}
+
+/**
+ * Heal one matchday off every active injury/suspension, skipping anyone who was
+ * just ruled out this matchday (so a knock picked up today isn't already a day
+ * shorter). Runs once per matchday over the whole world — only sidelined players
+ * are touched — so absences tick down wherever the player now is.
+ */
+function recoverAbsences(world: World, newlyOut: Set<string>): void {
+  for (const id of Object.keys(world.players)) {
+    if (newlyOut.has(id)) continue;
+    const player = world.players[id];
+    if ((player.injuredMatches ?? 0) > 0) player.injuredMatches = (player.injuredMatches ?? 0) - 1;
+    if ((player.suspendedMatches ?? 0) > 0) player.suspendedMatches = (player.suspendedMatches ?? 0) - 1;
+  }
+}
+
+/**
  * Simulate every fixture of the current matchday (including the user's),
- * applying per-player progression to everyone who played, and advance the
- * matchday counter. Mutates `state` in place (and returns the outcome).
+ * applying per-player progression to everyone who played, recording cards and
+ * injuries, healing existing absences, and advancing the matchday counter.
+ * Mutates `state` in place (and returns the outcome).
  */
 export function playMatchday(state: GameState): MatchdayOutcome {
   const { world, season } = state;
@@ -192,6 +323,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   // Only the user's club has training slots; AI players never appear in this set.
   const training = new Set(state.squad.trainingIds ?? []);
   const played = new Set<string>();
+  const newlyOut = new Set<string>(); // injured/sent off this matchday
   const fixtures = season.fixtures.filter((f) => f.matchday === md);
   fixtures.forEach((f, i) => {
     const rng = makeRng(hashSeed(world.seed, season.number, md, i));
@@ -210,6 +342,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     applyMatchRanking(world, result);
     applyTeamProgression(state, home, result.awayGoals, training, played, result);
     applyTeamProgression(state, away, result.homeGoals, training, played, result);
+    applyMatchDiscipline(world, result, newlyOut);
   });
 
   // Track each club's highest-ever total squad value.
@@ -225,6 +358,7 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     if (player) applyTrainingProgression(player);
   }
 
+  recoverAbsences(world, newlyOut);
   season.currentMatchday = md + 1;
   return { results, userResult, userEarnings };
 }

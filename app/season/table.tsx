@@ -100,6 +100,7 @@ export default function TableScreen() {
           <RecordTable title="Top Scorers" statLabel="G" entries={records.topScorers} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
           <RecordTable title="Top Assisters" statLabel="A" entries={records.topAssisters} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
           <RecordTable title="Top Goalkeepers" statLabel="CS" entries={records.topGoalkeepers} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
+          <RecordTable title="Most Cards" statLabel="Cards" entries={records.mostCards} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
         </View>
       )}
     </ScrollView>
