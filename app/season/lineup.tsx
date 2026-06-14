@@ -38,6 +38,8 @@ export default function LineupScreen() {
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
 
+  const openPlayer = (id: string) => router.push(`/player?id=${id}`);
+
   const tap = (id: string) => {
     if (!selected) {
       setSelected(id);
@@ -101,12 +103,18 @@ export default function LineupScreen() {
       </Text>
 
       <Text style={styles.sectionTitle}>Starting XI · {squad.formation}</Text>
-      <Pitch slots={pitchSlots} selectedId={selected} onSelect={tap} />
+      <Pitch slots={pitchSlots} selectedId={selected} onSelect={tap} onLongPressPlayer={openPlayer} />
 
       <Text style={styles.sectionTitle}>Substitutes & reserves</Text>
       <Card style={styles.listCard}>
         {available.map((p) => (
-          <PlayerRow key={p.id} player={p} selected={selected === p.id} onPress={() => tap(p.id)} />
+          <PlayerRow
+            key={p.id}
+            player={p}
+            selected={selected === p.id}
+            onPress={() => tap(p.id)}
+            onLongPress={() => openPlayer(p.id)}
+          />
         ))}
       </Card>
     </ScrollView>

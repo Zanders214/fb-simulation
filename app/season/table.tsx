@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Chip } from '../../src/components/Chip';
@@ -9,11 +9,13 @@ import { useThemedStyles, type Theme } from '../../src/theme';
 
 export default function TableScreen() {
   const game = useGame();
+  const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const [showRecords, setShowRecords] = useState(false);
   const records = useMemo(() => (game ? leagueRecords(game, 5) : null), [game]);
   if (!game || !records) return <Redirect href="/" />;
   const rows = leagueTable(game);
+  const openPlayer = (id: string) => router.push(`/player?id=${id}`);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -32,7 +34,12 @@ export default function TableScreen() {
         const club = game.world.clubs[r.clubId];
         const isUser = r.clubId === game.managedClubId;
         return (
-          <View key={r.clubId} style={[styles.row, isUser && styles.userRow]}>
+          <Pressable
+            key={r.clubId}
+            onPress={() => router.push(`/club?id=${r.clubId}`)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.row, isUser && styles.userRow, pressed && styles.rowPressed]}
+          >
             <Text style={[styles.pos, styles.cell]}>{i + 1}</Text>
             <View style={styles.clubCell}>
               <Chip label={club.shortName} color={club.primaryColor} />
@@ -46,7 +53,7 @@ export default function TableScreen() {
             <Text style={[styles.num, styles.cell]}>{r.lost}</Text>
             <Text style={[styles.num, styles.cell]}>{r.gd > 0 ? `+${r.gd}` : r.gd}</Text>
             <Text style={[styles.pts, styles.cell, styles.ptsVal]}>{r.points}</Text>
-          </View>
+          </Pressable>
         );
       })}
 
@@ -60,9 +67,9 @@ export default function TableScreen() {
 
       {showRecords && (
         <View style={styles.recordsSection}>
-          <RecordTable title="Top Scorers" statLabel="G" entries={records.topScorers} highlightClubId={game.managedClubId} />
-          <RecordTable title="Top Assisters" statLabel="A" entries={records.topAssisters} highlightClubId={game.managedClubId} />
-          <RecordTable title="Top Goalkeepers" statLabel="CS" entries={records.topGoalkeepers} highlightClubId={game.managedClubId} />
+          <RecordTable title="Top Scorers" statLabel="G" entries={records.topScorers} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
+          <RecordTable title="Top Assisters" statLabel="A" entries={records.topAssisters} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
+          <RecordTable title="Top Goalkeepers" statLabel="CS" entries={records.topGoalkeepers} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
         </View>
       )}
     </ScrollView>
@@ -90,6 +97,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   userRow: { backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.radius.sm },
+  rowPressed: { opacity: 0.6 },
   cell: { color: theme.colors.text, fontSize: theme.font.small },
   userText: { fontWeight: '800' },
   pos: { width: 22, textAlign: 'center' },

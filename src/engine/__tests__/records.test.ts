@@ -136,4 +136,33 @@ describe('clubRecords', () => {
     const userStats = clubRecords(s, s.managedClubId);
     expect(userStats.bestFinish).toBe(s.history[0].userPosition);
   });
+
+  it('records all-time contributions for AI clubs too, not just the managed one', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    const aiClubs = s.world.leagues[s.season.leagueId].clubIds.filter((c) => c !== s.managedClubId);
+    const withScorers = aiClubs.filter((c) => clubRecords(s, c).topScorers.length > 0);
+    expect(withScorers.length).toBeGreaterThan(0);
+  });
+
+  it('attributes each goal to exactly one club (cross-club integrity)', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    let ledgerGoals = 0;
+    for (const club of Object.values(s.world.clubs)) {
+      for (const c of Object.values(club.playerContributions ?? {})) ledgerGoals += c.goals;
+    }
+    const careerGoals = Object.values(s.world.players).reduce((sum, p) => sum + (p.careerGoals ?? 0), 0);
+    expect(ledgerGoals).toBeGreaterThan(0);
+    expect(ledgerGoals).toBe(careerGoals);
+  });
+
+  it('reports a best finish only for the managed club', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    advanceSeason(s);
+    const other = s.world.leagues[s.season.leagueId].clubIds.find((c) => c !== s.managedClubId)!;
+    expect(clubRecords(s, s.managedClubId).bestFinish).toBe(s.history[0].userPosition);
+    expect(clubRecords(s, other).bestFinish).toBe(0);
+  });
 });
