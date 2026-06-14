@@ -1,3 +1,4 @@
+import { overall } from '../attrs';
 import { generateWorld } from '../content';
 import {
   advanceSeason,
@@ -230,6 +231,35 @@ describe('season', () => {
 
     playMatchday(s);
     expect(s.world.players[starter].injuredMatches).toBe(0); // fit again
+  });
+
+  it('replaces an injured starter with the best fit reserve of the same position', () => {
+    const s = freshTakeover(12);
+    const inXI = new Set(s.squad.startingXI);
+    const starterFwd = s.squad.startingXI
+      .map((id) => s.world.players[id])
+      .find((p) => p.position === 'FWD')!;
+    // the club's fit forward reserves (all fit on matchday 1)
+    const reserveFwds = s.world.clubs[s.managedClubId].playerIds
+      .map((id) => s.world.players[id])
+      .filter((p) => p.position === 'FWD' && !inXI.has(p.id));
+    expect(reserveFwds.length).toBeGreaterThan(0);
+    const bestOverall = Math.max(...reserveFwds.map(overall));
+
+    s.world.players[starterFwd.id].injuredMatches = 1;
+    const r = playMatchday(s).userResult!;
+
+    // the injured forward sat out; exactly one reserve forward came in — the best one
+    expect(r.ratings[starterFwd.id]).toBeUndefined();
+    const playedReserveFwds = reserveFwds.filter((p) => r.ratings[p.id]);
+    expect(playedReserveFwds.length).toBe(1);
+    expect(overall(playedReserveFwds[0])).toBe(bestOverall);
+
+    // and the side was still 11 strong
+    const fielded = Object.keys(r.ratings).filter((id) =>
+      s.world.clubs[s.managedClubId].playerIds.includes(id),
+    );
+    expect(fielded.length).toBe(11);
   });
 
   it('injures players over a season and never leaves an absence stuck negative', () => {

@@ -21,6 +21,7 @@ import type {
   MatchResult,
   Movement,
   Player,
+  Position,
   Season,
   SquadConfig,
   TableRow,
@@ -88,27 +89,50 @@ export function createGame(world: World, opts: NewGameOptions): GameState {
 }
 
 /**
- * Fill the gaps left by injured/suspended starters in a fixed lineup (the user's)
- * with the best available reserves — bench first, then any other fit squad member
- * — so the manager isn't punished with a short side for not pre-empting an injury.
+ * Best available reserve for a slot: the highest-overall fit player of `position`
+ * if there is one, otherwise the highest-overall fit player of any position.
+ * `taken` holds everyone already in the XI so no one is fielded twice.
  */
-function backfillXI(world: World, clubId: ClubId, squad: SquadConfig, available: Player[]): Player[] {
-  const target = Math.min(11, squad.startingXI.length);
-  if (available.length >= target) return available;
-  const chosen = new Set(available.map((p) => p.id));
-  const pool = [...(squad.bench ?? []), ...world.clubs[clubId].playerIds]
+function bestFitReserve(world: World, clubId: ClubId, position: Position, taken: Set<string>): Player | undefined {
+  const candidates = world.clubs[clubId].playerIds
     .map((id) => world.players[id])
-    .filter((p): p is Player => Boolean(p) && isAvailable(p) && !chosen.has(p.id))
+    .filter((p): p is Player => Boolean(p) && isAvailable(p) && !taken.has(p.id))
     .sort((a, b) => overall(b) - overall(a));
+  if (!candidates.length) return undefined;
+  return candidates.find((p) => p.position === position) ?? candidates[0];
+}
 
-  const result = [...available];
-  for (const p of pool) {
-    if (result.length >= target) break;
-    if (chosen.has(p.id)) continue;
-    chosen.add(p.id);
-    result.push(p);
+/**
+ * Build the user's XI from their saved lineup, replacing each injured/suspended
+ * starter — in their own slot — with the best available reserve of the SAME
+ * position (falling back to the best available reserve of any position only when
+ * no fit same-position player is left). Reserves are never fielded twice. The XI
+ * can only drop below 11 if the entire squad has fewer than 11 fit players, which
+ * the squad-size rules (min 18) make effectively impossible — so the team never
+ * lines up a man short just because a starter is unavailable.
+ */
+function fieldUserXI(world: World, clubId: ClubId, squad: SquadConfig): Player[] {
+  const taken = new Set<string>();
+  // reserve the fit starters' own slots first so they can't be used as cover
+  for (const id of squad.startingXI) {
+    const p = world.players[id];
+    if (p && isAvailable(p)) taken.add(id);
   }
-  return result;
+
+  const xi: Player[] = [];
+  for (const id of squad.startingXI) {
+    const starter = world.players[id];
+    if (starter && isAvailable(starter)) {
+      xi.push(starter);
+      continue;
+    }
+    const replacement = bestFitReserve(world, clubId, starter?.position ?? 'MID', taken);
+    if (replacement) {
+      taken.add(replacement.id);
+      xi.push(replacement);
+    }
+  }
+  return xi;
 }
 
 function simTeamFor(
@@ -118,14 +142,14 @@ function simTeamFor(
   managedSquad: SquadConfig,
   homeAdvantage: boolean,
 ): SimTeam {
-  const squad = clubId === managedClubId ? managedSquad : autoPickSquad(world, clubId);
-  // AI squads are auto-picked already fit; the user's fixed XI may include an
-  // injured/suspended player, so drop them and backfill from the bench/reserves.
-  let players = squad.startingXI.map((id) => world.players[id]).filter((p) => p && isAvailable(p));
-  if (clubId === managedClubId && players.length < squad.startingXI.length) {
-    players = backfillXI(world, clubId, squad, players);
+  // AI squads are auto-picked from fit players already; the user's fixed XI may
+  // include an injured/suspended starter, so swap in a same-position replacement.
+  if (clubId !== managedClubId) {
+    const squad = autoPickSquad(world, clubId);
+    const players = squad.startingXI.map((id) => world.players[id]).filter(Boolean);
+    return { clubId, players, roles: squad.roles, homeAdvantage };
   }
-  return { clubId, players, roles: squad.roles, homeAdvantage };
+  return { clubId, players: fieldUserXI(world, clubId, managedSquad), roles: managedSquad.roles, homeAdvantage };
 }
 
 export interface MatchdayOutcome {
