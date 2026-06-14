@@ -21,6 +21,7 @@ import type {
   MatchResult,
   Movement,
   Player,
+  PlayerId,
   Position,
   Season,
   SquadConfig,
@@ -135,6 +136,13 @@ function fieldUserXI(world: World, clubId: ClubId, squad: SquadConfig): Player[]
   return xi;
 }
 
+/** Fit players from a list of ids that aren't already in the starting XI — the in-match sub pool. */
+function benchFrom(world: World, ids: PlayerId[], inXI: Set<string>): Player[] {
+  return ids
+    .map((id) => world.players[id])
+    .filter((p): p is Player => Boolean(p) && isAvailable(p) && !inXI.has(p.id));
+}
+
 function simTeamFor(
   world: World,
   clubId: ClubId,
@@ -147,9 +155,12 @@ function simTeamFor(
   if (clubId !== managedClubId) {
     const squad = autoPickSquad(world, clubId);
     const players = squad.startingXI.map((id) => world.players[id]).filter(Boolean);
-    return { clubId, players, roles: squad.roles, homeAdvantage };
+    const bench = benchFrom(world, squad.bench, new Set(squad.startingXI));
+    return { clubId, players, bench, roles: squad.roles, homeAdvantage };
   }
-  return { clubId, players: fieldUserXI(world, clubId, managedSquad), roles: managedSquad.roles, homeAdvantage };
+  const players = fieldUserXI(world, clubId, managedSquad);
+  const bench = benchFrom(world, managedSquad.bench ?? [], new Set(players.map((p) => p.id)));
+  return { clubId, players, bench, roles: managedSquad.roles, homeAdvantage };
 }
 
 export interface MatchdayOutcome {
@@ -181,7 +192,12 @@ function userMatchEarnings(managedClubId: ClubId, result: MatchResult): number {
   return matchIncome(outcomeFor(my, opp));
 }
 
-/** Apply post-match development to one team's players, tracking who featured. */
+/**
+ * Apply post-match development to everyone who featured for one team — the
+ * starting XI (credited as a start) and any players brought on (credited as a
+ * substitute appearance) — tracking who featured so benched players don't also
+ * collect off-pitch training growth.
+ */
 function applyTeamProgression(
   state: GameState,
   team: SimTeam,
@@ -191,14 +207,16 @@ function applyTeamProgression(
   result: MatchResult,
 ): void {
   const cleanSheet = conceded === 0;
-  for (const p of team.players) {
-    const r = result.ratings[p.id];
-    if (!r) continue;
-    const player = state.world.players[p.id];
-    applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
-    played.add(p.id);
+  const develop = (id: PlayerId, appearance: 'start' | 'sub') => {
+    const r = result.ratings[id];
+    const player = state.world.players[id];
+    if (!r || !player) return;
+    applyMatchProgression(player, r, { inTraining: training.has(id), cleanSheet, appearance });
+    played.add(id);
     recordPlayerMatchStats(state, player, r, cleanSheet);
-  }
+  };
+  for (const p of team.players) develop(p.id, 'start');
+  for (const s of result.subs) if (s.clubId === team.clubId) develop(s.onPlayerId, 'sub');
 }
 
 /**

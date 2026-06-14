@@ -109,6 +109,17 @@ describe('applyMatchProgression training boost', () => {
     expect(p.careerApps).toBe(2);
   });
 
+  it('counts a substitute appearance separately from a start (and defaults to a start)', () => {
+    const p = base();
+    applyMatchProgression(p, rating(7.0)); // default: a start
+    applyMatchProgression(p, rating(6.0), { appearance: 'start' });
+    applyMatchProgression(p, rating(6.5), { appearance: 'sub' });
+    expect(p.seasonApps).toBe(2);
+    expect(p.careerApps).toBe(2);
+    expect(p.seasonSubApps).toBe(1);
+    expect(p.careerSubApps).toBe(1);
+  });
+
   it('gives a forward no clean-sheet bonus', () => {
     const a = base();
     const b = base();
@@ -138,6 +149,15 @@ describe('applyMatchProgression training boost', () => {
     expect(p.seasonRedCards).toBe(0);
     expect(p.careerYellowCards).toBe(9);
     expect(p.careerRedCards).toBe(2);
+  });
+
+  it('resets season sub appearances on season end but keeps the career count', () => {
+    const p = makePlayer({ position: 'MID' });
+    p.seasonSubApps = 5;
+    p.careerSubApps = 12;
+    applySeasonEnd(p);
+    expect(p.seasonSubApps).toBe(0);
+    expect(p.careerSubApps).toBe(12);
   });
 
   it('raises every area when a player develops, not just the signature stat', () => {

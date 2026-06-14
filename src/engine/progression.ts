@@ -59,6 +59,8 @@ export interface MatchContext {
   inTraining?: boolean;
   /** The player's team conceded no goals this match. */
   cleanSheet?: boolean;
+  /** Whether the player started or came off the bench (default 'start'). */
+  appearance?: 'start' | 'sub';
 }
 
 /**
@@ -74,13 +76,18 @@ export interface MatchContext {
  * game a contributor — or a training-slot player — loses far less than usual.
  */
 export function applyMatchProgression(player: Player, r: PlayerRating, ctx: MatchContext = {}): void {
-  player.seasonApps += 1;
+  if (ctx.appearance === 'sub') {
+    player.seasonSubApps = (player.seasonSubApps ?? 0) + 1;
+    player.careerSubApps = (player.careerSubApps ?? 0) + 1;
+  } else {
+    player.seasonApps += 1;
+    player.careerApps = (player.careerApps ?? 0) + 1;
+  }
   player.seasonGoals += r.goals;
   player.seasonAssists += r.assists;
   // career totals accumulate across seasons (default for pre-career saves)
   player.careerGoals = (player.careerGoals ?? 0) + r.goals;
   player.careerAssists = (player.careerAssists ?? 0) + r.assists;
-  player.careerApps = (player.careerApps ?? 0) + 1;
 
   // form: EMA of (rating - base), clamped to [-5, +5]; affects only the next match
   player.form = clamp(
@@ -149,6 +156,7 @@ export function applySeasonEnd(player: Player): void {
   player.seasonGoals = 0;
   player.seasonAssists = 0;
   player.seasonApps = 0;
+  player.seasonSubApps = 0;
   player.seasonCleanSheets = 0;
   player.seasonYellowCards = 0;
   player.seasonRedCards = 0;

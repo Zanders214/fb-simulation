@@ -49,12 +49,28 @@ export const SIM = {
   // (most are waved away) — keeps two-yellow dismissals realistically rare.
   SECOND_YELLOW_SHARE: 0.2,
   RED_SUSPENSION: 1, // matchdays a sent-off (red-carded) player misses
-  // in-match cost of a sending-off: a team a man down is weakened across attack,
-  // midfield and defence in proportion to how long it plays short — so a red also
-  // lifts the opponent's scoring. (red at 70' ≈ -8% all over; red at 20' ≈ -27%.)
+  // in-match cost of playing a man down (a sending-off, or an injury once subs are
+  // used up): a team is weakened across attack, midfield and defence in proportion
+  // to how long it plays short — so it also lifts the opponent's scoring. (down at
+  // 70' ≈ -8% all over; down at 20' ≈ -27%.)
   RED_STRENGTH_PENALTY: 0.35,
+  // a sent-off player's match rating is docked this much (clamped >= 1), which in
+  // turn nudges his development down through the usual rating -> growth path.
+  RED_CARD_RATING_PENALTY: 3,
   // relative likelihood of being booked, by position (defenders/midfielders foul more)
   cardPropensity: { GK: 0.25, DEF: 1.15, MID: 1.2, FWD: 0.85 } as Record<Position, number>,
+} as const;
+
+// ---- substitutions ----
+// Teams make automatic in-match subs: forced ones for injuries, then tactical
+// ones up to a realistic target (top leagues average ~4 of a possible 5 per team).
+export const SUBS = {
+  MAX: 5, // IFAB cap; an injury after this leaves the team a man down
+  // target TOTAL subs per team, drawn from a uniform via these thresholds -> 2,3,4,5
+  // (weights 0.10/0.20/0.32/0.38 => mean ≈ 3.98 per team)
+  TARGET_THRESHOLDS: [0.1, 0.3, 0.62] as readonly number[],
+  MIN_MINUTE: 55, // tactical subs land in the closing stretch
+  MAX_MINUTE: 85,
 } as const;
 
 // ---- injuries ----

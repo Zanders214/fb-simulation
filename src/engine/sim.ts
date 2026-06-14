@@ -1,5 +1,5 @@
-import { effectiveArea } from './attrs';
-import { INJURY, SIM } from './config';
+import { effectiveArea, overall } from './attrs';
+import { INJURY, SIM, SUBS } from './config';
 import { computeRating } from './ratings';
 import { pickWeightedIndex, poisson, randInt, type Rng } from './rng';
 import type {
@@ -11,16 +11,25 @@ import type {
   MatchResult,
   Player,
   PlayerRating,
+  Position,
   SquadRoles,
+  SubEvent,
   TeamMatchStats,
 } from './types';
-import { clamp, logistic } from './util';
+import { clamp, logistic, round1 } from './util';
 
 export interface SimTeam {
   clubId: ClubId;
-  players: Player[]; // the XI (ideally 11; engine tolerates fewer)
+  players: Player[]; // the starting XI (ideally 11; engine tolerates fewer)
+  bench?: Player[]; // available substitutes (empty/absent => no subs are made)
   roles: SquadRoles;
   homeAdvantage: boolean;
+}
+
+/** A player on the pitch and the fraction of the match (0..1) he was on for. */
+interface OnPitch {
+  player: Player;
+  fraction: number;
 }
 
 export interface SimInput {
@@ -138,19 +147,26 @@ function classifyChance(
 }
 
 /** Pick an assister for an open-play/header goal, or none. Consumes Rng draws. */
-function pickAssist(rng: Rng, atk: SimTeam, scorerId: string): string | undefined {
+function pickAssist(rng: Rng, onPitch: OnPitch[], scorerId: string): string | undefined {
   if (rng.next() >= SIM.P_ASSIST) return undefined;
-  const others = atk.players.filter((p) => p.id !== scorerId);
+  const others = onPitch.filter((o) => o.player.id !== scorerId);
   if (!others.length) return undefined;
-  const aw = others.map((p) => effectiveArea(p, 'midfield') + 0.5 * effectiveArea(p, 'attacking'));
-  return others[pickWeightedIndex(rng, aw)].id;
+  // weight by creativity AND time on the pitch, so a late sub assists rarely
+  const aw = others.map((o) => (effectiveArea(o.player, 'midfield') + 0.5 * effectiveArea(o.player, 'attacking')) * o.fraction);
+  return others[pickWeightedIndex(rng, aw)].player.id;
 }
 
-/** Simulate one team's attacking chances. Chance count is passed in (drawn earlier). */
-function simulateSide(rng: Rng, atk: SimTeam, atkAreas: Areas, defAreas: Areas, chanceCount: number): SideOutcome {
-  const outfield = atk.players.filter((p) => p.position !== 'GK');
-  const shooters = outfield.length ? outfield : atk.players;
-  const weights = shooters.map(goalWeight);
+/**
+ * Simulate one team's attacking chances. Chance count is passed in (drawn
+ * earlier). Scorers and assisters are drawn from everyone who appeared (starters
+ * AND substitutes), each weighted by their time on the pitch — so a substitute
+ * can score, in proportion to the minutes he played.
+ */
+function simulateSide(rng: Rng, atk: SimTeam, onPitch: OnPitch[], atkAreas: Areas, defAreas: Areas, chanceCount: number): SideOutcome {
+  const outfield = onPitch.filter((o) => o.player.position !== 'GK');
+  const pool = outfield.length ? outfield : onPitch;
+  const shooters = pool.map((o) => o.player);
+  const weights = pool.map((o) => goalWeight(o.player) * o.fraction);
   const penTaker = findRole(atk, atk.roles.penaltyTakerId);
   const fkTaker = findRole(atk, atk.roles.freeKickTakerId);
   const events: GoalEvent[] = [];
@@ -167,7 +183,7 @@ function simulateSide(rng: Rng, atk: SimTeam, atkAreas: Areas, defAreas: Areas, 
     if (type === 'open_play' && rng.next() < SIM.HEADER_SHARE) goalType = 'header';
 
     const assistId =
-      goalType === 'open_play' || goalType === 'header' ? pickAssist(rng, atk, scorer.id) : undefined;
+      goalType === 'open_play' || goalType === 'header' ? pickAssist(rng, onPitch, scorer.id) : undefined;
 
     const minute = randInt(rng, 1, 90);
     events.push({ minute, clubId: atk.clubId, scorerId: scorer.id, assistId, type: goalType });
@@ -250,23 +266,172 @@ function simulateInjuries(rng: Rng, team: SimTeam): InjuryEvent[] {
   return events.sort(byMinute);
 }
 
-/**
- * Weaken a team's areas for the share of the match it plays a man down after a
- * sending-off. A red late on barely moves the numbers; a red early on cuts a
- * team's attack, midfield and defence sharply (which in turn lifts the
- * opponent's chances and conversion, since those read this team's def/mid).
- * Multiple reds stack. Mutates `areas` (a fresh per-match object).
- */
-function applyRedCardImpact(areas: Areas, cards: CardEvent[], clubId: ClubId): void {
-  let fracDown = 0;
-  for (const c of cards) {
-    if (c.type === 'red' && c.clubId === clubId) fracDown += (90 - c.minute) / 90;
+interface Participation {
+  /** Time-weighted areas across the substitution timeline (before any man-down hit). */
+  areas: Areas;
+  /** Everyone who appeared (starters + substitutes) with their on-pitch fraction. */
+  onPitch: OnPitch[];
+  /** Substitution events for this team, sorted by minute. */
+  subs: SubEvent[];
+  /** Minutes a player left WITHOUT replacement (a red, or an injury after subs ran out). */
+  offMinutes: number[];
+}
+
+/** Take the best fit substitute of a position from the bench (else best overall), removing him. */
+function takeBench(bench: Player[], position: Position): Player | undefined {
+  if (bench.length === 0) return undefined;
+  let idx = bench.findIndex((p) => p.position === position);
+  if (idx < 0) idx = 0; // bench is sorted best-first, so [0] is the best available
+  return bench.splice(idx, 1)[0];
+}
+
+/** Draw how many substitutions a team intends to make (mean ≈ 4, capped at MAX). One Rng draw. */
+function drawSubTarget(rng: Rng): number {
+  const u = rng.next();
+  const t = SUBS.TARGET_THRESHOLDS;
+  for (let i = 0; i < t.length; i++) if (u < t[i]) return 2 + i;
+  return 2 + t.length;
+}
+
+/** Time-weighted team areas across the lineup as substitutions are made. */
+function effectiveAreasOverSubs(team: SimTeam, subs: SubEvent[]): Areas {
+  const byId = new Map<string, Player>();
+  for (const p of team.players) byId.set(p.id, p);
+  for (const p of team.bench ?? []) byId.set(p.id, p);
+
+  let lineupIds = team.players.map((p) => p.id);
+  const acc: Areas = { atk: 0, mid: 0, def: 0 };
+  let prev = 0;
+  const addSegment = (toMin: number) => {
+    const frac = (toMin - prev) / 90;
+    if (frac <= 0) return;
+    const players = lineupIds.map((id) => byId.get(id)).filter((p): p is Player => Boolean(p));
+    const a = teamAreas({ ...team, players });
+    acc.atk += frac * a.atk;
+    acc.mid += frac * a.mid;
+    acc.def += frac * a.def;
+  };
+  for (const s of subs) {
+    addSegment(s.minute);
+    lineupIds = lineupIds.map((id) => (id === s.offPlayerId ? s.onPlayerId : id));
+    prev = s.minute;
   }
+  addSegment(90);
+  return acc;
+}
+
+/**
+ * Weaken a team's areas for the share of the match it plays a man down. A man
+ * down late on barely moves the numbers; early on it cuts attack, midfield and
+ * defence sharply (which in turn lifts the opponent's chances and conversion,
+ * since those read this team's def/mid). Multiple departures stack. Mutates `areas`.
+ */
+function applyManDown(areas: Areas, offMinutes: number[]): void {
+  let fracDown = 0;
+  for (const m of offMinutes) fracDown += (90 - m) / 90;
   if (fracDown <= 0) return;
   const mult = Math.max(0, 1 - fracDown * SIM.RED_STRENGTH_PENALTY);
   areas.atk *= mult;
   areas.mid *= mult;
   areas.def *= mult;
+}
+
+/** Mutable working state while planning one team's substitutions. */
+interface SubPlan {
+  team: SimTeam;
+  byId: Map<string, Player>;
+  bench: Player[]; // available subs, best first; shrinks as used
+  onPitch: Set<string>; // original starters still on the pitch
+  leftAt: Map<string, number>; // playerId -> minute he went off
+  cameOn: { player: Player; minute: number }[];
+  subs: SubEvent[];
+  offMinutes: number[]; // departures with no replacement (man down)
+  subsUsed: number;
+}
+
+/** Mark a player as having left the pitch at `minute`. */
+function recordOff(plan: SubPlan, id: string, minute: number): void {
+  plan.onPitch.delete(id);
+  plan.leftAt.set(id, minute);
+}
+
+/** Try to replace `off` from the bench within the cap. Returns whether a sub came on. */
+function bringOn(plan: SubPlan, off: Player, minute: number): boolean {
+  const on = plan.subsUsed < SUBS.MAX ? takeBench(plan.bench, off.position) : undefined;
+  if (!on) return false;
+  plan.subs.push({ minute, clubId: plan.team.clubId, offPlayerId: off.id, onPlayerId: on.id });
+  plan.cameOn.push({ player: on, minute });
+  plan.subsUsed++;
+  return true;
+}
+
+/** Sendings-off leave the team a man down, never replaced. */
+function applyReds(plan: SubPlan, reds: CardEvent[]): void {
+  for (const r of reds) {
+    if (!plan.onPitch.has(r.playerId)) continue;
+    recordOff(plan, r.playerId, r.minute);
+    plan.offMinutes.push(r.minute);
+  }
+}
+
+/** Injuries are substituted if a slot remains, otherwise the team finishes short-handed. */
+function applyInjuries(plan: SubPlan, injuries: InjuryEvent[]): void {
+  for (const inj of [...injuries].sort(byMinute)) {
+    const off = plan.byId.get(inj.playerId);
+    if (!off || !plan.onPitch.has(inj.playerId)) continue; // already off (red, etc.)
+    recordOff(plan, inj.playerId, inj.minute);
+    if (!bringOn(plan, off, inj.minute)) plan.offMinutes.push(inj.minute);
+  }
+}
+
+/** Tactical subs up to the target, swapping a random outfield starter for the best bench fit. */
+function applyTacticalSubs(rng: Rng, plan: SubPlan): void {
+  const target = drawSubTarget(rng);
+  while (plan.subsUsed < target && plan.bench.length > 0) {
+    const eligible = [...plan.onPitch].map((id) => plan.byId.get(id)!).filter((p) => p.position !== 'GK');
+    if (eligible.length === 0) break;
+    const off = eligible[randInt(rng, 0, eligible.length - 1)];
+    const minute = randInt(rng, SUBS.MIN_MINUTE, SUBS.MAX_MINUTE);
+    recordOff(plan, off.id, minute);
+    bringOn(plan, off, minute); // guaranteed: bench non-empty and subsUsed < target <= MAX
+  }
+}
+
+/**
+ * Plan one team's match participation: who leaves and when (sendings-off, then
+ * injuries — substituted if a slot remains, else a man down), then tactical subs
+ * up to a realistic target. Produces the sub events, the man-down minutes, the
+ * time-weighted areas and each player's fraction of the match on the pitch.
+ * Consumes a deterministic, bounded number of Rng draws.
+ */
+function planParticipation(rng: Rng, team: SimTeam, reds: CardEvent[], injuries: InjuryEvent[]): Participation {
+  const plan: SubPlan = {
+    team,
+    byId: new Map(team.players.map((p) => [p.id, p] as const)),
+    bench: (team.bench ?? []).slice().sort((a, b) => overall(b) - overall(a)),
+    onPitch: new Set(team.players.map((p) => p.id)),
+    leftAt: new Map(),
+    cameOn: [],
+    subs: [],
+    offMinutes: [],
+    subsUsed: 0,
+  };
+
+  applyReds(plan, reds);
+  applyInjuries(plan, injuries);
+  applyTacticalSubs(rng, plan);
+  plan.subs.sort(byMinute);
+
+  const onPitch: OnPitch[] = [];
+  for (const p of team.players) {
+    const left = plan.leftAt.get(p.id);
+    onPitch.push({ player: p, fraction: left === undefined ? 1 : left / 90 });
+  }
+  for (const { player, minute } of plan.cameOn) {
+    onPitch.push({ player, fraction: (90 - minute) / 90 });
+  }
+
+  return { areas: effectiveAreasOverSubs(team, plan.subs), onPitch, subs: plan.subs, offMinutes: plan.offMinutes };
 }
 
 /**
@@ -277,14 +442,25 @@ function applyRedCardImpact(areas: Areas, cards: CardEvent[], clubId: ClubId): v
  */
 export function simulateMatch(input: SimInput): MatchResult {
   const { home, away, rng } = input;
-  const H = teamAreas(home);
-  const A = teamAreas(away);
 
-  // Cards are drawn first: a sending-off weakens that team for the rest of the
-  // match, so reds must be known (and applied) before chances are generated.
+  // RNG order: cards -> injuries -> substitutions -> chances -> ratings. Cards and
+  // injuries are resolved first because a sending-off or a forced/failed sub
+  // changes who is on the pitch (and how strong the team is) for the rest of the
+  // match, all of which must be known before chances are generated.
   const cards = [...simulateCards(rng, home), ...simulateCards(rng, away)].sort(byMinute);
-  applyRedCardImpact(H, cards, home.clubId);
-  applyRedCardImpact(A, cards, away.clubId);
+  const injuries = [...simulateInjuries(rng, home), ...simulateInjuries(rng, away)].sort(byMinute);
+
+  const redsOf = (clubId: ClubId) => cards.filter((c) => c.type === 'red' && c.clubId === clubId);
+  const injOf = (clubId: ClubId) => injuries.filter((i) => i.clubId === clubId);
+  const partHome = planParticipation(rng, home, redsOf(home.clubId), injOf(home.clubId));
+  const partAway = planParticipation(rng, away, redsOf(away.clubId), injOf(away.clubId));
+  const subs = [...partHome.subs, ...partAway.subs].sort(byMinute);
+
+  // effective (time-weighted) areas, then the man-down hit for anyone unreplaced
+  const H = partHome.areas;
+  const A = partAway.areas;
+  applyManDown(H, partHome.offMinutes);
+  applyManDown(A, partAway.offMinutes);
 
   const possHome = logistic((H.mid - A.mid) / SIM.MID_TEMP);
   const possAway = 1 - possHome;
@@ -296,8 +472,8 @@ export function simulateMatch(input: SimInput): MatchResult {
   // Draw chance counts first to keep RNG order stable, then resolve each side.
   const chancesHome = poisson(rng, lamHome);
   const chancesAway = poisson(rng, lamAway);
-  const homeOut = simulateSide(rng, home, H, A, chancesHome);
-  const awayOut = simulateSide(rng, away, A, H, chancesAway);
+  const homeOut = simulateSide(rng, home, partHome.onPitch, H, A, chancesHome);
+  const awayOut = simulateSide(rng, away, partAway.onPitch, A, H, chancesAway);
 
   const events = [...homeOut.events, ...awayOut.events].sort((a, b) => a.minute - b.minute);
   const homeGoals = homeOut.events.length;
@@ -311,16 +487,18 @@ export function simulateMatch(input: SimInput): MatchResult {
     if (e.assistId) assistsBy[e.assistId] = (assistsBy[e.assistId] ?? 0) + 1;
   }
 
-  // ratings (home XI then away XI, fixed order)
+  // ratings: everyone who appeared (starters + subs), home then away. A red-carded
+  // player is docked, which carries through to his development.
   const ratings: Record<string, PlayerRating> = {};
-  const rate = (team: SimTeam, own: Areas, opp: Areas, ownGoals: number, oppGoals: number) => {
+  const rate = (team: SimTeam, part: Participation, own: Areas, opp: Areas, ownGoals: number, oppGoals: number) => {
     const teamWon = ownGoals > oppGoals;
     const teamDrew = ownGoals === oppGoals;
-    for (const p of team.players) {
+    const sentOff = new Set(redsOf(team.clubId).map((c) => c.playerId));
+    for (const { player: p } of part.onPitch) {
       const jitter = (rng.next() - 0.5) * SIM.RATING_JITTER;
       const goals = goalsBy[p.id] ?? 0;
       const assists = assistsBy[p.id] ?? 0;
-      const rating = computeRating({
+      let rating = computeRating({
         player: p,
         goals,
         assists,
@@ -336,15 +514,12 @@ export function simulateMatch(input: SimInput): MatchResult {
         oppMid: opp.mid,
         jitter,
       });
+      if (sentOff.has(p.id)) rating = round1(clamp(rating - SIM.RED_CARD_RATING_PENALTY, 1, 10));
       ratings[p.id] = { playerId: p.id, rating, goals, assists };
     }
   };
-  rate(home, H, A, homeGoals, awayGoals);
-  rate(away, A, H, awayGoals, homeGoals);
-
-  // Injuries draw after ratings — they don't affect this match (no mid-match
-  // subs are modelled), only the player's availability for future matchdays.
-  const injuries = [...simulateInjuries(rng, home), ...simulateInjuries(rng, away)].sort(byMinute);
+  rate(home, partHome, H, A, homeGoals, awayGoals);
+  rate(away, partAway, A, H, awayGoals, homeGoals);
 
   const homeStats: TeamMatchStats = { possession: possHome, chances: chancesHome, xg: homeOut.xg, goals: homeGoals };
   const awayStats: TeamMatchStats = { possession: possAway, chances: chancesAway, xg: awayOut.xg, goals: awayGoals };
@@ -357,6 +532,7 @@ export function simulateMatch(input: SimInput): MatchResult {
     events,
     cards,
     injuries,
+    subs,
     ratings,
     stats: { home: homeStats, away: awayStats },
   };

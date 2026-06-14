@@ -63,6 +63,16 @@ function buildTimeline(r: MatchResult, game: Game): TimelineItem[] {
       secondary: `out ${matchesLabel(inj.matchesOut)}`,
     });
   });
+  (r.subs ?? []).forEach((s, i) => {
+    items.push({
+      key: `s${i}`,
+      minute: s.minute,
+      isHome: s.clubId === r.homeClubId,
+      icon: '🔁',
+      primary: name(s.onPlayerId),
+      secondary: `for ${name(s.offPlayerId)}`,
+    });
+  });
   return items.sort((a, b) => a.minute - b.minute);
 }
 

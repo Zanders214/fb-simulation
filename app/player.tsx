@@ -46,6 +46,8 @@ export default function PlayerScreen() {
   const careerGoals = player.careerGoals ?? 0;
   const careerAssists = player.careerAssists ?? 0;
   const careerApps = player.careerApps ?? 0;
+  const seasonSubApps = player.seasonSubApps ?? 0;
+  const careerSubApps = player.careerSubApps ?? 0;
   const careerCleanSheets = player.careerCleanSheets ?? 0;
   const seasonCleanSheets = player.seasonCleanSheets ?? 0;
   const availability = playerAvailability(player);
@@ -145,7 +147,7 @@ export default function PlayerScreen() {
         <Card style={styles.statGrid}>
           <Stat label="Goals" value={`${player.seasonGoals}`} />
           <Stat label="Assists" value={`${player.seasonAssists}`} />
-          <Stat label="Apps" value={`${player.seasonApps}`} />
+          <Stat label="Apps (sub)" value={`${player.seasonApps} (${seasonSubApps})`} />
           {showCleanSheets ? <Stat label="Clean sheets" value={`${seasonCleanSheets}`} /> : null}
           <Stat label="Yellows" value={`${player.seasonYellowCards ?? 0}`} color={YELLOW_TEXT} />
           <Stat label="Reds" value={`${player.seasonRedCards ?? 0}`} color={theme.colors.loss} />
@@ -156,7 +158,7 @@ export default function PlayerScreen() {
         <Card style={styles.statGrid}>
           <Stat label="Goals" value={`${careerGoals}`} />
           <Stat label="Assists" value={`${careerAssists}`} />
-          <Stat label="Apps" value={`${careerApps}`} />
+          <Stat label="Apps (sub)" value={`${careerApps} (${careerSubApps})`} />
           {showCleanSheets ? <Stat label="Clean sheets" value={`${careerCleanSheets}`} /> : null}
           <Stat label="Yellows" value={`${player.careerYellowCards ?? 0}`} color={YELLOW_TEXT} />
           <Stat label="Reds" value={`${player.careerRedCards ?? 0}`} color={theme.colors.loss} />

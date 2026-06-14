@@ -10,6 +10,7 @@ function res(h: number, a: number): MatchResult {
     events: [],
     cards: [],
     injuries: [],
+    subs: [],
     ratings: {},
     stats: {
       home: { possession: 0.5, chances: 0, xg: 0, goals: h },

@@ -9,6 +9,13 @@ function play(seed: number, levelH = 70, levelA = 70, rolesH: SquadRoles = {}, h
   return simulateMatch({ home, away, rng: makeRng(seed) });
 }
 
+/** Both teams have a 7-man bench (~6 levels below the XI), so subs are made. */
+function playWithBench(seed: number) {
+  const home: SimTeam = makeTeam('H', 72, {}, false, 66);
+  const away: SimTeam = makeTeam('A', 72, {}, false, 66);
+  return simulateMatch({ home, away, rng: makeRng(seed) });
+}
+
 describe('match simulation', () => {
   it('is deterministic for a seed', () => {
     expect(JSON.stringify(play(2024))).toEqual(JSON.stringify(play(2024)));
@@ -184,6 +191,66 @@ describe('match simulation', () => {
     // they happen, but are rare (well under one per team per match)
     expect(injuries).toBeGreaterThan(0);
     expect(injuries / N).toBeLessThan(1);
+  });
+
+  it('makes substitutions from the bench, averaging close to four per team', () => {
+    const N = 6000;
+    let subs = 0;
+    for (let s = 0; s < N; s++) {
+      for (const sub of playWithBench(s).subs) {
+        if (sub.clubId !== 'H') continue;
+        subs++;
+        expect(sub.minute).toBeGreaterThanOrEqual(1);
+        expect(sub.minute).toBeLessThanOrEqual(90);
+        expect(sub.onPlayerId).not.toBe(sub.offPlayerId);
+      }
+    }
+    const perTeam = subs / N;
+    expect(perTeam).toBeGreaterThan(3.5);
+    expect(perTeam).toBeLessThan(4.4);
+  });
+
+  it('makes no substitutions when there is no bench', () => {
+    for (let s = 0; s < 300; s++) {
+      expect(play(s).subs.length).toBe(0);
+    }
+  });
+
+  it('lets substitutes score, but as a minority of goals', () => {
+    let subGoals = 0;
+    let total = 0;
+    for (let s = 0; s < 8000; s++) {
+      const r = playWithBench(s);
+      const onIds = new Set(r.subs.map((x) => x.onPlayerId));
+      for (const e of r.events) {
+        total++;
+        if (onIds.has(e.scorerId)) subGoals++;
+      }
+    }
+    expect(subGoals).toBeGreaterThan(0); // subs do find the net
+    expect(subGoals / total).toBeLessThan(0.25); // but most goals come from starters
+  });
+
+  it('docks sent-off players, dragging their average rating well below the rest', () => {
+    let redSum = 0;
+    let redN = 0;
+    let otherSum = 0;
+    let otherN = 0;
+    for (let s = 0; s < 8000; s++) {
+      const r = playWithBench(s);
+      const reds = new Set(r.cards.filter((c) => c.type === 'red').map((c) => c.playerId));
+      for (const id of Object.keys(r.ratings)) {
+        if (reds.has(id)) {
+          redSum += r.ratings[id].rating;
+          redN++;
+        } else {
+          otherSum += r.ratings[id].rating;
+          otherN++;
+        }
+      }
+    }
+    expect(redN).toBeGreaterThan(50);
+    expect(redSum / redN).toBeLessThan(otherSum / otherN - 2); // clearly dragged down
   });
 
   it('the designated penalty taker takes every penalty', () => {

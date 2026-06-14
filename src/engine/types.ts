@@ -46,14 +46,16 @@ export interface Player {
   // ---- season counters (reset each season, for UI like top scorers) ----
   seasonGoals: number;
   seasonAssists: number;
-  seasonApps: number;
+  seasonApps: number; // matches STARTED in the first XI
+  seasonSubApps: number; // matches come on as a substitute
   seasonCleanSheets: number; // matches a GK finished without conceding
   seasonYellowCards: number; // bookings this season
   seasonRedCards: number; // sendings-off this season
   // ---- career totals (never reset; read via `?? 0` for pre-career saves) ----
   careerGoals: number;
   careerAssists: number;
-  careerApps: number;
+  careerApps: number; // career starts
+  careerSubApps: number; // career substitute appearances
   careerCleanSheets: number; // GK/DEF matches finished without conceding
   careerYellowCards: number;
   careerRedCards: number;
@@ -146,6 +148,13 @@ export interface InjuryEvent {
   matchesOut: number; // matchdays the player is expected to miss
 }
 
+export interface SubEvent {
+  minute: number; // 1..90
+  clubId: ClubId;
+  offPlayerId: PlayerId; // the player coming off
+  onPlayerId: PlayerId; // the substitute coming on
+}
+
 export interface PlayerRating {
   playerId: PlayerId;
   rating: number; // 1.0..10.0
@@ -168,6 +177,7 @@ export interface MatchResult {
   events: GoalEvent[]; // sorted by minute asc
   cards: CardEvent[]; // sorted by minute asc
   injuries: InjuryEvent[]; // sorted by minute asc
+  subs: SubEvent[]; // sorted by minute asc
   ratings: Record<PlayerId, PlayerRating>;
   stats: { home: TeamMatchStats; away: TeamMatchStats };
 }
