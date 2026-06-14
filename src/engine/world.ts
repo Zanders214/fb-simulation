@@ -207,6 +207,7 @@ export function replaceInSquad(world: World, squad: SquadConfig, clubId: ClubId,
     startingXI,
     bench: squad.bench.filter((id) => id !== playerId && id !== replacement.id),
     roles,
+    trainingIds: squad.trainingIds?.filter((id) => id !== playerId),
   };
 }
 
