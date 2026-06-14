@@ -86,6 +86,8 @@ export interface Club {
   secondaryColor: string;
   playerIds: PlayerId[];
   isUserClub?: boolean;
+  /** Elo-style strength ranking; rises on wins, falls on losses. Read via `clubRanking`. */
+  ranking?: number;
   /** Running max of total squad value, in thousands (read via `?? 0`). */
   peakSquadValue?: number;
   /** All-time goals/assists scored while at this club, keyed by player id. */

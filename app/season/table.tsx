@@ -5,6 +5,7 @@ import { Chip } from '../../src/components/Chip';
 import { RecordTable } from '../../src/components/RecordTable';
 import { leagueRecords, leagueTable, PYRAMID } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
+import { flagFor } from '../../src/ui/format';
 import { useThemedStyles, type Theme } from '../../src/theme';
 
 export default function TableScreen() {
@@ -28,6 +29,7 @@ export default function TableScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.leagueTitle} numberOfLines={1}>{`${flagFor(league.country)} ${league.name}`}</Text>
       <View style={styles.headerRow}>
         <Text style={[styles.pos, styles.hCell]}>#</Text>
         <Text style={[styles.club, styles.hCell]}>Club</Text>
@@ -108,6 +110,7 @@ export default function TableScreen() {
 const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(1.5), paddingBottom: theme.spacing(4) },
+  leagueTitle: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '800', marginBottom: theme.spacing(1) },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -11,6 +11,7 @@ export * from './progression';
 export * from './fixtures';
 export * from './standings';
 export * from './promotion';
+export * from './ranking';
 export * from './world';
 export * from './season';
 export * from './calendar';

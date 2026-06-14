@@ -1,4 +1,4 @@
-import { MARKET } from '../config';
+import { MARKET, RANKING } from '../config';
 import { generateWorld } from '../content';
 import { createGame } from '../season';
 import type { GameState, Player } from '../types';
@@ -92,6 +92,24 @@ describe('matchIncome', () => {
     expect(matchIncome('win')).toBeGreaterThan(matchIncome('draw'));
     expect(matchIncome('draw')).toBeGreaterThan(matchIncome('loss'));
     expect(matchIncome('loss')).toBeGreaterThan(0);
+  });
+
+  it('scales a win by the opponent ranking: more for an upset, less for a minnow', () => {
+    const even = matchIncome('win', 1500, 1500);
+    const upset = matchIncome('win', 1300, 1800); // beat a much stronger side
+    const minnow = matchIncome('win', 1800, 1300); // beat a much weaker side
+    expect(even).toBe(MARKET.MATCH_INCOME.WIN);
+    expect(upset).toBeGreaterThan(even);
+    expect(minnow).toBeLessThan(even);
+    expect(upset).toBeLessThanOrEqual(MARKET.MATCH_INCOME.WIN * RANKING.REWARD_MULT_MAX);
+    expect(minnow).toBeGreaterThanOrEqual(MARKET.MATCH_INCOME.WIN * RANKING.REWARD_MULT_MIN);
+    // a win never pays less than a flat draw, even against a minnow
+    expect(minnow).toBeGreaterThan(matchIncome('draw'));
+  });
+
+  it('does not scale draws or losses by ranking', () => {
+    expect(matchIncome('draw', 1300, 1800)).toBe(matchIncome('draw', 1800, 1300));
+    expect(matchIncome('loss', 1300, 1800)).toBe(matchIncome('loss', 1800, 1300));
   });
 });
 

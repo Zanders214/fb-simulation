@@ -9,7 +9,7 @@ import { StatLine } from '../src/components/StatLine';
 import { areaRating, clubBudget, findBuyer, MARKET, overall, playerValue, type Area, type GameState, type Player } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { confirmAction } from '../src/ui/confirm';
-import { availabilityColor, formatMoney, matchesLabel, overallColor, playerAvailability, positionColor } from '../src/ui/format';
+import { availabilityColor, flagFor, formatMoney, matchesLabel, overallColor, playerAvailability, positionColor } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 const POSITION_NAME: Record<string, string> = {
@@ -103,7 +103,7 @@ export default function PlayerScreen() {
         </View>
         <View style={styles.metaRow}>
           <Meta label="Position" value={POSITION_NAME[player.position] ?? player.position} />
-          <Meta label="Nationality" value={player.nationality} />
+          <Meta label={player.nationality} value={flagFor(player.nationality)} />
           <Meta label="Age" value={`${player.age}`} />
         </View>
       </Card>

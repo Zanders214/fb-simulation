@@ -7,6 +7,7 @@ import {
   leagueTable,
   playMatchday,
 } from '../season';
+import { clubRanking } from '../ranking';
 import { clubBudget, transferPlayer } from '../transfers';
 import { isPlayableXI } from '../world';
 
@@ -153,6 +154,36 @@ describe('season', () => {
     expect(clubBudget(s.world, s.managedClubId)).toBe(
       budgets0.get(s.managedClubId)! + outcome.userEarnings!,
     );
+  });
+
+  it('updates rankings after each match: zero-sum, and the winner rises', () => {
+    const s = freshTakeover(5);
+    const before = new Map(Object.keys(s.world.clubs).map((id) => [id, clubRanking(s.world, id)]));
+
+    const outcome = playMatchday(s);
+
+    for (const res of outcome.results) {
+      const homeDelta = clubRanking(s.world, res.homeClubId) - before.get(res.homeClubId)!;
+      const awayDelta = clubRanking(s.world, res.awayClubId) - before.get(res.awayClubId)!;
+      expect(homeDelta + awayDelta).toBeCloseTo(0, 6); // zero-sum
+      if (res.homeGoals > res.awayGoals) expect(homeDelta).toBeGreaterThan(0);
+      if (res.awayGoals > res.homeGoals) expect(awayDelta).toBeGreaterThan(0);
+    }
+  });
+
+  it('nudges rankings by final league position at season end', () => {
+    const s = freshTakeover(5);
+    playFullSeason(s);
+    const table = leagueTable(s);
+    const champion = table[0].clubId;
+    const wooden = table[table.length - 1].clubId;
+    const champBefore = clubRanking(s.world, champion);
+    const woodenBefore = clubRanking(s.world, wooden);
+
+    advanceSeason(s);
+
+    expect(clubRanking(s.world, champion)).toBeGreaterThan(champBefore);
+    expect(clubRanking(s.world, wooden)).toBeLessThan(woodenBefore);
   });
 
   it('rewards a higher league finish with a bigger end-of-season prize', () => {

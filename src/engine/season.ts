@@ -9,12 +9,12 @@ import {
   applyTrainingProgression,
 } from './progression';
 import { applyPromotionRelegation, projectLeagueOrder } from './promotion';
+import { applyMatchRanking, clubRanking, rankingPositionDelta } from './ranking';
 import { hashSeed, makeRng } from './rng';
 import { type SimTeam, simulateMatch } from './sim';
 import { computeTable } from './standings';
 import type {
   ClubId,
-  Country,
   Fixture,
   GameState,
   LeagueId,
@@ -177,19 +177,25 @@ function outcomeFor(my: number, opp: number): MatchOutcome {
   return 'draw';
 }
 
-/** Credit each club its match income (win/draw/loss), in place. */
+/**
+ * Credit each club its match income (a win scaled by the opponent's ranking), in
+ * place. Must run before `applyMatchRanking` so the scaling uses pre-match ratings.
+ */
 function awardMatchIncome(world: World, result: MatchResult): void {
   const { homeClubId, awayClubId, homeGoals, awayGoals } = result;
-  world.clubs[homeClubId].budget = clubBudget(world, homeClubId) + matchIncome(outcomeFor(homeGoals, awayGoals));
-  world.clubs[awayClubId].budget = clubBudget(world, awayClubId) + matchIncome(outcomeFor(awayGoals, homeGoals));
+  const homeR = clubRanking(world, homeClubId);
+  const awayR = clubRanking(world, awayClubId);
+  world.clubs[homeClubId].budget = clubBudget(world, homeClubId) + matchIncome(outcomeFor(homeGoals, awayGoals), homeR, awayR);
+  world.clubs[awayClubId].budget = clubBudget(world, awayClubId) + matchIncome(outcomeFor(awayGoals, homeGoals), awayR, homeR);
 }
 
 /** Match income the managed club earns from one of its own results, in thousands. */
-function userMatchEarnings(managedClubId: ClubId, result: MatchResult): number {
+function userMatchEarnings(world: World, managedClubId: ClubId, result: MatchResult): number {
   const isHome = result.homeClubId === managedClubId;
+  const oppClubId = isHome ? result.awayClubId : result.homeClubId;
   const my = isHome ? result.homeGoals : result.awayGoals;
   const opp = isHome ? result.awayGoals : result.homeGoals;
-  return matchIncome(outcomeFor(my, opp));
+  return matchIncome(outcomeFor(my, opp), clubRanking(world, managedClubId), clubRanking(world, oppClubId));
 }
 
 /**
@@ -326,11 +332,14 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     const result = simulateMatch({ home, away, rng });
     f.result = result;
     results.push(result);
+    // Income (and the user's reported earnings) read pre-match rankings; only then
+    // does the Elo update move both clubs' rankings for the result just played.
     awardMatchIncome(world, result);
     if (f.homeClubId === state.managedClubId || f.awayClubId === state.managedClubId) {
       userResult = result;
-      userEarnings = userMatchEarnings(state.managedClubId, result);
+      userEarnings = userMatchEarnings(world, state.managedClubId, result);
     }
+    applyMatchRanking(world, result);
     applyTeamProgression(state, home, result.awayGoals, training, played, result);
     applyTeamProgression(state, away, result.homeGoals, training, played, result);
     applyMatchDiscipline(world, result, newlyOut);
@@ -364,18 +373,16 @@ function leagueSeedIndex(leagueId: LeagueId): number {
 }
 
 /**
- * Final finishing orders (best → worst) for every league in the user's country:
- * the *real* table for the league they actually played, and a cheap seeded
- * projection for the other tiers (which are never simulated match-by-match).
+ * Final finishing orders (best → worst) for *every* league in the world: the
+ * real table for the league the user actually played, and a cheap seeded
+ * projection for all other leagues (which are never simulated match-by-match).
+ * Promotion (within the user's country) and the season-end ranking nudge both
+ * read from this, so they always agree.
  */
-function countryFinalOrders(
-  state: GameState,
-  country: Country,
-  playedOrder: ClubId[],
-): Record<LeagueId, ClubId[]> {
+function worldFinalOrders(state: GameState, playedOrder: ClubId[]): Record<LeagueId, ClubId[]> {
   const { world, season } = state;
   const orders: Record<LeagueId, ClubId[]> = {};
-  for (const lid of country.leagueIds) {
+  for (const lid of Object.keys(world.leagues)) {
     if (lid === season.leagueId) {
       orders[lid] = playedOrder;
     } else {
@@ -386,19 +393,27 @@ function countryFinalOrders(
   return orders;
 }
 
+/** Nudge every club's ranking by where it finished its league this season. */
+function applyRankingFinishes(world: World, finalOrders: Record<LeagueId, ClubId[]>): void {
+  for (const order of Object.values(finalOrders)) {
+    order.forEach((clubId, i) => {
+      world.clubs[clubId].ranking = clubRanking(world, clubId) + rankingPositionDelta(i + 1, order.length);
+    });
+  }
+}
+
 /**
  * Run promotion/relegation across the user's country and move the live season to
  * follow the managed club into its new tier. Returns how the user's club moved.
  */
-function applyUserCountryPyramid(state: GameState, playedTable: TableRow[]): Movement {
+function applyUserCountryPyramid(state: GameState, finalOrders: Record<LeagueId, ClubId[]>): Movement {
   const { world, season } = state;
   const league = world.leagues[season.leagueId];
   const country = world.countries[league.countryId];
   if (!country) return 'stayed';
 
   const prevTier = league.tier;
-  const orders = countryFinalOrders(state, country, playedTable.map((r) => r.clubId));
-  applyPromotionRelegation(world, country, orders);
+  applyPromotionRelegation(world, country, finalOrders);
 
   const newLeagueId = world.clubs[state.managedClubId].leagueId;
   season.leagueId = newLeagueId;
@@ -447,9 +462,13 @@ export function advanceSeason(state: GameState): GameState {
     club.peakSquadValue = Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, id));
   }
 
-  // Promotion / relegation (mutates leagues + the managed club's tier), then
-  // record the season just played with the user's resulting movement.
-  const movement = applyUserCountryPyramid(state, table);
+  // Nudge every club's ranking by its final league finish, then run promotion /
+  // relegation (mutates leagues + the managed club's tier). Both read the same
+  // world-wide finishing orders, so they always agree. Finally record the season
+  // just played with the user's resulting movement.
+  const finalOrders = worldFinalOrders(state, table.map((r) => r.clubId));
+  applyRankingFinishes(world, finalOrders);
+  const movement = applyUserCountryPyramid(state, finalOrders);
   state.history.push({
     season: season.number,
     championClubId,
