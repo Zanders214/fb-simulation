@@ -2,7 +2,7 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
-import { areaRating, overall, playerValue, type Area, type Player } from '../src/engine';
+import { areaRating, overall, playerValue, type Area } from '../src/engine';
 import { useGame } from '../src/store/gameStore';
 import { formatMoney, overallColor, positionColor } from '../src/ui/format';
 import { theme } from '../src/theme';

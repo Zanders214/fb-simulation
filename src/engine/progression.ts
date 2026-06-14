@@ -20,6 +20,37 @@ function bump(player: Player, delta: number): void {
   }
 }
 
+/** Move accumulated fractional growth XP into whole ability points (both directions). */
+function applyGrowthXp(player: Player): void {
+  while (player.growthXp >= PROGRESSION.XP_THRESHOLD) {
+    bump(player, +1);
+    player.growthXp -= PROGRESSION.XP_THRESHOLD;
+  }
+  while (player.growthXp <= -PROGRESSION.XP_THRESHOLD) {
+    bump(player, -1);
+    player.growthXp += PROGRESSION.XP_THRESHOLD;
+  }
+}
+
+/**
+ * Scale raw match growth by contribution / clean-sheet / training modifiers.
+ * Achievements accelerate gains and they stack; on a poor game they cushion the
+ * loss instead. Training amplifies both directions.
+ */
+function scaleGrowth(growth: number, contributed: boolean, keptCleanSheet: boolean, inTraining: boolean): number {
+  if (growth >= 0) {
+    let eventMult = 0;
+    if (contributed) eventMult += PROGRESSION.EVENT_MULT;
+    if (keptCleanSheet) eventMult += PROGRESSION.EVENT_MULT;
+    if (eventMult > 0) growth *= eventMult;
+    if (inTraining) growth *= TRAINING.GROWTH_MULT;
+    return growth;
+  }
+  if (contributed) growth *= PROGRESSION.CONTRIB_DECLINE_MULT;
+  if (inTraining) growth *= TRAINING.DECLINE_MULT;
+  return growth;
+}
+
 /**
  * What happened to the player's team in the match, used to bias development.
  */
@@ -60,34 +91,13 @@ export function applyMatchProgression(player: Player, r: PlayerRating, ctx: Matc
   // growth: small, potential- and age-capped, accumulated as fractional XP
   const headroom = Math.max(0, player.potential - overall(player));
   const perf = clamp(r.rating - PROGRESSION.PERF_PIVOT, -PROGRESSION.PERF_CLAMP, PROGRESSION.PERF_CLAMP);
-  let growth =
+  const growth =
     perf * PROGRESSION.GROWTH_RATE * ageGrowthMod(player.age) * (headroom / PROGRESSION.HEADROOM_DIV);
 
   const contributed = r.goals > 0 || r.assists > 0;
   const keptCleanSheet = Boolean(ctx.cleanSheet) && (player.position === 'GK' || player.position === 'DEF');
-
-  if (growth >= 0) {
-    // each achievement is worth EVENT_MULT and they stack (e.g. clean sheet + goal = 2×EVENT_MULT)
-    let eventMult = 0;
-    if (contributed) eventMult += PROGRESSION.EVENT_MULT;
-    if (keptCleanSheet) eventMult += PROGRESSION.EVENT_MULT;
-    if (eventMult > 0) growth *= eventMult;
-    if (ctx.inTraining) growth *= TRAINING.GROWTH_MULT;
-  } else {
-    // a poor game costs a contributor far less, mirroring the training cushion
-    if (contributed) growth *= PROGRESSION.CONTRIB_DECLINE_MULT;
-    if (ctx.inTraining) growth *= TRAINING.DECLINE_MULT;
-  }
-  player.growthXp += growth;
-
-  while (player.growthXp >= PROGRESSION.XP_THRESHOLD) {
-    bump(player, +1);
-    player.growthXp -= PROGRESSION.XP_THRESHOLD;
-  }
-  while (player.growthXp <= -PROGRESSION.XP_THRESHOLD) {
-    bump(player, -1);
-    player.growthXp += PROGRESSION.XP_THRESHOLD;
-  }
+  player.growthXp += scaleGrowth(growth, contributed, keptCleanSheet, Boolean(ctx.inTraining));
+  applyGrowthXp(player);
 }
 
 /**
@@ -101,11 +111,7 @@ export function applyTrainingProgression(player: Player): void {
   const headroom = Math.max(0, player.potential - overall(player));
   const growth = TRAINING.PASSIVE_RATE * ageGrowthMod(player.age) * (headroom / PROGRESSION.HEADROOM_DIV);
   player.growthXp += growth;
-
-  while (player.growthXp >= PROGRESSION.XP_THRESHOLD) {
-    bump(player, +1);
-    player.growthXp -= PROGRESSION.XP_THRESHOLD;
-  }
+  applyGrowthXp(player);
 }
 
 /**
