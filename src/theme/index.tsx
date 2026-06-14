@@ -36,9 +36,15 @@ export interface Palette {
   field: string;
 }
 
+// Shared brand colours referenced by several palettes (named so the same hex
+// isn't duplicated across themes).
+const WHITE = '#ffffff';
+const PITCH_GREEN = '#0b6e4f';
+const SIGNAL_RED = '#e5484d';
+
 // ----------------------------------------------------------------- palettes
 const dark: Palette = {
-  primary: '#0b6e4f',
+  primary: PITCH_GREEN,
   primaryDark: '#08543c',
   accent: '#f4c430',
   bg: '#0f1413',
@@ -47,20 +53,20 @@ const dark: Palette = {
   text: '#f5f7f6',
   textMuted: '#9fb0aa',
   border: '#2e3d39',
-  danger: '#e5484d',
+  danger: SIGNAL_RED,
   win: '#3fb950',
   draw: '#d6a728',
-  loss: '#e5484d',
-  onPrimary: '#ffffff',
-  field: '#0b6e4f',
+  loss: SIGNAL_RED,
+  onPrimary: WHITE,
+  field: PITCH_GREEN,
 };
 
 const light: Palette = {
-  primary: '#0b6e4f',
+  primary: PITCH_GREEN,
   primaryDark: '#0a5f45',
   accent: '#9a6700',
   bg: '#eef2f0',
-  surface: '#ffffff',
+  surface: WHITE,
   surfaceAlt: '#e2e9e5',
   text: '#13201c',
   textMuted: '#5a6b65',
@@ -69,8 +75,8 @@ const light: Palette = {
   win: '#1f8f3c',
   draw: '#9a6700',
   loss: '#c0392b',
-  onPrimary: '#ffffff',
-  field: '#0b6e4f',
+  onPrimary: WHITE,
+  field: PITCH_GREEN,
 };
 
 const midnight: Palette = {
@@ -87,7 +93,7 @@ const midnight: Palette = {
   win: '#51cf66',
   draw: '#fcc419',
   loss: '#ff6b6b',
-  onPrimary: '#ffffff',
+  onPrimary: WHITE,
   field: '#16633f',
 };
 
@@ -101,11 +107,11 @@ const claret: Palette = {
   text: '#f7eef1',
   textMuted: '#c4a8b0',
   border: '#452e36',
-  danger: '#e5484d',
+  danger: SIGNAL_RED,
   win: '#5bbf6a',
   draw: '#e0b341',
-  loss: '#e5484d',
-  onPrimary: '#ffffff',
+  loss: SIGNAL_RED,
+  onPrimary: WHITE,
   field: '#1f6e44',
 };
 
@@ -123,7 +129,7 @@ const sunset: Palette = {
   win: '#66bb6a',
   draw: '#ffb300',
   loss: '#ef5350',
-  onPrimary: '#ffffff',
+  onPrimary: WHITE,
   field: '#2f7d4f',
 };
 
@@ -141,7 +147,7 @@ const graphite: Palette = {
   win: '#22c55e',
   draw: '#eab308',
   loss: '#ef4444',
-  onPrimary: '#ffffff',
+  onPrimary: WHITE,
   field: '#2a5e46',
 };
 
