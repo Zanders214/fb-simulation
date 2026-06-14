@@ -6,6 +6,7 @@ import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
 import { generateWorld, type ClubId, type CountryId, type League, type LeagueId } from '../src/engine';
 import { useGameStore } from '../src/store/gameStore';
+import { flagFor } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 type Mode = 'create' | 'takeover';
@@ -87,7 +88,7 @@ export default function NewGame() {
               onPress={() => { setCountryId(c.id); setLeagueId(null); setStep('league'); }}
             >
               <Card style={styles.optionCard}>
-                <Text style={styles.optTitle}>{c.name}</Text>
+                <Text style={styles.optTitle}>{flagFor(c.name)} {c.name}</Text>
                 <Text style={styles.optDesc}>{c.leagueIds.length} divisions</Text>
               </Card>
             </Pressable>
@@ -107,7 +108,7 @@ export default function NewGame() {
               >
                 <Card style={styles.optionCard}>
                   <View style={styles.leagueHead}>
-                    <Text style={styles.optTitle}>{lg.name}</Text>
+                    <Text style={styles.optTitle}>{flagFor(lg.country)} {lg.name}</Text>
                     <Text style={styles.tierBadge}>{tierLabel(lg.tier)}</Text>
                   </View>
                   <Text style={styles.optDesc}>{lg.clubIds.length} clubs · avg rating {leagueStrength(lg)}</Text>

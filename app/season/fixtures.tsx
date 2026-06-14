@@ -14,7 +14,7 @@ import {
 } from '../../src/engine';
 import { useGame, useGameStore } from '../../src/store/gameStore';
 import { confirmAction } from '../../src/ui/confirm';
-import { ordinal } from '../../src/ui/format';
+import { flagFor, ordinal } from '../../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../../src/theme';
 
 function resultColor(my: number, opp: number, theme: Theme): string {
@@ -94,7 +94,7 @@ export default function FixturesScreen() {
         <Card style={styles.playCard}>
           <Text style={styles.trophy}>🏆</Text>
           <Text style={styles.completeTitle}>Season {game.season.number} complete</Text>
-          <Text style={styles.leagueName}>{league.name}</Text>
+          <Text style={styles.leagueName}>{flagFor(league.country)} {league.name}</Text>
           <Text style={styles.championText}>
             Champions: <Text style={{ fontWeight: '800' }}>{champion?.name}</Text>
             {champion?.id === me ? ' — that’s you!' : ''}
@@ -109,7 +109,7 @@ export default function FixturesScreen() {
         </Card>
       ) : (
         <Card style={styles.playCard}>
-          <Text style={styles.leagueName}>{league.name}</Text>
+          <Text style={styles.leagueName}>{flagFor(league.country)} {league.name}</Text>
           <Text style={styles.matchdayLabel}>
             Matchday {game.season.currentMatchday} of {game.season.totalMatchdays}
           </Text>
