@@ -36,6 +36,7 @@ Then install **Expo Go** (App Store / Google Play) and scan the QR code.
 | --- | --- |
 | `npm start` | Start the Expo dev server (run on a device via Expo Go) |
 | `npm test` | Run the Jest unit tests |
+| `npm run lint` | ESLint (Expo config + SonarCloud-mirroring rules) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run web` | Run in a browser at http://localhost:8082 |
 | `npm run demo` | Print a fully-simulated season to the console (balance/sanity check) |
@@ -87,9 +88,10 @@ Branch name prefixes: `feature/`, `fix/`, `chore/`, `ci/`, `docs/`.
 
 Every pull request — and every push to `dev`/`main` — runs the **CI** workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
 
-1. **Type check** (`tsc`)
-2. **Unit tests** (`jest`) with coverage
-3. **SonarCloud** code-quality analysis with the **quality gate enforced** — the pipeline fails if the gate fails (`-Dsonar.qualitygate.wait=true`). Runs once `SONAR_TOKEN` is configured.
+1. **Lint** (`eslint`) — Expo's config plus a focused set of rules that mirror the SonarCloud profile (nested ternaries, array-index keys, cognitive complexity, unstable nested components, unused imports), so those smells are caught at PR time instead of after merge.
+2. **Type check** (`tsc`)
+3. **Unit tests** (`jest`) with coverage
+4. **SonarCloud** code-quality analysis with the **quality gate enforced** — the pipeline fails if the gate fails (`-Dsonar.qualitygate.wait=true`). Runs once `SONAR_TOKEN` is configured.
 
 Keep CI green — don't merge a PR into `dev` with a failing pipeline. (Tip: enable branch protection on `dev` in GitHub → Settings → Branches, requiring the CI check to pass before merging.)
 

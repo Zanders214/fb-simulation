@@ -33,9 +33,9 @@ export function Pitch({
       <View style={[styles.box, styles.boxTop]} />
       <View style={[styles.box, styles.boxBottom]} />
 
-      {slots.map(({ slot, player }, i) => (
+      {slots.map(({ slot, player }) => (
         <Marker
-          key={`${slot.label}-${i}`}
+          key={player.id}
           slot={slot}
           player={player}
           selected={selectedId === player.id}
