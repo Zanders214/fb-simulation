@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Chip } from '../../src/components/Chip';
 import { RecordTable } from '../../src/components/RecordTable';
-import { clubRanking, leagueRecords, leagueTable, PYRAMID } from '../../src/engine';
+import { leagueRecords, leagueTable, PYRAMID } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
 import { useThemedStyles, type Theme } from '../../src/theme';
 
@@ -31,7 +31,6 @@ export default function TableScreen() {
       <View style={styles.headerRow}>
         <Text style={[styles.pos, styles.hCell]}>#</Text>
         <Text style={[styles.club, styles.hCell]}>Club</Text>
-        <Text style={[styles.rtg, styles.hCell]}>Rtg</Text>
         <Text style={[styles.num, styles.hCell]}>P</Text>
         <Text style={[styles.num, styles.hCell]}>W</Text>
         <Text style={[styles.num, styles.hCell]}>D</Text>
@@ -59,7 +58,6 @@ export default function TableScreen() {
                 {club.name}
               </Text>
             </View>
-            <Text style={[styles.rtg, styles.cell, styles.rtgVal]}>{Math.round(clubRanking(game.world, r.clubId))}</Text>
             <Text style={[styles.num, styles.cell]}>{r.played}</Text>
             <Text style={[styles.num, styles.cell]}>{r.won}</Text>
             <Text style={[styles.num, styles.cell]}>{r.drawn}</Text>
@@ -137,8 +135,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   clubCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1) },
   clubName: { color: theme.colors.text, fontSize: theme.font.small, flex: 1 },
   num: { width: 26, textAlign: 'center' },
-  rtg: { width: 40, textAlign: 'center' },
-  rtgVal: { color: theme.colors.textMuted, fontWeight: '700' },
   pts: { width: 34, textAlign: 'center', fontWeight: '800' },
   ptsVal: { color: theme.colors.accent },
 

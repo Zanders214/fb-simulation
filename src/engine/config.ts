@@ -169,6 +169,11 @@ export const RANKING = {
   // beating a stronger side -> up to 2, beating a weaker side -> down to 0.5.
   REWARD_MULT_MIN: 0.5,
   REWARD_MULT_MAX: 2,
+  // Strength-bar display range. Reputation seeds land in 1380..1880; pad to
+  // 1200..2000 so the weakest clubs still show a partial bar and dominant
+  // clubs have room to fill it (values outside the range clamp to 0/1).
+  DISPLAY_MIN: 1200,
+  DISPLAY_MAX: 2000,
 } as const;
 
 export const FORMATIONS: Record<Formation, Record<Position, number>> = {

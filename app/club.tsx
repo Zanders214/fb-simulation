@@ -7,7 +7,7 @@ import { Meta } from '../src/components/Meta';
 import { RecordTable } from '../src/components/RecordTable';
 import { Section } from '../src/components/Section';
 import { StatLine } from '../src/components/StatLine';
-import { clubRanking, clubRecords, type Movement } from '../src/engine';
+import { clubRanking, clubRecords, rankingFraction, type Movement } from '../src/engine';
 import { useGame } from '../src/store/gameStore';
 import { formatMoney, ordinal } from '../src/ui/format';
 import { useThemedStyles, type Theme } from '../src/theme';
@@ -50,8 +50,13 @@ export default function ClubScreen() {
             {club.name}
           </Text>
         </View>
+        <View style={styles.rankingRow}>
+          <Text style={styles.rankingLabel}>Ranking</Text>
+          <View style={styles.rankingTrack}>
+            <View style={[styles.rankingFill, { width: `${Math.round(rankingFraction(clubRanking(game.world, clubId)) * 100)}%` }]} />
+          </View>
+        </View>
         <View style={styles.metaRow}>
-          <Meta label="Ranking" value={`${Math.round(clubRanking(game.world, clubId))}`} />
           <Meta label="Trophies" value={`${stats.trophies}`} />
           <Meta label="Seasons" value={`${stats.seasonsPlayed}`} />
           <Meta label="Best finish" value={stats.bestFinish > 0 ? ordinal(stats.bestFinish) : '–'} />
@@ -103,6 +108,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1.5) },
   clubName: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '800', flex: 1 },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  rankingRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1.25) },
+  rankingLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, fontWeight: '700' },
+  rankingTrack: { flex: 1, height: 10, borderRadius: theme.radius.pill, backgroundColor: theme.colors.surfaceAlt, overflow: 'hidden' },
+  rankingFill: { height: '100%', borderRadius: theme.radius.pill, backgroundColor: theme.colors.accent },
   card: { gap: theme.spacing(1.25) },
   historyCard: { gap: theme.spacing(0.5) },
   histRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1) },

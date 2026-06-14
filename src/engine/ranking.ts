@@ -26,6 +26,15 @@ export function clubRanking(world: World, clubId: ClubId): number {
   return club.ranking ?? initialRanking(club.reputation);
 }
 
+/**
+ * Map a ranking to a 0..1 fill fraction for strength bars. Linear across the
+ * padded display range (see RANKING.DISPLAY_*), clamped so out-of-range values
+ * read as empty/full rather than overflowing the bar.
+ */
+export function rankingFraction(ranking: number): number {
+  return clamp((ranking - RANKING.DISPLAY_MIN) / (RANKING.DISPLAY_MAX - RANKING.DISPLAY_MIN), 0, 1);
+}
+
 /** Elo expected score (win probability) of a team rated `myRating` vs `oppRating`. */
 export function expectedScore(myRating: number, oppRating: number): number {
   return 1 / (1 + 10 ** ((oppRating - myRating) / RANKING.ELO_SCALE));

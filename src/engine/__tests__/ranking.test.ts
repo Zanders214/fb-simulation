@@ -4,6 +4,7 @@ import {
   clubRanking,
   expectedScore,
   initialRanking,
+  rankingFraction,
   rankingPositionDelta,
   rankingRewardMultiplier,
 } from '../ranking';
@@ -125,6 +126,17 @@ describe('rankingRewardMultiplier', () => {
       expect(m).toBeGreaterThanOrEqual(RANKING.REWARD_MULT_MIN);
       expect(m).toBeLessThanOrEqual(RANKING.REWARD_MULT_MAX);
     }
+  });
+});
+
+describe('rankingFraction', () => {
+  it('rises with ranking and clamps to 0..1 at the display bounds', () => {
+    expect(rankingFraction(RANKING.DISPLAY_MIN)).toBeCloseTo(0, 6);
+    expect(rankingFraction(RANKING.DISPLAY_MAX)).toBeCloseTo(1, 6);
+    expect(rankingFraction((RANKING.DISPLAY_MIN + RANKING.DISPLAY_MAX) / 2)).toBeCloseTo(0.5, 6);
+    expect(rankingFraction(1700)).toBeGreaterThan(rankingFraction(1400));
+    expect(rankingFraction(RANKING.DISPLAY_MIN - 500)).toBe(0);
+    expect(rankingFraction(RANKING.DISPLAY_MAX + 500)).toBe(1);
   });
 });
 
