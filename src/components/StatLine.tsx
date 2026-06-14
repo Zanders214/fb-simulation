@@ -1,0 +1,19 @@
+import { StyleSheet, Text, View } from 'react-native';
+import { useThemedStyles, type Theme } from '../theme';
+
+/** A single key/value row: muted label on the left, bold value on the right. */
+export function StatLine({ label, value }: Readonly<{ label: string; value: string }>) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.statLine}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+    </View>
+  );
+}
+
+const makeStyles = (theme: Theme) => StyleSheet.create({
+  statLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statLabel: { color: theme.colors.textMuted, fontSize: theme.font.body },
+  statValue: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '800' },
+});

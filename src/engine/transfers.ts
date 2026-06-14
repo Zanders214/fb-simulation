@@ -80,6 +80,14 @@ function squadSize(world: World, clubId: ClubId): number {
   return world.clubs[clubId].playerIds.length;
 }
 
+/** Sum of every owned player's market value, in thousands. */
+export function clubSquadValue(world: World, clubId: ClubId): number {
+  return world.clubs[clubId].playerIds.reduce(
+    (sum, id) => sum + (world.players[id] ? playerValue(world.players[id]) : 0),
+    0,
+  );
+}
+
 /** Move a player between clubs, keeping both clubs' `playerIds` consistent. */
 export function transferPlayer(world: World, playerId: PlayerId, toClubId: ClubId): void {
   const player = world.players[playerId];

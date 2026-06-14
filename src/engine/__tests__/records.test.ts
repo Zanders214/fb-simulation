@@ -1,6 +1,7 @@
 import { generateWorld } from '../content';
-import { leagueRecords } from '../records';
-import { createGame, isSeasonComplete, playMatchday } from '../season';
+import { clubRecords, leagueRecords } from '../records';
+import { advanceSeason, createGame, isSeasonComplete, playMatchday } from '../season';
+import { transferPlayer } from '../transfers';
 import type { GameState } from '../types';
 
 function freshTakeover(seed = 2026): GameState {
@@ -76,5 +77,63 @@ describe('leagueRecords', () => {
       0,
     );
     expect(totalCS).toBeGreaterThan(0);
+  });
+});
+
+describe('clubRecords', () => {
+  it('is empty before any match but reports a current squad value', () => {
+    const s = freshTakeover();
+    const c = clubRecords(s);
+    expect(c.topScorers).toHaveLength(0);
+    expect(c.topAssisters).toHaveLength(0);
+    expect(c.trophies).toBe(0);
+    expect(c.seasonsPlayed).toBe(0);
+    expect(c.bestFinish).toBe(0);
+    expect(c.squadValue).toBeGreaterThan(0);
+    expect(c.peakSquadValue).toBeGreaterThanOrEqual(c.squadValue);
+  });
+
+  it('ranks the club all-time scorers/assisters descending', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    const c = clubRecords(s, s.managedClubId, 5);
+    expect(c.topScorers.length).toBeGreaterThan(0);
+    expect(c.topScorers.length).toBeLessThanOrEqual(5);
+    for (let i = 1; i < c.topScorers.length; i++) {
+      expect(c.topScorers[i - 1].value).toBeGreaterThanOrEqual(c.topScorers[i].value);
+    }
+    for (let i = 1; i < c.topAssisters.length; i++) {
+      expect(c.topAssisters[i - 1].value).toBeGreaterThanOrEqual(c.topAssisters[i].value);
+    }
+  });
+
+  it('keeps a sold player on the club all-time list', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    const before = clubRecords(s, s.managedClubId, 20);
+    const sold = before.topScorers[0];
+    expect(sold).toBeDefined();
+
+    const otherClub = s.world.leagues[s.season.leagueId].clubIds.find((c) => c !== s.managedClubId)!;
+    transferPlayer(s.world, sold.player.id, otherClub);
+
+    const after = clubRecords(s, s.managedClubId, 20);
+    const stillThere = after.topScorers.find((e) => e.player.id === sold.player.id);
+    expect(stillThere).toBeDefined();
+    expect(stillThere!.value).toBe(sold.value);
+    // the entry's club now reflects where the player currently plays
+    expect(stillThere!.club.id).toBe(otherClub);
+  });
+
+  it('counts league titles as trophies and tracks best finish', () => {
+    const s = freshTakeover(6);
+    playFullSeason(s);
+    advanceSeason(s);
+    const champion = s.history[0].championClubId;
+    const c = clubRecords(s, champion);
+    expect(c.trophies).toBe(1);
+    expect(c.seasonsPlayed).toBe(1);
+    const userStats = clubRecords(s, s.managedClubId);
+    expect(userStats.bestFinish).toBe(s.history[0].userPosition);
   });
 });

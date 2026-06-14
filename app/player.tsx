@@ -2,6 +2,9 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
+import { Meta } from '../src/components/Meta';
+import { Section } from '../src/components/Section';
+import { StatLine } from '../src/components/StatLine';
 import { areaRating, overall, playerValue, type Area } from '../src/engine';
 import { useGame } from '../src/store/gameStore';
 import { formatMoney, overallColor, positionColor } from '../src/ui/format';
@@ -33,6 +36,13 @@ export default function PlayerScreen() {
   const club = game.world.clubs[player.clubId];
   const careerGoals = player.careerGoals ?? 0;
   const careerAssists = player.careerAssists ?? 0;
+  const careerApps = player.careerApps ?? 0;
+  const careerCleanSheets = player.careerCleanSheets ?? 0;
+  const seasonCleanSheets = player.seasonCleanSheets ?? 0;
+  const value = playerValue(player);
+  // max(stored, current) keeps pre-update saves sensible before the next match.
+  const peakValue = Math.max(player.peakValue ?? 0, value);
+  const showCleanSheets = player.position === 'GK' || player.position === 'DEF';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -58,54 +68,39 @@ export default function PlayerScreen() {
         </View>
       </Card>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Attributes</Text>
+      <Section title="Attributes">
         <Card style={styles.card}>
           {AREAS.map(({ key, label }) => (
             <StatBar key={key} label={label} value={Math.round(areaRating(player, key))} />
           ))}
         </Card>
-      </View>
+      </Section>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Value</Text>
+      <Section title="Value">
         <Card style={styles.card}>
-          <View style={styles.statLine}>
-            <Text style={styles.statLabel}>Market value</Text>
-            <Text style={styles.statValue}>{formatMoney(playerValue(player))}</Text>
-          </View>
+          <StatLine label="Market value" value={formatMoney(value)} />
+          <StatLine label="Peak value" value={formatMoney(peakValue)} />
         </Card>
-      </View>
+      </Section>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>This season</Text>
+      <Section title="This season">
         <Card style={styles.statGrid}>
           <Stat label="Goals" value={`${player.seasonGoals}`} />
           <Stat label="Assists" value={`${player.seasonAssists}`} />
           <Stat label="Apps" value={`${player.seasonApps}`} />
+          {showCleanSheets ? <Stat label="Clean sheets" value={`${seasonCleanSheets}`} /> : null}
         </Card>
-      </View>
+      </Section>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>All time</Text>
+      <Section title="All time">
         <Card style={styles.statGrid}>
           <Stat label="Goals" value={`${careerGoals}`} />
           <Stat label="Assists" value={`${careerAssists}`} />
+          <Stat label="Apps" value={`${careerApps}`} />
+          {showCleanSheets ? <Stat label="Clean sheets" value={`${careerCleanSheets}`} /> : null}
         </Card>
-      </View>
+      </Section>
     </ScrollView>
-  );
-}
-
-function Meta({ label, value }: Readonly<{ label: string; value: string }>) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.meta}>
-      <Text style={styles.metaValue} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text style={styles.metaLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -114,7 +109,7 @@ function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <View style={styles.stat}>
       <Text style={styles.statBig}>{value}</Text>
-      <Text style={styles.metaLabel}>{label}</Text>
+      <Text style={styles.statTileLabel}>{label}</Text>
     </View>
   );
 }
@@ -143,24 +138,11 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   club: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 2 },
   ovr: { fontSize: theme.font.title, fontWeight: '900' },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  meta: { alignItems: 'center', flex: 1 },
-  metaValue: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '700' },
-  metaLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 2 },
-  section: { gap: theme.spacing(0.75) },
-  sectionTitle: {
-    color: theme.colors.textMuted,
-    fontSize: theme.font.small,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginLeft: theme.spacing(0.5),
-  },
   card: { gap: theme.spacing(1.25) },
-  statLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statLabel: { color: theme.colors.textMuted, fontSize: theme.font.body },
-  statValue: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '800' },
   statGrid: { flexDirection: 'row', justifyContent: 'space-around' },
   stat: { alignItems: 'center', flex: 1 },
   statBig: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '900' },
+  statTileLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 2 },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1) },
   barLabel: { color: theme.colors.text, fontSize: theme.font.small, width: 78 },
   barTrack: {

@@ -5,6 +5,7 @@ import type { GameState, Player } from '../types';
 import {
   buyPlayer,
   clubBudget,
+  clubSquadValue,
   findBuyer,
   initialBudget,
   matchIncome,
@@ -41,6 +42,9 @@ function makeMid(overall: number, age: number, potential = overall): Player {
     seasonCleanSheets: 0,
     careerGoals: 0,
     careerAssists: 0,
+    careerApps: 0,
+    careerCleanSheets: 0,
+    peakValue: 0,
   };
 }
 
@@ -61,6 +65,19 @@ describe('playerValue', () => {
     const plain = playerValue(makeMid(70, 22, 70));
     const wonderkid = playerValue(makeMid(70, 22, 88));
     expect(wonderkid).toBeGreaterThan(plain);
+  });
+});
+
+describe('clubSquadValue', () => {
+  it('equals the summed market value of the club roster', () => {
+    const s = freshTakeover();
+    const clubId = s.managedClubId;
+    const manual = s.world.clubs[clubId].playerIds.reduce(
+      (sum, id) => sum + playerValue(s.world.players[id]),
+      0,
+    );
+    expect(clubSquadValue(s.world, clubId)).toBe(manual);
+    expect(clubSquadValue(s.world, clubId)).toBeGreaterThan(0);
   });
 });
 

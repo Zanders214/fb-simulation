@@ -1,5 +1,5 @@
-import type { Club, GameState, Player } from './types';
-import { playerValue } from './transfers';
+import type { Club, ClubContribution, GameState, Player } from './types';
+import { clubSquadValue, playerValue } from './transfers';
 
 export interface RecordEntry {
   player: Player;
@@ -60,5 +60,50 @@ export function leagueRecords(state: GameState, limit = 5): LeagueRecords {
       (p) => p.seasonCleanSheets ?? 0,
       limit,
     ),
+  };
+}
+
+export interface ClubStats {
+  trophies: number; // league titles won by the club
+  seasonsPlayed: number; // completed seasons in this save
+  bestFinish: number; // best (lowest) league position, or 0 if none
+  squadValue: number; // current total squad value, in thousands
+  peakSquadValue: number; // highest-ever total squad value, in thousands
+  topScorers: RecordEntry[]; // all-time, while at this club
+  topAssisters: RecordEntry[]; // all-time, while at this club
+}
+
+/**
+ * All-time totals for a single club. Scorers/assisters come from the club's
+ * persistent contribution ledger (goals/assists scored WHILE at the club), so a
+ * player who has since been sold still appears — his name is resolved from
+ * `world.players`, where players are never deleted. The `club` on each entry is
+ * the player's CURRENT club, which may differ if he has moved on. Deterministic
+ * ordering (stat desc, then id).
+ */
+export function clubRecords(state: GameState, clubId = state.managedClubId, limit = 5): ClubStats {
+  const { world, history } = state;
+  const club = world.clubs[clubId];
+  const log = club.playerContributions ?? {};
+
+  const toEntries = (stat: (c: ClubContribution) => number): RecordEntry[] =>
+    Object.entries(log)
+      .filter(([id, c]) => world.players[id] && stat(c) > 0)
+      .sort(([ai, a], [bi, b]) => stat(b) - stat(a) || ai.localeCompare(bi))
+      .slice(0, limit)
+      .map(([id, c]) => {
+        const player = world.players[id];
+        return { player, club: world.clubs[player.clubId], value: stat(c), marketValue: playerValue(player) };
+      });
+
+  const positions = history.map((h) => h.userPosition).filter((p) => p > 0);
+  return {
+    trophies: history.filter((h) => h.championClubId === clubId).length,
+    seasonsPlayed: history.length,
+    bestFinish: positions.length ? Math.min(...positions) : 0,
+    squadValue: clubSquadValue(world, clubId),
+    peakSquadValue: Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, clubId)),
+    topScorers: toEntries((c) => c.goals),
+    topAssisters: toEntries((c) => c.assists),
   };
 }

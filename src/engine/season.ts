@@ -10,12 +10,13 @@ import type {
   GameState,
   LeagueId,
   MatchResult,
+  Player,
   Season,
   SquadConfig,
   TableRow,
   World,
 } from './types';
-import { clubBudget, matchIncome, type MatchOutcome, seasonPrize } from './transfers';
+import { clubBudget, clubSquadValue, matchIncome, type MatchOutcome, playerValue, seasonPrize } from './transfers';
 import { autoPickSquad } from './world';
 
 export interface NewGameOptions {
@@ -119,7 +120,7 @@ function userMatchEarnings(managedClubId: ClubId, result: MatchResult): number {
 
 /** Apply post-match development to one team's players, tracking who featured. */
 function applyTeamProgression(
-  world: World,
+  state: GameState,
   team: SimTeam,
   conceded: number,
   training: Set<string>,
@@ -130,13 +131,39 @@ function applyTeamProgression(
   for (const p of team.players) {
     const r = result.ratings[p.id];
     if (!r) continue;
-    const player = world.players[p.id];
+    const player = state.world.players[p.id];
     applyMatchProgression(player, r, { inTraining: training.has(p.id), cleanSheet });
     played.add(p.id);
-    if (p.position === 'GK' && cleanSheet) {
-      player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
-    }
+    recordPlayerMatchStats(state, player, r, cleanSheet);
   }
+}
+
+/**
+ * Record a played match's lasting stats for one player: clean sheets (keepers &
+ * defenders, season + career), the managed club's all-time goal/assist ledger
+ * (kept by player id so a sold player's tally survives his departure), and the
+ * player's peak market value. Mutates the player and (for the user's club) the
+ * club. Season/career counters that the sim already owns are set elsewhere.
+ */
+function recordPlayerMatchStats(
+  state: GameState,
+  player: Player,
+  r: MatchResult['ratings'][string],
+  cleanSheet: boolean,
+): void {
+  if (cleanSheet && (player.position === 'GK' || player.position === 'DEF')) {
+    player.seasonCleanSheets = (player.seasonCleanSheets ?? 0) + 1;
+    player.careerCleanSheets = (player.careerCleanSheets ?? 0) + 1;
+  }
+  if (player.clubId === state.managedClubId && (r.goals > 0 || r.assists > 0)) {
+    const club = state.world.clubs[state.managedClubId];
+    club.playerContributions ??= {};
+    const entry = club.playerContributions[player.id] ?? { goals: 0, assists: 0 };
+    entry.goals += r.goals;
+    entry.assists += r.assists;
+    club.playerContributions[player.id] = entry;
+  }
+  player.peakValue = Math.max(player.peakValue ?? 0, playerValue(player));
 }
 
 /**
@@ -168,9 +195,15 @@ export function playMatchday(state: GameState): MatchdayOutcome {
       userResult = result;
       userEarnings = userMatchEarnings(state.managedClubId, result);
     }
-    applyTeamProgression(world, home, result.awayGoals, training, played, result);
-    applyTeamProgression(world, away, result.homeGoals, training, played, result);
+    applyTeamProgression(state, home, result.awayGoals, training, played, result);
+    applyTeamProgression(state, away, result.homeGoals, training, played, result);
   });
+
+  // Track each club's highest-ever total squad value.
+  for (const cid of world.leagues[season.leagueId].clubIds) {
+    const club = world.clubs[cid];
+    club.peakSquadValue = Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, cid));
+  }
 
   // Training-slot players who didn't feature still develop on the training ground.
   for (const id of training) {
@@ -202,6 +235,12 @@ export function advanceSeason(state: GameState): GameState {
 
   for (const id of Object.keys(world.players)) applySeasonEnd(world.players[id]);
 
+  // Ageing shifts market values, so re-latch player value peaks.
+  for (const id of Object.keys(world.players)) {
+    const p = world.players[id];
+    p.peakValue = Math.max(p.peakValue ?? 0, playerValue(p));
+  }
+
   // End-of-season income. Clubs in the played league earn a position-based prize;
   // every other club gets a flat top-up so the wider transfer market stays liquid.
   const positionById = new Map(table.map((r, i) => [r.clubId, i + 1]));
@@ -213,6 +252,7 @@ export function advanceSeason(state: GameState): GameState {
         ? MARKET.SEASON_INCOME_BASE + Math.max(0, club.reputation - 40) * MARKET.SEASON_INCOME_REP
         : seasonPrize(position, clubIds.length);
     club.budget = clubBudget(world, id) + income;
+    club.peakSquadValue = Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, id));
   }
 
   const newNumber = season.number + 1;

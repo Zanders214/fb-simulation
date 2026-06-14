@@ -1,8 +1,9 @@
 import { Redirect, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../../src/components/Card';
 import { Chip } from '../../src/components/Chip';
+import { Meta } from '../../src/components/Meta';
 import { PlayerRow } from '../../src/components/PlayerRow';
 import { leagueTable } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
@@ -40,6 +41,13 @@ export default function SquadScreen() {
           <Meta label="Record" value={row ? `${row.won}-${row.drawn}-${row.lost}` : '0-0-0'} />
           <Meta label="Points" value={`${row?.points ?? 0}`} />
         </View>
+        <Pressable
+          onPress={() => router.push('/club')}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.clubStatsBtn, pressed && styles.clubStatsBtnPressed]}
+        >
+          <Text style={styles.clubStatsText}>Club stats ›</Text>
+        </Pressable>
       </Card>
 
       {groups.map(({ position, players }) => (
@@ -70,16 +78,6 @@ export default function SquadScreen() {
   );
 }
 
-function Meta({ label, value }: Readonly<{ label: string; value: string }>) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.meta}>
-      <Text style={styles.metaValue}>{value}</Text>
-      <Text style={styles.metaLabel}>{label}</Text>
-    </View>
-  );
-}
-
 function positionName(p: string): string {
   return { GK: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', FWD: 'Forwards' }[p] ?? p;
 }
@@ -91,9 +89,17 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1.5) },
   clubName: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '800', flex: 1 },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  meta: { alignItems: 'center', flex: 1 },
-  metaValue: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '800' },
-  metaLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 2 },
+  clubStatsBtn: {
+    marginTop: theme.spacing(0.5),
+    paddingVertical: theme.spacing(1),
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceAlt,
+    alignItems: 'center',
+  },
+  clubStatsBtnPressed: { opacity: 0.7 },
+  clubStatsText: { color: theme.colors.accent, fontSize: theme.font.small, fontWeight: '800' },
   group: { gap: theme.spacing(0.75) },
   groupTitle: { color: theme.colors.textMuted, fontSize: theme.font.small, textTransform: 'uppercase', letterSpacing: 1, marginLeft: theme.spacing(0.5) },
   groupCard: { gap: theme.spacing(0.25), paddingVertical: theme.spacing(1) },

@@ -35,6 +35,9 @@ export function makePlayer(
     seasonCleanSheets: opts.seasonCleanSheets ?? 0,
     careerGoals: opts.careerGoals ?? 0,
     careerAssists: opts.careerAssists ?? 0,
+    careerApps: opts.careerApps ?? 0,
+    careerCleanSheets: opts.careerCleanSheets ?? 0,
+    peakValue: opts.peakValue ?? 0,
   };
 }
 
