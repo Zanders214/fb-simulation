@@ -1,10 +1,11 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import type { NativeStackHeaderBackProps } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { HeaderBackButton } from '../src/components/HeaderBackButton';
 import { theme } from '../src/theme';
 
-const renderHeaderBack = () => <HeaderBackButton />;
+const renderHeaderBack = (props: NativeStackHeaderBackProps) => <HeaderBackButton {...props} />;
 const renderNoHeaderLeft = () => null;
 
 /**

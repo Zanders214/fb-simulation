@@ -1,37 +1,20 @@
+import { HeaderBackButton as NavHeaderBackButton } from '@react-navigation/elements';
+import type { NativeStackHeaderBackProps } from '@react-navigation/native-stack';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { theme } from '../theme';
 
 /**
- * Custom header back button.
+ * React Navigation's standard back button (chevron + previous-screen label),
+ * but driven by `router.back()` instead of the native stack's own button.
  *
- * Works around a react-native-screens bug (New Architecture, iOS 26) where the
- * native stack's back button stops responding after you push a screen, go back,
- * and push it again while an intermediate screen uses `headerShown: false`
- * (software-mansion/react-native-screens#3294). Every screen here is reached
- * through `index`/`season`, both of which hide their header, so the native
- * button is unreliable. A JS-driven button keeps working because it triggers the
- * same pop as the (still-functional) swipe-back gesture.
+ * On iOS with the New Architecture the *native* stack back button stops
+ * responding after push -> back -> push again when an intermediate screen hides
+ * its header (software-mansion/react-native-screens#3294). Every screen here is
+ * reached through `index`/`season`, both header-less, so the native button is
+ * unreliable. Rendering the JS back button keeps the familiar look while using
+ * `router.back()`, which still works (same path as the swipe-back gesture).
  */
-export function HeaderBackButton({ label = 'Back' }: Readonly<{ label?: string }>) {
+export function HeaderBackButton(props: Readonly<NativeStackHeaderBackProps>) {
   const router = useRouter();
   if (!router.canGoBack()) return null;
-  return (
-    <Pressable
-      onPress={() => router.back()}
-      hitSlop={12}
-      accessibilityRole="button"
-      accessibilityLabel="Go back"
-      style={styles.btn}
-    >
-      <Text style={styles.chevron}>‹</Text>
-      <Text style={styles.label}>{label}</Text>
-    </Pressable>
-  );
+  return <NavHeaderBackButton {...props} onPress={() => router.back()} />;
 }
-
-const styles = StyleSheet.create({
-  btn: { flexDirection: 'row', alignItems: 'center', paddingRight: 12 },
-  chevron: { color: theme.colors.onPrimary, fontSize: 30, lineHeight: 32, marginRight: 1 },
-  label: { color: theme.colors.onPrimary, fontSize: theme.font.body, fontWeight: '600' },
-});
