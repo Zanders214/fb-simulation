@@ -106,6 +106,11 @@ export function formColor(form: number, theme: Theme): string {
   return theme.colors.textMuted;
 }
 
+/** Signed, one-decimal form value for display, e.g. `+2.3` / `-1.0` / `+0.0`. */
+export function formValue(form: number): string {
+  return `${form >= 0 ? '+' : ''}${form.toFixed(1)}`;
+}
+
 /**
  * Emoji flag per nationality. Keys match the names in engine `NATIONALITIES`.
  * England has no country-code emoji that renders reliably (the St George's cross

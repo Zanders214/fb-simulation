@@ -191,7 +191,14 @@ export interface Fixture {
   matchday: number; // 1-based
   homeClubId: ClubId;
   awayClubId: ClubId;
+  /** Full result, kept only for the user's league (powers the match viewer). */
   result?: MatchResult;
+  /**
+   * Slim final score, stored for non-user leagues instead of the full result:
+   * per-player effects are applied immediately during simulation, so only the
+   * score is needed afterwards (for the table) and the save stays small.
+   */
+  score?: { homeGoals: number; awayGoals: number };
 }
 
 export interface TableRow {
@@ -210,6 +217,12 @@ export interface Season {
   number: number; // 1-based
   leagueId: LeagueId;
   fixtures: Fixture[];
+  /**
+   * Schedules for every OTHER league in the world, keyed by league id. Played in
+   * lock-step with the user's league each matchday so every player develops; each
+   * fixture carries only a slim `score` (no full result) to keep the save small.
+   */
+  otherFixtures: Record<LeagueId, Fixture[]>;
   currentMatchday: number; // next matchday to play; > totalMatchdays when finished
   totalMatchdays: number;
 }

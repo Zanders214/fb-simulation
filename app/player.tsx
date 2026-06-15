@@ -9,7 +9,7 @@ import { StatLine } from '../src/components/StatLine';
 import { areaRating, clubBudget, findBuyer, MARKET, overall, playerValue, type Area, type GameState, type Player } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { confirmAction } from '../src/ui/confirm';
-import { availabilityColor, flagFor, formatMoney, matchesLabel, overallColor, playerAvailability, positionColor } from '../src/ui/format';
+import { availabilityColor, flagFor, formatMoney, formColor, formSymbol, formValue, matchesLabel, overallColor, playerAvailability, positionColor } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 const POSITION_NAME: Record<string, string> = {
@@ -121,6 +121,17 @@ export default function PlayerScreen() {
           {AREAS.map(({ key, label }) => (
             <StatBar key={key} label={label} value={Math.round(areaRating(player, key))} />
           ))}
+        </Card>
+      </Section>
+
+      <Section title="Form">
+        <Card style={styles.card}>
+          <View style={styles.formRow}>
+            <Text style={styles.formNote}>affects next match &amp; development</Text>
+            <Text style={[styles.formValue, { color: formColor(player.form, theme) }]}>
+              {formSymbol(player.form)} {formValue(player.form)}
+            </Text>
+          </View>
         </Card>
       </Section>
 
@@ -239,6 +250,9 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
   card: { gap: theme.spacing(1.25) },
   reason: { color: theme.colors.textMuted, fontSize: theme.font.small, textAlign: 'center' },
+  formRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  formNote: { color: theme.colors.textMuted, fontSize: theme.font.small, flex: 1 },
+  formValue: { fontSize: theme.font.heading, fontWeight: '900' },
   statusBanner: { borderWidth: 1, alignItems: 'center', paddingVertical: theme.spacing(1.25) },
   statusText: { fontSize: theme.font.body, fontWeight: '800', letterSpacing: 0.3 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', rowGap: theme.spacing(2) },

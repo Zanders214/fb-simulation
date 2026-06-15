@@ -5,9 +5,10 @@ import type { Formation, Position } from './types';
  * algorithm code, and tests can probe edge behaviour by overriding them.
  */
 
-// Bumped to 2 for the country/division-pyramid world: older saves (flat leagues,
-// no `countries`/tier) fail validation in the store and fall back to "no save".
-export const SAVE_VERSION = 2;
+// Bumped to 3 for the fully-simulated world: every league is now played
+// match-by-match, so the season carries `otherFixtures`. Older saves (no
+// `otherFixtures`) fail validation in the store and fall back to "no save".
+export const SAVE_VERSION = 3;
 
 // ---- match simulation ----
 export const SIM = {
@@ -141,11 +142,31 @@ export const PROGRESSION = {
   XP_THRESHOLD: 1,
   EVENT_MULT: 3, // growth ×3 per match achievement — a goal/assist, or a clean sheet for GK/DEF; they stack
   CONTRIB_DECLINE_MULT: 0.3, // a scorer/assister loses far less ability after a poor game
-  FORM_ALPHA: 0.45, // EMA weight on the latest rating
-  FORM_MIN: -5,
-  FORM_MAX: 5,
   DECLINE_AGE: 31,
   RETIRE_AGE: 39,
+} as const;
+
+// ---- form / momentum ----
+// A player's `form` (added to his area ratings for the NEXT match, and a pull on
+// his development) is rebuilt each appearance from match momentum: it decays
+// toward 0, then swings on the result — scaled by the Elo surprise, so beating a
+// favourite (or even drawing one) lifts form far more than seeing off a minnow,
+// and losing to a giant barely dents it. Goals/assists/clean sheets add on top
+// (opponent-scaled); cards subtract; returning from injury costs "ring rust".
+export const FORM = {
+  MIN: -5,
+  MAX: 5,
+  DECAY: 0.18, // form *= (1 - DECAY) each appearance before the match's effects
+  RESULT: 1.8, // result swing = RESULT * (score - oppExpected); score ∈ {1, .5, 0}
+  GOAL: 0.6, // per goal, × opponent multiplier
+  ASSIST: 0.35, // per assist, × opponent multiplier
+  CLEAN_SHEET: 0.5, // GK/DEF only, × opponent multiplier
+  YELLOW: 0.3, // per yellow, ÷ opponent multiplier (softened vs stronger sides)
+  RED: 0.9, // per red, ÷ opponent multiplier
+  INJURY_PER_MATCH: 0.18, // ring-rust per matchday of lay-off, applied at onset
+  INJURY_MAX: 2.5, // cap on the injury hit
+  INJURY_RANDOM_FLOOR: 0, // hit ×= FLOOR + (1-FLOOR)*rng() — low rolls "came back fine"
+  GROWTH_FORM_COEFF: 0.1, // form's pull on development (±0.5 on the perf term at form ±5)
 } as const;
 
 // ---- training ----

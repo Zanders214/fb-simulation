@@ -1,5 +1,6 @@
-import { SIM } from '../config';
+import { FORM, SIM } from '../config';
 import { applyCard, applyInjury, applyMatchProgression, applySeasonEnd, applyTrainingProgression } from '../progression';
+import { rewardMultiplierFromExpected } from '../ranking';
 import type { CardEvent, InjuryEvent, PlayerRating } from '../types';
 import { makePlayer } from './factory';
 
@@ -212,5 +213,119 @@ describe('cards and injuries', () => {
     expect(p.injuredMatches).toBe(5); // a worse injury extends the lay-off
     applyInjury(p, injury(1));
     expect(p.injuredMatches).toBe(5); // a lighter knock never shortens it
+  });
+});
+
+describe('form / momentum', () => {
+  const fresh = () => makePlayer({ position: 'MID', age: 26, potential: 70 });
+  const card = (type: CardEvent['type']): CardEvent => ({ minute: 30, clubId: 'C', playerId: 'x', type });
+  const injury = (matchesOut: number): InjuryEvent => ({ minute: 30, clubId: 'C', playerId: 'x', matchesOut });
+
+  it('rises on a win and falls on a loss', () => {
+    const won = fresh();
+    const lost = fresh();
+    applyMatchProgression(won, rating(6.5), { score: 1, oppExpected: 0.5 });
+    applyMatchProgression(lost, rating(6.5), { score: 0, oppExpected: 0.5 });
+    expect(won.form).toBeGreaterThan(0);
+    expect(lost.form).toBeLessThan(0);
+  });
+
+  it('rewards an upset win more than an expected one, and dents a loss to a giant less', () => {
+    const upset = fresh();
+    const routine = fresh();
+    applyMatchProgression(upset, rating(6.5), { score: 1, oppExpected: 0.1 }); // beat a favourite
+    applyMatchProgression(routine, rating(6.5), { score: 1, oppExpected: 0.9 }); // beat a minnow
+    expect(upset.form).toBeGreaterThan(routine.form);
+
+    const toGiant = fresh();
+    const toMinnow = fresh();
+    applyMatchProgression(toGiant, rating(6.5), { score: 0, oppExpected: 0.1 });
+    applyMatchProgression(toMinnow, rating(6.5), { score: 0, oppExpected: 0.9 });
+    expect(toGiant.form).toBeGreaterThan(toMinnow.form); // losing to a giant hurts less
+  });
+
+  it('treats a draw as opponent-aware (upset vs a giant, negative vs a minnow, ~0 at parity)', () => {
+    const vsGiant = fresh();
+    const vsParity = fresh();
+    const vsMinnow = fresh();
+    applyMatchProgression(vsGiant, rating(6.5), { score: 0.5, oppExpected: 0.1 });
+    applyMatchProgression(vsParity, rating(6.5), { score: 0.5, oppExpected: 0.5 });
+    applyMatchProgression(vsMinnow, rating(6.5), { score: 0.5, oppExpected: 0.9 });
+    expect(vsGiant.form).toBeGreaterThan(0);
+    expect(vsParity.form).toBeCloseTo(0, 5);
+    expect(vsMinnow.form).toBeLessThan(0);
+  });
+
+  it('adds opponent-scaled bonuses for goals', () => {
+    const vsStrong = fresh();
+    const vsWeak = fresh();
+    applyMatchProgression(vsStrong, rating(7, 1, 0), { score: 1, oppExpected: 0.1 });
+    applyMatchProgression(vsWeak, rating(7, 1, 0), { score: 1, oppExpected: 0.9 });
+    expect(vsStrong.form).toBeGreaterThan(vsWeak.form);
+  });
+
+  it('credits a clean sheet only to keepers and defenders', () => {
+    const def = makePlayer({ position: 'DEF', age: 26 });
+    const fwd = makePlayer({ position: 'FWD', age: 26 });
+    applyMatchProgression(def, rating(6.5), { score: 0.5, oppExpected: 0.5, cleanSheet: true });
+    applyMatchProgression(fwd, rating(6.5), { score: 0.5, oppExpected: 0.5, cleanSheet: true });
+    expect(def.form).toBeGreaterThan(fwd.form);
+    expect(fwd.form).toBeCloseTo(0, 5);
+  });
+
+  it('decays toward zero over a quiet appearance', () => {
+    const p = fresh();
+    p.form = 4;
+    applyMatchProgression(p, rating(6.5), { score: 0.5, oppExpected: 0.5 });
+    expect(p.form).toBeCloseTo(4 * (1 - FORM.DECAY), 5);
+  });
+
+  it('clamps to the configured range', () => {
+    const p = fresh();
+    for (let i = 0; i < 20; i++) applyMatchProgression(p, rating(9, 3, 2), { score: 1, oppExpected: 0.05 });
+    expect(p.form).toBeLessThanOrEqual(FORM.MAX);
+    expect(p.form).toBeGreaterThan(FORM.MAX - 1e-6);
+  });
+
+  it('couples development to form — good form grows a player harder', () => {
+    const inForm = makePlayer({ position: 'FWD', age: 20, attacking: 50, potential: 90 });
+    const outOfForm = makePlayer({ position: 'FWD', age: 20, attacking: 50, potential: 90 });
+    inForm.form = 5;
+    outOfForm.form = -5;
+    applyMatchProgression(inForm, rating(7.5), { score: 0.5, oppExpected: 0.5 });
+    applyMatchProgression(outOfForm, rating(7.5), { score: 0.5, oppExpected: 0.5 });
+    expect(inForm.growthXp).toBeGreaterThan(outOfForm.growthXp);
+  });
+
+  it('a booking dents form, softened against a stronger opponent', () => {
+    const vsStrong = makePlayer({ position: 'DEF' });
+    const vsWeak = makePlayer({ position: 'DEF' });
+    applyCard(vsStrong, card('yellow'), rewardMultiplierFromExpected(0.1)); // big opp -> mult > 1 -> softer
+    applyCard(vsWeak, card('yellow'), rewardMultiplierFromExpected(0.9)); // small opp -> mult < 1 -> harsher
+    expect(vsStrong.form).toBeLessThan(0);
+    expect(vsWeak.form).toBeLessThan(vsStrong.form);
+  });
+
+  it('docks form on injury, scaled by lay-off length, and caps the hit', () => {
+    const light = makePlayer({ position: 'FWD' });
+    const heavy = makePlayer({ position: 'FWD' });
+    const huge = makePlayer({ position: 'FWD' });
+    applyInjury(light, injury(1), () => 1);
+    applyInjury(heavy, injury(6), () => 1);
+    applyInjury(huge, injury(100), () => 1);
+    expect(light.form).toBeLessThan(0);
+    expect(heavy.form).toBeLessThan(light.form);
+    expect(huge.form).toBeCloseTo(-FORM.INJURY_MAX, 5);
+  });
+
+  it('comes back unaffected on a low random roll, and is untouched with no rng', () => {
+    const lucky = makePlayer({ position: 'FWD' });
+    applyInjury(lucky, injury(5), () => 0);
+    expect(lucky.form).toBe(0);
+
+    const unitCaller = makePlayer({ position: 'FWD' });
+    unitCaller.form = 2;
+    applyInjury(unitCaller, injury(3));
+    expect(unitCaller.form).toBe(2);
   });
 });

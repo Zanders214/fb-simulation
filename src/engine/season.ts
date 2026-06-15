@@ -8,9 +8,15 @@ import {
   applySeasonEnd,
   applyTrainingProgression,
 } from './progression';
-import { applyPromotionRelegation, projectLeagueOrder } from './promotion';
-import { applyMatchRanking, clubRanking, rankingPositionDelta } from './ranking';
-import { hashSeed, makeRng } from './rng';
+import { applyPromotionRelegation } from './promotion';
+import {
+  applyMatchRanking,
+  clubRanking,
+  expectedScore,
+  rankingPositionDelta,
+  rewardMultiplierFromExpected,
+} from './ranking';
+import { hashSeed, makeRng, type Rng } from './rng';
 import { type SimTeam, simulateMatch } from './sim';
 import { computeTable } from './standings';
 import type {
@@ -44,6 +50,25 @@ function totalMatchdaysFor(world: World, leagueId: LeagueId): number {
   return (world.leagues[leagueId].clubIds.length - 1) * 2;
 }
 
+/** Numeric suffix of a league id (`L7` -> 7), for deriving stable per-league seeds. */
+function leagueSeedIndex(leagueId: LeagueId): number {
+  return Number(leagueId.slice(1)) || 0;
+}
+
+/**
+ * Generate this season's schedules for every league EXCEPT the user's, keyed by
+ * league id. Each league gets its own seed (derived from its id) so schedules
+ * differ across leagues while staying fully reproducible.
+ */
+function buildOtherFixtures(world: World, userLeagueId: LeagueId, seasonNumber: number): Record<LeagueId, Fixture[]> {
+  const out: Record<LeagueId, Fixture[]> = {};
+  for (const lid of Object.keys(world.leagues)) {
+    if (lid === userLeagueId) continue;
+    out[lid] = generateFixtures(world.leagues[lid].clubIds, hashSeed(world.seed, leagueSeedIndex(lid)), seasonNumber);
+  }
+  return out;
+}
+
 /**
  * Finalise a new game. NOTE: in 'create' mode this mutates the passed `world`
  * (it overwrites the weakest club's identity with the user's club), so callers
@@ -74,6 +99,7 @@ export function createGame(world: World, opts: NewGameOptions): GameState {
     number: 1,
     leagueId: opts.leagueId,
     fixtures,
+    otherFixtures: buildOtherFixtures(world, opts.leagueId, 1),
     currentMatchday: 1,
     totalMatchdays: totalMatchdaysFor(world, opts.leagueId),
   };
@@ -177,6 +203,13 @@ function outcomeFor(my: number, opp: number): MatchOutcome {
   return 'draw';
 }
 
+/** Numeric result for a team (1 win / 0.5 draw / 0 loss), the form-momentum currency. */
+function teamScore(scored: number, conceded: number): 0 | 0.5 | 1 {
+  if (scored > conceded) return 1;
+  if (scored < conceded) return 0;
+  return 0.5;
+}
+
 /**
  * Credit each club its match income (a win scaled by the opponent's ranking), in
  * place. Must run before `applyMatchRanking` so the scaling uses pre-match ratings.
@@ -211,13 +244,16 @@ function applyTeamProgression(
   training: Set<string>,
   played: Set<string>,
   result: MatchResult,
+  oppExpected: number,
 ): void {
   const cleanSheet = conceded === 0;
+  const scored = team.clubId === result.homeClubId ? result.homeGoals : result.awayGoals;
+  const score = teamScore(scored, conceded);
   const develop = (id: PlayerId, appearance: 'start' | 'sub') => {
     const r = result.ratings[id];
     const player = state.world.players[id];
     if (!r || !player) return;
-    applyMatchProgression(player, r, { inTraining: training.has(id), cleanSheet, appearance });
+    applyMatchProgression(player, r, { inTraining: training.has(id), cleanSheet, appearance, score, oppExpected });
     played.add(id);
     recordPlayerMatchStats(state, player, r, cleanSheet);
   };
@@ -275,18 +311,24 @@ function recordClubCard(world: World, card: MatchResult['cards'][number]): void 
  * ledger. Records everyone newly ruled out so the matchday's recovery tick
  * doesn't immediately count down a fresh absence.
  */
-function applyMatchDiscipline(world: World, result: MatchResult, newlyOut: Set<string>): void {
+function applyMatchDiscipline(
+  world: World,
+  result: MatchResult,
+  newlyOut: Set<string>,
+  expected: Record<ClubId, number>,
+  rng: Rng,
+): void {
   for (const card of result.cards ?? []) {
     const player = world.players[card.playerId];
     if (!player) continue;
-    applyCard(player, card);
+    applyCard(player, card, rewardMultiplierFromExpected(expected[card.clubId] ?? 0.5));
     recordClubCard(world, card);
     if (card.type === 'red') newlyOut.add(player.id);
   }
   for (const injury of result.injuries ?? []) {
     const player = world.players[injury.playerId];
     if (!player) continue;
-    applyInjury(player, injury);
+    applyInjury(player, injury, () => rng.next());
     newlyOut.add(player.id);
   }
 }
@@ -307,10 +349,49 @@ function recoverAbsences(world: World, newlyOut: Set<string>): void {
 }
 
 /**
- * Simulate every fixture of the current matchday (including the user's),
- * applying per-player progression to everyone who played, recording cards and
- * injuries, healing existing absences, and advancing the matchday counter.
- * Mutates `state` in place (and returns the outcome).
+ * Simulate one fixture and apply ALL of its consequences to the world: match
+ * income (credited pre-ranking, so the user's reported earnings read pre-match
+ * ratings), the Elo update, per-player progression/form for both sides — scaled
+ * by each side's Elo expected score, so an upset moves form most — and cards /
+ * injuries (booking penalties opponent-scaled, injury "ring rust" from `auxRng`).
+ * Returns the result and, when the managed club featured, its match earnings; the
+ * caller decides how to store the result (full for the user's league, slim
+ * score for the rest). Mutates `state` in place.
+ */
+function playFixture(
+  state: GameState,
+  f: Fixture,
+  rng: Rng,
+  auxRng: Rng,
+  training: Set<string>,
+  played: Set<string>,
+  newlyOut: Set<string>,
+): { result: MatchResult; userEarnings?: number } {
+  const { world } = state;
+  const home = simTeamFor(world, f.homeClubId, state.managedClubId, state.squad, true);
+  const away = simTeamFor(world, f.awayClubId, state.managedClubId, state.squad, false);
+  const result = simulateMatch({ home, away, rng });
+  awardMatchIncome(world, result);
+  let userEarnings: number | undefined;
+  if (f.homeClubId === state.managedClubId || f.awayClubId === state.managedClubId) {
+    userEarnings = userMatchEarnings(world, state.managedClubId, result);
+  }
+  const hExp = expectedScore(clubRanking(world, f.homeClubId), clubRanking(world, f.awayClubId));
+  const aExp = 1 - hExp;
+  applyMatchRanking(world, result);
+  applyTeamProgression(state, home, result.awayGoals, training, played, result, hExp);
+  applyTeamProgression(state, away, result.homeGoals, training, played, result, aExp);
+  applyMatchDiscipline(world, result, newlyOut, { [f.homeClubId]: hExp, [f.awayClubId]: aExp }, auxRng);
+  return { result, userEarnings };
+}
+
+/**
+ * Play the current matchday across EVERY league in the world: the user's league
+ * (whose full results are retained for the match viewer and reported back) and
+ * every other league (kept as a slim score). Everyone who featured anywhere gets
+ * progression/form/discipline through the same per-fixture pipeline, so all
+ * players develop. Then training-slot growth, world-wide absence recovery, and
+ * the matchday counter advance. Mutates `state` in place (and returns the outcome).
  */
 export function playMatchday(state: GameState): MatchdayOutcome {
   const { world, season } = state;
@@ -324,29 +405,38 @@ export function playMatchday(state: GameState): MatchdayOutcome {
   const training = new Set(state.squad.trainingIds ?? []);
   const played = new Set<string>();
   const newlyOut = new Set<string>(); // injured/sent off this matchday
-  const fixtures = season.fixtures.filter((f) => f.matchday === md);
-  fixtures.forEach((f, i) => {
-    const rng = makeRng(hashSeed(world.seed, season.number, md, i));
-    const home = simTeamFor(world, f.homeClubId, state.managedClubId, state.squad, true);
-    const away = simTeamFor(world, f.awayClubId, state.managedClubId, state.squad, false);
-    const result = simulateMatch({ home, away, rng });
-    f.result = result;
-    results.push(result);
-    // Income (and the user's reported earnings) read pre-match rankings; only then
-    // does the Elo update move both clubs' rankings for the result just played.
-    awardMatchIncome(world, result);
-    if (f.homeClubId === state.managedClubId || f.awayClubId === state.managedClubId) {
-      userResult = result;
-      userEarnings = userMatchEarnings(world, state.managedClubId, result);
-    }
-    applyMatchRanking(world, result);
-    applyTeamProgression(state, home, result.awayGoals, training, played, result);
-    applyTeamProgression(state, away, result.homeGoals, training, played, result);
-    applyMatchDiscipline(world, result, newlyOut);
-  });
 
-  // Track each club's highest-ever total squad value.
-  for (const cid of world.leagues[season.leagueId].clubIds) {
+  // User's league: keep the full result (powers the match viewer) and report it.
+  season.fixtures
+    .filter((f) => f.matchday === md)
+    .forEach((f, i) => {
+      const rng = makeRng(hashSeed(world.seed, season.number, md, i));
+      const auxRng = makeRng(hashSeed(world.seed, season.number, md, i, 4242));
+      const { result, userEarnings: earned } = playFixture(state, f, rng, auxRng, training, played, newlyOut);
+      f.result = result;
+      results.push(result);
+      if (earned !== undefined) {
+        userResult = result;
+        userEarnings = earned;
+      }
+    });
+
+  // Every other league: same pipeline, but only the slim score is stored. The
+  // extra league index in the seed keeps each league's RNG stream independent.
+  for (const lid of Object.keys(season.otherFixtures)) {
+    const li = leagueSeedIndex(lid);
+    season.otherFixtures[lid]
+      .filter((f) => f.matchday === md)
+      .forEach((f, i) => {
+        const rng = makeRng(hashSeed(world.seed, season.number, md, li, i));
+        const auxRng = makeRng(hashSeed(world.seed, season.number, md, li, i, 4242));
+        const { result } = playFixture(state, f, rng, auxRng, training, played, newlyOut);
+        f.score = { homeGoals: result.homeGoals, awayGoals: result.awayGoals };
+      });
+  }
+
+  // Track each club's highest-ever total squad value (world-wide now all play).
+  for (const cid of Object.keys(world.clubs)) {
     const club = world.clubs[cid];
     club.peakSquadValue = Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, cid));
   }
@@ -367,28 +457,21 @@ export function isSeasonComplete(state: GameState): boolean {
   return state.season.currentMatchday > state.season.totalMatchdays;
 }
 
-/** Numeric suffix of a league id (`L7` -> 7), for deriving stable per-league seeds. */
-function leagueSeedIndex(leagueId: LeagueId): number {
-  return Number(leagueId.slice(1)) || 0;
-}
-
 /**
- * Final finishing orders (best → worst) for *every* league in the world: the
- * real table for the league the user actually played, and a cheap seeded
- * projection for all other leagues (which are never simulated match-by-match).
- * Promotion (within the user's country) and the season-end ranking nudge both
- * read from this, so they always agree.
+ * Real final finishing orders (best → worst) for *every* league in the world,
+ * computed from the season's played fixtures — the user's league from its full
+ * results, every other league from its slim scores. Promotion (across every
+ * country now) and the season-end ranking nudge both read from this, so they
+ * always agree.
  */
 function worldFinalOrders(state: GameState, playedOrder: ClubId[]): Record<LeagueId, ClubId[]> {
   const { world, season } = state;
   const orders: Record<LeagueId, ClubId[]> = {};
   for (const lid of Object.keys(world.leagues)) {
-    if (lid === season.leagueId) {
-      orders[lid] = playedOrder;
-    } else {
-      const rng = makeRng(hashSeed(world.seed, 9091, season.number, leagueSeedIndex(lid)));
-      orders[lid] = projectLeagueOrder(world, lid, rng);
-    }
+    orders[lid] =
+      lid === season.leagueId
+        ? playedOrder
+        : computeTable(season.otherFixtures[lid] ?? [], world.leagues[lid].clubIds).map((r) => r.clubId);
   }
   return orders;
 }
@@ -403,17 +486,17 @@ function applyRankingFinishes(world: World, finalOrders: Record<LeagueId, ClubId
 }
 
 /**
- * Run promotion/relegation across the user's country and move the live season to
- * follow the managed club into its new tier. Returns how the user's club moved.
+ * Run promotion/relegation across *every* country's pyramid from the real final
+ * tables, then move the live season to follow the managed club into its new tier.
+ * Returns how the user's club moved.
  */
-function applyUserCountryPyramid(state: GameState, finalOrders: Record<LeagueId, ClubId[]>): Movement {
+function applyWorldPyramids(state: GameState, finalOrders: Record<LeagueId, ClubId[]>): Movement {
   const { world, season } = state;
-  const league = world.leagues[season.leagueId];
-  const country = world.countries[league.countryId];
-  if (!country) return 'stayed';
+  const prevTier = world.leagues[season.leagueId].tier;
 
-  const prevTier = league.tier;
-  applyPromotionRelegation(world, country, finalOrders);
+  for (const country of Object.values(world.countries)) {
+    applyPromotionRelegation(world, country, finalOrders);
+  }
 
   const newLeagueId = world.clubs[state.managedClubId].leagueId;
   season.leagueId = newLeagueId;
@@ -426,15 +509,15 @@ function applyUserCountryPyramid(state: GameState, finalOrders: Record<LeagueId,
 /**
  * Roll over to the next season: record champion + the user's finishing position,
  * age & decline every player, pay end-of-season income, apply promotion /
- * relegation across the user's country (the managed club carries its squad into
- * its new tier), then regenerate fixtures. Squads and development carry over.
- * Mutates and returns `state`.
+ * relegation across *every* country from the real final tables (the managed club
+ * carries its squad into its new tier), then regenerate fixtures for all leagues.
+ * Squads and development carry over. Mutates and returns `state`.
  */
 export function advanceSeason(state: GameState): GameState {
   const { world, season } = state;
   const playedLeagueId = season.leagueId;
   const clubIds = world.leagues[playedLeagueId].clubIds;
-  const table = computeTable(season, clubIds);
+  const table = computeTable(season.fixtures, clubIds);
   const championClubId = table[0]?.clubId ?? state.managedClubId;
   const userPosition = table.findIndex((r) => r.clubId === state.managedClubId) + 1;
   const playedTier = world.leagues[playedLeagueId].tier;
@@ -468,7 +551,7 @@ export function advanceSeason(state: GameState): GameState {
   // just played with the user's resulting movement.
   const finalOrders = worldFinalOrders(state, table.map((r) => r.clubId));
   applyRankingFinishes(world, finalOrders);
-  const movement = applyUserCountryPyramid(state, finalOrders);
+  const movement = applyWorldPyramids(state, finalOrders);
   state.history.push({
     season: season.number,
     championClubId,
@@ -484,6 +567,7 @@ export function advanceSeason(state: GameState): GameState {
     number: newNumber,
     leagueId: newLeagueId,
     fixtures: generateFixtures(world.leagues[newLeagueId].clubIds, world.seed, newNumber),
+    otherFixtures: buildOtherFixtures(world, newLeagueId, newNumber),
     currentMatchday: 1,
     totalMatchdays: totalMatchdaysFor(world, newLeagueId),
   };
@@ -493,7 +577,7 @@ export function advanceSeason(state: GameState): GameState {
 // ---- selectors ----
 
 export function leagueTable(state: GameState): TableRow[] {
-  return computeTable(state.season, state.world.leagues[state.season.leagueId].clubIds);
+  return computeTable(state.season.fixtures, state.world.leagues[state.season.leagueId].clubIds);
 }
 
 export function nextUserFixture(state: GameState): Fixture | undefined {
