@@ -153,6 +153,13 @@ export const PROGRESSION = {
 // favourite (or even drawing one) lifts form far more than seeing off a minnow,
 // and losing to a giant barely dents it. Goals/assists/clean sheets add on top
 // (opponent-scaled); cards subtract; returning from injury costs "ring rust".
+//
+// TUNING NOTE: three momentum layers compound, so a side/player on a good run is
+// deliberately "sticky" — slow to fall out of form: (1) DECAY only bleeds form
+// 18%/match, (2) per-player goal/assist/clean-sheet streaks escalate repeat
+// events up to ×2 (STREAK_*), and (3) a team's winning run softens the hit of a
+// bad result up to ×0.5 (RESULT_CUSHION_WIN*). If losses ever feel too forgiving,
+// dial these back rather than any single knob.
 export const FORM = {
   MIN: -5,
   MAX: 5,
