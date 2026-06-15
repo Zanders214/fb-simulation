@@ -5,6 +5,7 @@
 // before a PR merges, instead of after the fact on SonarCloud.
 const expoConfig = require('eslint-config-expo/flat');
 const sonarjs = require('eslint-plugin-sonarjs');
+const reactPerf = require('eslint-plugin-react-perf');
 const globals = require('globals');
 
 module.exports = [
@@ -14,7 +15,7 @@ module.exports = [
   },
   {
     files: ['**/*.{ts,tsx}'],
-    plugins: { sonarjs },
+    plugins: { sonarjs, 'react-perf': reactPerf },
     // Enable type-aware linting (builds the TS program) for the rules below.
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: __dirname },
@@ -26,6 +27,14 @@ module.exports = [
       'no-negated-condition': 'error', // S7735
       'react/no-array-index-key': 'error', // S6479
       'react/no-unstable-nested-components': 'error', // S6478
+      // ---- react-perf: runtime efficiency, not just code smell ----
+      // Inline object/array/function/JSX literals passed as props create a new
+      // reference every render, defeating memo/PureComponent and forcing child
+      // re-renders. SonarCloud doesn't measure this; these catch it before CI.
+      'react-perf/jsx-no-new-object-as-prop': 'warn',
+      'react-perf/jsx-no-new-array-as-prop': 'warn',
+      'react-perf/jsx-no-new-function-as-prop': 'warn',
+      'react-perf/jsx-no-jsx-as-prop': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
