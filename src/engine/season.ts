@@ -7,6 +7,7 @@ import {
   applyMatchProgression,
   applySeasonEnd,
   applyTrainingProgression,
+  decayInactiveStreaks,
 } from './progression';
 import { applyPromotionRelegation } from './promotion';
 import {
@@ -253,7 +254,19 @@ function applyTeamProgression(
     const r = result.ratings[id];
     const player = state.world.players[id];
     if (!r || !player) return;
-    applyMatchProgression(player, r, { inTraining: training.has(id), cleanSheet, appearance, score, oppExpected });
+    // A player's bookings this match drive his (separate) card streaks, advanced
+    // in applyMatchProgression so applyMatchDiscipline's penalty can read them.
+    const gotYellow = result.cards?.some((c) => c.playerId === id && c.type === 'yellow') ?? false;
+    const gotRed = result.cards?.some((c) => c.playerId === id && c.type === 'red') ?? false;
+    applyMatchProgression(player, r, {
+      inTraining: training.has(id),
+      cleanSheet,
+      appearance,
+      score,
+      oppExpected,
+      gotYellow,
+      gotRed,
+    });
     played.add(id);
     recordPlayerMatchStats(state, player, r, cleanSheet);
   };
@@ -446,6 +459,13 @@ export function playMatchday(state: GameState): MatchdayOutcome {
     if (played.has(id)) continue;
     const player = world.players[id];
     if (player) applyTrainingProgression(player);
+  }
+
+  // Cool the form streaks of everyone who didn't feature this matchday by one
+  // level. Players who played (incl. those injured/sent off, who are in `played`)
+  // already had their streaks advanced; only genuine non-appearances fade.
+  for (const id of Object.keys(world.players)) {
+    if (!played.has(id)) decayInactiveStreaks(world.players[id]);
   }
 
   recoverAbsences(world, newlyOut);

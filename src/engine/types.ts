@@ -43,6 +43,15 @@ export interface Player {
   // ---- evolving development state (mutated by progression) ----
   form: number; // -5..+5 EMA of recent ratings, affects the next match only
   growthXp: number; // fractional accumulator; crossing ±1 nudges a stat
+  // ---- form-event streaks (0..3 level; read via `?? 0`) ----
+  // Consecutive APPEARANCES recording the same event escalate its form swing
+  // (L1 ×1, L2 ×1.5, L3 ×2). Climbs when the event repeats, snaps to 0 on a
+  // played match without it, cools one level on a missed match.
+  goalStreak?: number;
+  assistStreak?: number;
+  cleanSheetStreak?: number; // GK/DEF only, like clean-sheet form
+  yellowStreak?: number; // bookings escalate the form penalty, tracked apart from reds
+  redStreak?: number;
   // ---- season counters (reset each season, for UI like top scorers) ----
   seasonGoals: number;
   seasonAssists: number;

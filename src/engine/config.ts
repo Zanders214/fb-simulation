@@ -167,6 +167,11 @@ export const FORM = {
   INJURY_MAX: 2.5, // cap on the injury hit
   INJURY_RANDOM_FLOOR: 0, // hit ×= FLOOR + (1-FLOOR)*rng() — low rolls "came back fine"
   GROWTH_FORM_COEFF: 0.1, // form's pull on development (±0.5 on the perf term at form ±5)
+  // Consecutive-appearance streaks amplify a repeated form event (goal/assist/
+  // clean sheet, and — negatively — bookings). The Nth in a row scales the swing
+  // by 1 + STREAK_STEP * min(level-1, STREAK_MAX_STEPS): L1 ×1, L2 ×1.5, L3 ×2.
+  STREAK_STEP: 0.5,
+  STREAK_MAX_STEPS: 2, // level caps at STREAK_MAX_STEPS + 1 = 3 (×2)
 } as const;
 
 // ---- training ----

@@ -1,5 +1,13 @@
 import { FORM, SIM } from '../config';
-import { applyCard, applyInjury, applyMatchProgression, applySeasonEnd, applyTrainingProgression } from '../progression';
+import {
+  applyCard,
+  applyInjury,
+  applyMatchProgression,
+  applySeasonEnd,
+  applyTrainingProgression,
+  decayInactiveStreaks,
+  streakMultiplier,
+} from '../progression';
 import { rewardMultiplierFromExpected } from '../ranking';
 import type { CardEvent, InjuryEvent, PlayerRating } from '../types';
 import { makePlayer } from './factory';
@@ -327,5 +335,122 @@ describe('form / momentum', () => {
     unitCaller.form = 2;
     applyInjury(unitCaller, injury(3));
     expect(unitCaller.form).toBe(2);
+  });
+});
+
+describe('form streaks', () => {
+  const fwd = () => makePlayer({ position: 'FWD', age: 26, potential: 70 });
+  const def = () => makePlayer({ position: 'DEF', age: 26, potential: 70 });
+  const card = (type: CardEvent['type']): CardEvent => ({ minute: 30, clubId: 'C', playerId: 'x', type });
+  // a neutral appearance (0-0 draw at parity) so only the streaked event moves form
+  const goalMatch = () => ({ score: 0.5 as const, oppExpected: 0.5 });
+
+  it('scales the multiplier 1x / 1.5x / 2x and caps there', () => {
+    expect(streakMultiplier(0)).toBe(1);
+    expect(streakMultiplier(1)).toBe(1);
+    expect(streakMultiplier(2)).toBe(1.5);
+    expect(streakMultiplier(3)).toBe(2);
+    expect(streakMultiplier(4)).toBe(2); // capped
+  });
+
+  it('climbs the goal streak on consecutive scoring matches and caps at level 3', () => {
+    const p = fwd();
+    applyMatchProgression(p, rating(7, 1), goalMatch());
+    expect(p.goalStreak).toBe(1);
+    applyMatchProgression(p, rating(7, 1), goalMatch());
+    expect(p.goalStreak).toBe(2);
+    applyMatchProgression(p, rating(7, 1), goalMatch());
+    expect(p.goalStreak).toBe(3);
+    applyMatchProgression(p, rating(7, 1), goalMatch());
+    expect(p.goalStreak).toBe(3); // capped
+  });
+
+  it('snaps a streak to zero on a played match without the event, even from the cap', () => {
+    const p = fwd();
+    p.goalStreak = 3;
+    applyMatchProgression(p, rating(6.5, 0), goalMatch()); // played, did not score
+    expect(p.goalStreak).toBe(0);
+  });
+
+  it('cools an inactive player one level per missed match (floor 0)', () => {
+    const p = fwd();
+    p.goalStreak = 3;
+    p.assistStreak = 2;
+    p.yellowStreak = 1;
+    decayInactiveStreaks(p);
+    expect(p.goalStreak).toBe(2);
+    expect(p.assistStreak).toBe(1);
+    expect(p.yellowStreak).toBe(0);
+    decayInactiveStreaks(p);
+    expect(p.goalStreak).toBe(1);
+    expect(p.yellowStreak).toBe(0); // stays at floor
+  });
+
+  it('a second consecutive goal swings form more than the first', () => {
+    const first = fwd();
+    const second = fwd();
+    second.goalStreak = 1; // already scored once; this goal lands at level 2
+    applyMatchProgression(first, rating(7, 1), goalMatch());
+    applyMatchProgression(second, rating(7, 1), goalMatch());
+    expect(second.form).toBeGreaterThan(first.form);
+    // level 2 is exactly 1.5x the flat goal bonus on top of the (zero) base swing
+    expect(second.form).toBeCloseTo(first.form * 1.5, 5);
+  });
+
+  it('escalates assist and clean-sheet streaks the same way', () => {
+    const assister = fwd();
+    assister.assistStreak = 1;
+    const oneAssist = fwd();
+    applyMatchProgression(oneAssist, rating(7, 0, 1), goalMatch());
+    applyMatchProgression(assister, rating(7, 0, 1), goalMatch());
+    expect(assister.assistStreak).toBe(2);
+    expect(assister.form).toBeCloseTo(oneAssist.form * 1.5, 5);
+
+    const keeper = def();
+    keeper.cleanSheetStreak = 1;
+    const oneSheet = def();
+    applyMatchProgression(oneSheet, rating(6.5), { ...goalMatch(), cleanSheet: true });
+    applyMatchProgression(keeper, rating(6.5), { ...goalMatch(), cleanSheet: true });
+    expect(keeper.cleanSheetStreak).toBe(2);
+    expect(keeper.form).toBeCloseTo(oneSheet.form * 1.5, 5);
+  });
+
+  it('tracks yellow and red streaks apart and amplifies a repeated booking', () => {
+    const first = def();
+    const repeat = def();
+    applyMatchProgression(first, rating(6.5), { ...goalMatch(), gotYellow: true });
+    applyMatchProgression(repeat, rating(6.5), { ...goalMatch(), gotYellow: true });
+    applyMatchProgression(repeat, rating(6.5), { ...goalMatch(), gotYellow: true });
+    expect(first.yellowStreak).toBe(1);
+    expect(repeat.yellowStreak).toBe(2);
+    // a yellow leaves the red streak untouched
+    expect(repeat.redStreak).toBe(0);
+
+    applyCard(first, card('yellow'));
+    applyCard(repeat, card('yellow'));
+    // both penalties land on a fresh (0) form, so the level-2 hit is 1.5x deeper
+    expect(repeat.form).toBeCloseTo(first.form * 1.5, 5);
+  });
+
+  it('a played match without a booking resets the card streak', () => {
+    const p = def();
+    p.yellowStreak = 3;
+    applyMatchProgression(p, rating(6.5), goalMatch()); // played, not booked
+    expect(p.yellowStreak).toBe(0);
+  });
+
+  it('zeroes every streak at season end', () => {
+    const p = fwd();
+    p.goalStreak = 3;
+    p.assistStreak = 2;
+    p.cleanSheetStreak = 1;
+    p.yellowStreak = 2;
+    p.redStreak = 1;
+    applySeasonEnd(p);
+    expect(p.goalStreak).toBe(0);
+    expect(p.assistStreak).toBe(0);
+    expect(p.cleanSheetStreak).toBe(0);
+    expect(p.yellowStreak).toBe(0);
+    expect(p.redStreak).toBe(0);
   });
 });
