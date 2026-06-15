@@ -24,11 +24,23 @@ import {
 import { useGame, useGameStore } from '../../src/store/gameStore';
 import { clubPlayers } from '../../src/store/selectors';
 import { useTheme, useThemedStyles, type Theme } from '../../src/theme';
-import { formatMoney } from '../../src/ui/format';
+import { flagFor, formatMoney } from '../../src/ui/format';
 
 type Mode = 'buy' | 'sell';
 type PosFilter = Position | 'ALL';
 const POS_FILTERS: PosFilter[] = ['ALL', 'GK', 'DEF', 'MID', 'FWD'];
+
+type SortDir = 'asc' | 'desc';
+
+type BuySort = 'value' | 'rating' | 'age' | 'potential' | 'position';
+// label + natural default direction (desc = best/highest first)
+const BUY_SORTS: { key: BuySort; label: string; defaultDir: SortDir }[] = [
+  { key: 'value', label: 'Price', defaultDir: 'desc' },
+  { key: 'rating', label: 'Rating', defaultDir: 'desc' },
+  { key: 'age', label: 'Age', defaultDir: 'asc' }, // youngest first
+  { key: 'potential', label: 'Potential', defaultDir: 'desc' },
+  { key: 'position', label: 'Position', defaultDir: 'asc' },
+];
 
 type SellSort = 'status' | 'value' | 'rating' | 'position';
 const SELL_SORTS: { key: SellSort; label: string }[] = [
@@ -58,10 +70,34 @@ export default function MarketScreen() {
   const [mode, setMode] = useState<Mode>('buy');
   const [pos, setPos] = useState<PosFilter>('ALL');
   const [leagueId, setLeagueId] = useState<string>('ALL');
+  const [nat, setNat] = useState<string>('ALL');
   const [search, setSearch] = useState('');
+  const [buySort, setBuySort] = useState<BuySort>('value');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [sellSort, setSellSort] = useState<SellSort>('status');
 
   const leagues = useMemo(() => (game ? Object.values(game.world.leagues) : []), [game]);
+
+  // Distinct nationalities present in the buyable pool, alphabetised.
+  const nationalities = useMemo(() => {
+    if (!game) return [];
+    const set = new Set<string>();
+    for (const p of Object.values(game.world.players)) {
+      if (p.clubId !== game.managedClubId) set.add(p.nationality);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [game]);
+
+  // Tapping a sort chip: flip direction if it's already active, else switch to
+  // it at its natural default direction.
+  const onSort = (key: BuySort, defaultDir: SortDir) => {
+    if (key === buySort) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setBuySort(key);
+      setSortDir(defaultDir);
+    }
+  };
 
   const budget = game ? clubBudget(game.world, game.managedClubId) : 0;
   const squadCount = game ? game.world.clubs[game.managedClubId].playerIds.length : 0;
@@ -69,13 +105,23 @@ export default function MarketScreen() {
   const buyList = useMemo(() => {
     if (!game || mode !== 'buy') return [];
     const q = search.trim().toLowerCase();
+    const m = sortDir === 'asc' ? 1 : -1;
+    const base: Record<BuySort, (a: Player, b: Player) => number> = {
+      value: (a, b) => playerValue(a) - playerValue(b),
+      rating: (a, b) => overall(a) - overall(b),
+      age: (a, b) => a.age - b.age,
+      potential: (a, b) => a.potential - b.potential,
+      position: (a, b) => POS_RANK[a.position] - POS_RANK[b.position],
+    };
+    const cmp = base[buySort];
     return Object.values(game.world.players)
       .filter((p) => p.clubId !== game.managedClubId)
       .filter((p) => pos === 'ALL' || p.position === pos)
       .filter((p) => leagueId === 'ALL' || game.world.clubs[p.clubId]?.leagueId === leagueId)
+      .filter((p) => nat === 'ALL' || p.nationality === nat)
       .filter((p) => !q || p.name.toLowerCase().includes(q))
-      .sort((a, b) => playerValue(b) - playerValue(a));
-  }, [game, mode, pos, leagueId, search]);
+      .sort((a, b) => m * cmp(a, b) || playerValue(b) - playerValue(a));
+  }, [game, mode, pos, leagueId, nat, search, buySort, sortDir]);
 
   const sellList = useMemo(() => {
     if (!game || mode !== 'sell') return [];
@@ -180,6 +226,21 @@ export default function MarketScreen() {
               />
             ))}
           </ScrollView>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+          >
+            <FilterChip label="All nations" active={nat === 'ALL'} onPress={() => setNat('ALL')} />
+            {nationalities.map((n) => (
+              <FilterChip
+                key={n}
+                label={`${flagFor(n)} ${n}`}
+                active={nat === n}
+                onPress={() => setNat(n)}
+              />
+            ))}
+          </ScrollView>
           <TextInput
             value={search}
             onChangeText={setSearch}
@@ -187,6 +248,22 @@ export default function MarketScreen() {
             placeholderTextColor={theme.colors.textMuted}
             style={styles.search}
           />
+          <View style={styles.sortRow}>
+            <Text style={styles.sortLabel}>Sort</Text>
+            {BUY_SORTS.map((s) => {
+              const active = buySort === s.key;
+              const arrow = sortDir === 'asc' ? '↑' : '↓';
+              const label = active ? `${s.label} ${arrow}` : s.label;
+              return (
+                <FilterChip
+                  key={s.key}
+                  label={label}
+                  active={active}
+                  onPress={() => onSort(s.key, s.defaultDir)}
+                />
+              );
+            })}
+          </View>
         </View>
       )}
 
@@ -279,6 +356,8 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   toggleTextActive: { color: theme.colors.onPrimary },
   filters: { gap: theme.spacing(1) },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing(1) },
+  sortRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.spacing(1) },
+  sortLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, textTransform: 'uppercase', letterSpacing: 1 },
   filterChip: {
     paddingHorizontal: theme.spacing(1.5),
     paddingVertical: theme.spacing(0.75),
