@@ -172,6 +172,13 @@ export const FORM = {
   // by 1 + STREAK_STEP * min(level-1, STREAK_MAX_STEPS): L1 ×1, L2 ×1.5, L3 ×2.
   STREAK_STEP: 0.5,
   STREAK_MAX_STEPS: 2, // level caps at STREAK_MAX_STEPS + 1 = 3 (×2)
+  // A team on a winning run shrugs off a bad result: the NEGATIVE result swing
+  // (loss, or a draw when favoured) is multiplied by a cushion based on the run
+  // it carried INTO the match. Wins/upset draws are never dampened.
+  RESULT_CUSHION_WIN1: 0.75, // won ≥1 of the last 2 → −25%
+  RESULT_CUSHION_WIN2: 0.625, // won the last 2 in a row → −37.5%
+  RESULT_CUSHION_WIN3: 0.5, // won the last 3 in a row → −50%
+  RECENT_FORM_KEEP: 5, // matches of W/D/L history retained per club
 } as const;
 
 // ---- training ----

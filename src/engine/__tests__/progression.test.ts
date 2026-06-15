@@ -6,10 +6,11 @@ import {
   applySeasonEnd,
   applyTrainingProgression,
   decayInactiveStreaks,
+  recentFormCushion,
   streakMultiplier,
 } from '../progression';
 import { rewardMultiplierFromExpected } from '../ranking';
-import type { CardEvent, InjuryEvent, PlayerRating } from '../types';
+import type { CardEvent, InjuryEvent, PlayerRating, RecentResult } from '../types';
 import { makePlayer } from './factory';
 
 function rating(r: number, goals = 0, assists = 0): PlayerRating {
@@ -452,5 +453,39 @@ describe('form streaks', () => {
     expect(p.cleanSheetStreak).toBe(0);
     expect(p.yellowStreak).toBe(0);
     expect(p.redStreak).toBe(0);
+  });
+});
+
+describe('recent-form cushion on bad results', () => {
+  const fresh = () => makePlayer({ position: 'MID', age: 26, potential: 70 });
+  const hist = (...rs: RecentResult[]): RecentResult[] => rs;
+
+  it('softens a bad result more the longer the winning run', () => {
+    expect(recentFormCushion(hist())).toBe(1);
+    expect(recentFormCushion(hist('L', 'L'))).toBe(1);
+    expect(recentFormCushion(hist('D', 'L'))).toBe(1);
+    expect(recentFormCushion(hist('W', 'L'))).toBe(FORM.RESULT_CUSHION_WIN1); // 1 of last 2
+    expect(recentFormCushion(hist('L', 'W'))).toBe(FORM.RESULT_CUSHION_WIN1);
+    expect(recentFormCushion(hist('L', 'W', 'W'))).toBe(FORM.RESULT_CUSHION_WIN2); // last 2 in a row
+    expect(recentFormCushion(hist('W', 'W', 'W'))).toBe(FORM.RESULT_CUSHION_WIN3); // last 3 in a row
+    // only the most recent matches matter — an old win past the window doesn't count
+    expect(recentFormCushion(hist('W', 'W', 'W', 'L'))).toBe(FORM.RESULT_CUSHION_WIN1);
+    expect(recentFormCushion(hist('W', 'W', 'W', 'L', 'L'))).toBe(1);
+  });
+
+  it('reduces a loss hit for a side on a run, but never dampens a win', () => {
+    const cold = fresh();
+    const hot = fresh();
+    applyMatchProgression(cold, rating(6.5), { score: 0, oppExpected: 0.5 });
+    applyMatchProgression(hot, rating(6.5), { score: 0, oppExpected: 0.5, lossCushion: FORM.RESULT_CUSHION_WIN3 });
+    expect(cold.form).toBeLessThan(0);
+    expect(hot.form).toBeGreaterThan(cold.form); // less negative
+    expect(hot.form).toBeCloseTo(cold.form * FORM.RESULT_CUSHION_WIN3, 5);
+
+    const wonPlain = fresh();
+    const wonHot = fresh();
+    applyMatchProgression(wonPlain, rating(6.5), { score: 1, oppExpected: 0.5 });
+    applyMatchProgression(wonHot, rating(6.5), { score: 1, oppExpected: 0.5, lossCushion: FORM.RESULT_CUSHION_WIN3 });
+    expect(wonHot.form).toBeCloseTo(wonPlain.form, 5); // win unaffected by the cushion
   });
 });

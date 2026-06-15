@@ -2,7 +2,7 @@ import { overall } from './attrs';
 import { ageGrowthMod, FORM, PROGRESSION, SIM, TRAINING } from './config';
 import { rewardMultiplierFromExpected } from './ranking';
 import type { Area } from './attrs';
-import type { CardEvent, InjuryEvent, Player, PlayerRating } from './types';
+import type { CardEvent, InjuryEvent, Player, PlayerRating, RecentResult } from './types';
 import { clamp } from './util';
 
 const AREAS: Area[] = ['attacking', 'defending', 'midfield'];
@@ -40,6 +40,22 @@ export function decayInactiveStreaks(player: Player): void {
     const cur = player[key] ?? 0;
     if (cur > 0) player[key] = cur - 1;
   }
+}
+
+/**
+ * Cushion (≤1) for a club's NEGATIVE result swing, from the run it carried INTO
+ * the match: a longer winning streak softens a loss / favoured draw more. `recent`
+ * is oldest-first W/D/L excluding the current match. Returns 1 (no cushion) when
+ * the side wasn't on a run.
+ */
+export function recentFormCushion(recent: readonly RecentResult[]): number {
+  const won = (r: RecentResult) => r === 'W';
+  const last3 = recent.slice(-3);
+  const last2 = recent.slice(-2);
+  if (last3.length === 3 && last3.every(won)) return FORM.RESULT_CUSHION_WIN3;
+  if (last2.length === 2 && last2.every(won)) return FORM.RESULT_CUSHION_WIN2;
+  if (last2.some(won)) return FORM.RESULT_CUSHION_WIN1;
+  return 1;
 }
 
 /**
@@ -104,6 +120,8 @@ export interface MatchContext {
   /** Whether the player was booked / sent off this match (drives the card streaks). */
   gotYellow?: boolean;
   gotRed?: boolean;
+  /** Multiplier (≤1) on a negative result swing, from the team's run into this match. */
+  lossCushion?: number;
 }
 
 /**
@@ -166,7 +184,12 @@ export function applyMatchProgression(player: Player, r: PlayerRating, ctx: Matc
   const exp = ctx.oppExpected ?? 0.5;
   const oppMult = rewardMultiplierFromExpected(exp);
   let f = formIn * (1 - FORM.DECAY);
-  if (ctx.score != null) f += FORM.RESULT * (ctx.score - exp);
+  if (ctx.score != null) {
+    // A bad result (loss, or a draw when favoured) is softened by a winning run;
+    // a win or upset draw lands in full.
+    const swing = FORM.RESULT * (ctx.score - exp);
+    f += swing < 0 ? swing * (ctx.lossCushion ?? 1) : swing;
+  }
   f +=
     (FORM.GOAL * r.goals * streakMultiplier(goalLvl) +
       FORM.ASSIST * r.assists * streakMultiplier(assistLvl)) *

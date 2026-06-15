@@ -101,7 +101,12 @@ export interface Club {
   peakSquadValue?: number;
   /** All-time goals/assists scored while at this club, keyed by player id. */
   playerContributions?: Record<PlayerId, ClubContribution>;
+  /** Recent W/D/L, oldest first, capped to the last few matches (read via `?? []`). */
+  recentForm?: RecentResult[];
 }
+
+/** A single match result from a club's perspective (compact W/D/L history). */
+export type RecentResult = 'W' | 'D' | 'L';
 
 export interface League {
   id: LeagueId;

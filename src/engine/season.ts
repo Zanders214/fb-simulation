@@ -1,5 +1,5 @@
 import { overall } from './attrs';
-import { MARKET, SAVE_VERSION } from './config';
+import { FORM, MARKET, SAVE_VERSION } from './config';
 import { generateFixtures } from './fixtures';
 import {
   applyCard,
@@ -8,6 +8,7 @@ import {
   applySeasonEnd,
   applyTrainingProgression,
   decayInactiveStreaks,
+  recentFormCushion,
 } from './progression';
 import { applyPromotionRelegation } from './promotion';
 import {
@@ -30,6 +31,7 @@ import type {
   Player,
   PlayerId,
   Position,
+  RecentResult,
   Season,
   SquadConfig,
   TableRow,
@@ -250,6 +252,9 @@ function applyTeamProgression(
   const cleanSheet = conceded === 0;
   const scored = team.clubId === result.homeClubId ? result.homeGoals : result.awayGoals;
   const score = teamScore(scored, conceded);
+  // Softens a bad result for a side on a winning run; read from the run carried
+  // INTO this match (this match's result is appended only after the fixture).
+  const lossCushion = recentFormCushion(state.world.clubs[team.clubId]?.recentForm ?? []);
   const develop = (id: PlayerId, appearance: 'start' | 'sub') => {
     const r = result.ratings[id];
     const player = state.world.players[id];
@@ -266,6 +271,7 @@ function applyTeamProgression(
       oppExpected,
       gotYellow,
       gotRed,
+      lossCushion,
     });
     played.add(id);
     recordPlayerMatchStats(state, player, r, cleanSheet);
@@ -395,7 +401,21 @@ function playFixture(
   applyTeamProgression(state, home, result.awayGoals, training, played, result, hExp);
   applyTeamProgression(state, away, result.homeGoals, training, played, result, aExp);
   applyMatchDiscipline(world, result, newlyOut, { [f.homeClubId]: hExp, [f.awayClubId]: aExp }, auxRng);
+  // Append this match to each club's recent form AFTER progression has read the
+  // pre-match run, so the next match sees an up-to-date streak.
+  recordRecentForm(world, f.homeClubId, result.homeGoals, result.awayGoals);
+  recordRecentForm(world, f.awayClubId, result.awayGoals, result.homeGoals);
   return { result, userEarnings };
+}
+
+/** Push a club's latest W/D/L onto its recent-form history, capped to the last few. */
+function recordRecentForm(world: World, clubId: ClubId, goalsFor: number, goalsAgainst: number): void {
+  const club = world.clubs[clubId];
+  if (!club) return;
+  let outcome: RecentResult = 'D';
+  if (goalsFor > goalsAgainst) outcome = 'W';
+  else if (goalsFor < goalsAgainst) outcome = 'L';
+  club.recentForm = [...(club.recentForm ?? []), outcome].slice(-FORM.RECENT_FORM_KEEP);
 }
 
 /**
@@ -563,6 +583,7 @@ export function advanceSeason(state: GameState): GameState {
         : seasonPrize(position, clubIds.length);
     club.budget = clubBudget(world, id) + income;
     club.peakSquadValue = Math.max(club.peakSquadValue ?? 0, clubSquadValue(world, id));
+    club.recentForm = []; // momentum doesn't carry across the summer break
   }
 
   // Nudge every club's ranking by its final league finish, then run promotion /
