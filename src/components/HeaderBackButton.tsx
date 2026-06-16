@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { HeaderBackButton as NavHeaderBackButton } from '@react-navigation/elements';
 import type { NativeStackHeaderBackProps } from '@react-navigation/native-stack';
 import { useRouter } from 'expo-router';
@@ -15,6 +16,7 @@ import { useRouter } from 'expo-router';
  */
 export function HeaderBackButton(props: Readonly<NativeStackHeaderBackProps>) {
   const router = useRouter();
+  const onPress = useCallback(() => router.back(), [router]);
   if (!router.canGoBack()) return null;
-  return <NavHeaderBackButton {...props} onPress={() => router.back()} />;
+  return <NavHeaderBackButton {...props} onPress={onPress} />;
 }

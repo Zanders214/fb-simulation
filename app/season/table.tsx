@@ -1,9 +1,9 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Chip } from '../../src/components/Chip';
 import { RecordTable } from '../../src/components/RecordTable';
-import { leagueRecords, leagueTable, PYRAMID } from '../../src/engine';
+import { leagueRecords, leagueTable, PYRAMID, type Club, type TableRow as LeagueRow } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
 import { flagFor } from '../../src/ui/format';
 import { useThemedStyles, type Theme } from '../../src/theme';
@@ -14,9 +14,17 @@ export default function TableScreen() {
   const styles = useThemedStyles(makeStyles);
   const [showRecords, setShowRecords] = useState(false);
   const records = useMemo(() => (game ? leagueRecords(game, 5) : null), [game]);
+  // Stable handlers (passed to memoised RecordTable rows / the toggle) — kept
+  // above the early return so the hooks run unconditionally.
+  const openPlayer = useCallback((id: string) => router.push(`/player?id=${id}`), [router]);
+  const openClub = useCallback((clubId: string) => router.push(`/club?id=${clubId}`), [router]);
+  const toggleRecords = useCallback(() => setShowRecords((v) => !v), []);
+  const recordsBtnStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.recordsBtn, pressed && styles.recordsBtnPressed],
+    [styles],
+  );
   if (!game || !records) return <Redirect href="/" />;
   const rows = leagueTable(game);
-  const openPlayer = (id: string) => router.push(`/player?id=${id}`);
 
   // Highlight the promotion (top) and relegation (bottom) bands, but only where a
   // tier actually exists above / below in this country's pyramid.
@@ -41,34 +49,18 @@ export default function TableScreen() {
         <Text style={[styles.pts, styles.hCell]}>Pts</Text>
       </View>
 
-      {rows.map((r, i) => {
-        const club = game.world.clubs[r.clubId];
-        const isUser = r.clubId === game.managedClubId;
-        const promo = hasAbove && i < slots;
-        const releg = hasBelow && i >= rows.length - slots;
-        return (
-          <Pressable
-            key={r.clubId}
-            onPress={() => router.push(`/club?id=${r.clubId}`)}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.row, isUser && styles.userRow, pressed && styles.rowPressed]}
-          >
-            <Text style={[styles.pos, styles.cell, promo && styles.posPromo, releg && styles.posReleg]}>{i + 1}</Text>
-            <View style={styles.clubCell}>
-              <Chip label={club.shortName} color={club.primaryColor} />
-              <Text style={[styles.clubName, isUser && styles.userText]} numberOfLines={1}>
-                {club.name}
-              </Text>
-            </View>
-            <Text style={[styles.num, styles.cell]}>{r.played}</Text>
-            <Text style={[styles.num, styles.cell]}>{r.won}</Text>
-            <Text style={[styles.num, styles.cell]}>{r.drawn}</Text>
-            <Text style={[styles.num, styles.cell]}>{r.lost}</Text>
-            <Text style={[styles.num, styles.cell]}>{r.gd > 0 ? `+${r.gd}` : r.gd}</Text>
-            <Text style={[styles.pts, styles.cell, styles.ptsVal]}>{r.points}</Text>
-          </Pressable>
-        );
-      })}
+      {rows.map((r, i) => (
+        <TableRow
+          key={r.clubId}
+          row={r}
+          club={game.world.clubs[r.clubId]}
+          rank={i + 1}
+          isUser={r.clubId === game.managedClubId}
+          promo={hasAbove && i < slots}
+          releg={hasBelow && i >= rows.length - slots}
+          onOpenClub={openClub}
+        />
+      ))}
 
       {(hasAbove || hasBelow) && (
         <View style={styles.legend}>
@@ -88,9 +80,9 @@ export default function TableScreen() {
       )}
 
       <Pressable
-        onPress={() => setShowRecords((v) => !v)}
+        onPress={toggleRecords}
         accessibilityRole="button"
-        style={({ pressed }) => [styles.recordsBtn, pressed && styles.recordsBtnPressed]}
+        style={recordsBtnStyle}
       >
         <Text style={styles.recordsBtnText}>{showRecords ? 'Hide Records ▲' : 'Records ▼'}</Text>
       </Pressable>
@@ -106,6 +98,51 @@ export default function TableScreen() {
     </ScrollView>
   );
 }
+
+// Memoised standings row: owns a stable onPress (stable openClub + its club id)
+// and its pressed-state style, so the table map doesn't hand each row fresh
+// closures every render.
+const TableRow = memo(function TableRow({
+  row,
+  club,
+  rank,
+  isUser,
+  promo,
+  releg,
+  onOpenClub,
+}: Readonly<{
+  row: LeagueRow;
+  club: Club;
+  rank: number;
+  isUser: boolean;
+  promo: boolean;
+  releg: boolean;
+  onOpenClub: (clubId: string) => void;
+}>) {
+  const styles = useThemedStyles(makeStyles);
+  const handlePress = useCallback(() => onOpenClub(row.clubId), [onOpenClub, row.clubId]);
+  const rowStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.row, isUser && styles.userRow, pressed && styles.rowPressed],
+    [styles, isUser],
+  );
+  return (
+    <Pressable onPress={handlePress} accessibilityRole="button" style={rowStyle}>
+      <Text style={[styles.pos, styles.cell, promo && styles.posPromo, releg && styles.posReleg]}>{rank}</Text>
+      <View style={styles.clubCell}>
+        <Chip label={club.shortName} color={club.primaryColor} />
+        <Text style={[styles.clubName, isUser && styles.userText]} numberOfLines={1}>
+          {club.name}
+        </Text>
+      </View>
+      <Text style={[styles.num, styles.cell]}>{row.played}</Text>
+      <Text style={[styles.num, styles.cell]}>{row.won}</Text>
+      <Text style={[styles.num, styles.cell]}>{row.drawn}</Text>
+      <Text style={[styles.num, styles.cell]}>{row.lost}</Text>
+      <Text style={[styles.num, styles.cell]}>{row.gd > 0 ? `+${row.gd}` : row.gd}</Text>
+      <Text style={[styles.pts, styles.cell, styles.ptsVal]}>{row.points}</Text>
+    </Pressable>
+  );
+});
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },

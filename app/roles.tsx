@@ -1,9 +1,9 @@
 import { Redirect } from 'expo-router';
-import { useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../src/components/Card';
 import { PlayerRow } from '../src/components/PlayerRow';
-import type { SquadRoles } from '../src/engine';
+import type { Player, SquadRoles } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { useThemedStyles, type Theme } from '../src/theme';
 
@@ -29,14 +29,15 @@ export default function RolesScreen() {
       <View style={styles.roleRow}>
         {ROLES.map((r) => {
           const player = squad.roles[r.key] ? world.players[squad.roles[r.key] as string] : undefined;
-          const active = activeRole === r.key;
           return (
-            <Pressable key={r.key} onPress={() => setActiveRole(r.key)} style={[styles.roleCard, active && styles.roleActive]}>
-              <Text style={[styles.roleLabel, active && styles.roleLabelActive]}>{r.label}</Text>
-              <Text style={styles.roleAssignee} numberOfLines={1}>
-                {player ? player.lastName : '—'}
-              </Text>
-            </Pressable>
+            <RoleTab
+              key={r.key}
+              roleKey={r.key}
+              label={r.label}
+              active={activeRole === r.key}
+              assigneeName={player ? player.lastName : '—'}
+              onSelect={setActiveRole}
+            />
           );
         })}
       </View>
@@ -45,12 +46,12 @@ export default function RolesScreen() {
 
       <Card style={styles.listCard}>
         {xiPlayers.map((p) => (
-          <PlayerRow
+          <RoleAssignRow
             key={p.id}
             player={p}
             selected={assignedId === p.id}
-            onPress={() => assignRole(activeRole, p.id)}
-            right={assignedId === p.id ? <Text style={styles.tick}>★</Text> : undefined}
+            activeRole={activeRole}
+            onAssign={assignRole}
           />
         ))}
       </Card>
@@ -61,6 +62,58 @@ export default function RolesScreen() {
 function labelFor(key: keyof SquadRoles): string {
   return ROLES.find((r) => r.key === key)?.label ?? 'role';
 }
+
+// Memoised tab so each role owns a stable onPress (built from the stable
+// setActiveRole + its own key) instead of a fresh inline closure per render.
+const RoleTab = memo(function RoleTab({
+  roleKey,
+  label,
+  active,
+  assigneeName,
+  onSelect,
+}: Readonly<{
+  roleKey: keyof SquadRoles;
+  label: string;
+  active: boolean;
+  assigneeName: string;
+  onSelect: (key: keyof SquadRoles) => void;
+}>) {
+  const styles = useThemedStyles(makeStyles);
+  const handlePress = useCallback(() => onSelect(roleKey), [onSelect, roleKey]);
+  return (
+    <Pressable onPress={handlePress} style={[styles.roleCard, active && styles.roleActive]}>
+      <Text style={[styles.roleLabel, active && styles.roleLabelActive]}>{label}</Text>
+      <Text style={styles.roleAssignee} numberOfLines={1}>
+        {assigneeName}
+      </Text>
+    </Pressable>
+  );
+});
+
+// Memoised list row: builds its own onPress (stable assignRole + active role +
+// its player) and the ★ marker, so the map doesn't hand PlayerRow new closures.
+const RoleAssignRow = memo(function RoleAssignRow({
+  player,
+  selected,
+  activeRole,
+  onAssign,
+}: Readonly<{
+  player: Player;
+  selected: boolean;
+  activeRole: keyof SquadRoles;
+  onAssign: (role: keyof SquadRoles, playerId: string) => void;
+}>) {
+  const styles = useThemedStyles(makeStyles);
+  const handlePress = useCallback(
+    () => onAssign(activeRole, player.id),
+    [onAssign, activeRole, player.id],
+  );
+  const right = useMemo(
+    () => (selected ? <Text style={styles.tick}>★</Text> : undefined),
+    [selected, styles],
+  );
+  return <PlayerRow player={player} selected={selected} onPress={handlePress} right={right} />;
+});
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },

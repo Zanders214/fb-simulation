@@ -1,4 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
+import { useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
@@ -57,6 +58,34 @@ export default function FixturesScreen() {
   const playNextMatchday = useGameStore((s) => s.playNextMatchday);
   const advanceToNextSeason = useGameStore((s) => s.advanceToNextSeason);
 
+  const onPlay = useCallback(() => {
+    const outcome = playNextMatchday();
+    if (outcome?.userResult) router.push('/match');
+  }, [playNextMatchday, router]);
+
+  const openCalendar = useCallback(() => router.push('/calendar'), [router]);
+
+  // Re-derive from the live store inside the callback so the season-complete
+  // prompt always reflects the latest state (and the hook can run before the
+  // early return without closing over post-return locals).
+  const onAdvance = useCallback(() => {
+    const g = useGameStore.getState().game;
+    if (!g) return;
+    const t = leagueTable(g);
+    const champ = g.world.clubs[t[0].clubId];
+    const pos = t.findIndex((r) => r.clubId === g.managedClubId) + 1;
+    const mv = projectedUserMovement(g.world, g.season.leagueId, pos);
+    const dest = movementDestination(g.world, g.season.leagueId, mv);
+    const note = movementSentence(mv, dest);
+    confirmAction({
+      title: `Season ${g.season.number} complete`,
+      message: `Champions: ${champ.name}.${note} Start season ${g.season.number + 1}?`,
+      confirmLabel: 'Start',
+      cancelLabel: 'Not yet',
+      onConfirm: () => advanceToNextSeason(),
+    });
+  }, [advanceToNextSeason]);
+
   if (!game) return <Redirect href="/" />;
   const me = game.managedClubId;
   const complete = isSeasonComplete(game);
@@ -71,23 +100,6 @@ export default function FixturesScreen() {
     : 'stayed';
   const destination = movementDestination(game.world, game.season.leagueId, movement);
 
-  const onPlay = () => {
-    const outcome = playNextMatchday();
-    if (outcome?.userResult) router.push('/match');
-  };
-
-  const onAdvance = () => {
-    const champ = game.world.clubs[table[0].clubId];
-    const note = movementSentence(movement, destination);
-    confirmAction({
-      title: `Season ${game.season.number} complete`,
-      message: `Champions: ${champ.name}.${note} Start season ${game.season.number + 1}?`,
-      confirmLabel: 'Start',
-      cancelLabel: 'Not yet',
-      onConfirm: () => advanceToNextSeason(),
-    });
-  };
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {complete ? (
@@ -96,7 +108,7 @@ export default function FixturesScreen() {
           <Text style={styles.completeTitle}>Season {game.season.number} complete</Text>
           <Text style={styles.leagueName}>{flagFor(league.country)} {league.name}</Text>
           <Text style={styles.championText}>
-            Champions: <Text style={{ fontWeight: '800' }}>{champion?.name}</Text>
+            Champions: <Text style={styles.championName}>{champion?.name}</Text>
             {champion?.id === me ? ' — that’s you!' : ''}
           </Text>
           {userPos > 0 && <Text style={styles.finish}>You finished {ordinal(userPos)}</Text>}
@@ -121,7 +133,7 @@ export default function FixturesScreen() {
       <Button
         label="📅  Open calendar"
         variant="secondary"
-        onPress={() => router.push('/calendar')}
+        onPress={openCalendar}
         testID="open-calendar"
       />
 
@@ -204,6 +216,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   completeTitle: { color: theme.colors.text, fontSize: theme.font.heading, fontWeight: '800' },
   leagueName: { color: theme.colors.textMuted, fontSize: theme.font.small, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
   championText: { color: theme.colors.textMuted, fontSize: theme.font.body, textAlign: 'center' },
+  championName: { fontWeight: '800' },
   finish: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '600' },
   movement: { fontSize: theme.font.body, fontWeight: '900', letterSpacing: 0.5, marginTop: theme.spacing(0.5) },
   promoted: { color: theme.colors.win },

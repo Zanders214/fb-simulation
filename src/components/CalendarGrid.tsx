@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { dateKey, daysInMonth, WEEKDAY_SHORT } from '../engine/calendar';
 import { useThemedStyles, type Theme } from '../theme';
@@ -68,44 +69,18 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
             const day = cell.day;
             const date = new Date(Date.UTC(year, m, day));
             const t = date.getTime();
-            const isToday = t === asOfTime;
-            const passed = t >= startTime && t < asOfTime;
-            const marker = markers.get(dateKey(date));
-            const selectable = canSelect(date);
-
-            const body = (
-              <>
-                <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{day}</Text>
-                <View style={styles.cellBody}>
-                  <CellMarker marker={marker} passed={passed} revealed={t <= asOfTime} />
-                </View>
-              </>
-            );
-
-            const cellStyle = [
-              styles.cell,
-              styles.dayCell,
-              isToday && styles.todayCell,
-              selectable && styles.selectableCell,
-              !selectable && !isToday && styles.dimCell,
-            ];
-
-            if (selectable) {
-              return (
-                <Pressable
-                  key={cell.key}
-                  style={cellStyle}
-                  onPress={() => onSelectDay(date)}
-                  accessibilityRole="button"
-                >
-                  {body}
-                </Pressable>
-              );
-            }
             return (
-              <View key={cell.key} style={cellStyle}>
-                {body}
-              </View>
+              <DayButton
+                key={cell.key}
+                day={day}
+                date={date}
+                isToday={t === asOfTime}
+                passed={t >= startTime && t < asOfTime}
+                revealed={t <= asOfTime}
+                marker={markers.get(dateKey(date))}
+                selectable={canSelect(date)}
+                onSelectDay={onSelectDay}
+              />
             );
           })}
         </View>
@@ -113,6 +88,60 @@ export function CalendarGrid({ month, asOf, seasonStart, markers, onSelectDay, c
     </View>
   );
 }
+
+/**
+ * One selectable day. Extracted and memoised so each cell owns a stable
+ * `onPress` (built from the parent's stable `onSelectDay` + its own date),
+ * instead of the grid handing every cell a fresh inline closure each render.
+ */
+const DayButton = memo(function DayButton({
+  day,
+  date,
+  isToday,
+  passed,
+  revealed,
+  marker,
+  selectable,
+  onSelectDay,
+}: Readonly<{
+  day: number;
+  date: Date;
+  isToday: boolean;
+  passed: boolean;
+  revealed: boolean;
+  marker?: DayMarker;
+  selectable: boolean;
+  onSelectDay: (day: Date) => void;
+}>) {
+  const styles = useThemedStyles(makeStyles);
+  const handlePress = useCallback(() => onSelectDay(date), [onSelectDay, date]);
+
+  const body = (
+    <>
+      <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{day}</Text>
+      <View style={styles.cellBody}>
+        <CellMarker marker={marker} passed={passed} revealed={revealed} />
+      </View>
+    </>
+  );
+
+  const cellStyle = [
+    styles.cell,
+    styles.dayCell,
+    isToday && styles.todayCell,
+    selectable && styles.selectableCell,
+    !selectable && !isToday && styles.dimCell,
+  ];
+
+  if (selectable) {
+    return (
+      <Pressable style={cellStyle} onPress={handlePress} accessibilityRole="button">
+        {body}
+      </Pressable>
+    );
+  }
+  return <View style={cellStyle}>{body}</View>;
+});
 
 /** What to draw inside a day cell: a result, a match dot, an ✕, or nothing. */
 function CellMarker({

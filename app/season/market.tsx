@@ -1,5 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -58,6 +58,7 @@ function squadRole(game: NonNullable<ReturnType<typeof useGame>>, id: string): n
   return 2;
 }
 const ROLE_LABELS = ['Starting XI', 'Substitute', 'Reserve'];
+const playerKey = (p: Player) => p.id;
 
 export default function MarketScreen() {
   const game = useGame();
@@ -90,14 +91,17 @@ export default function MarketScreen() {
 
   // Tapping a sort chip: flip direction if it's already active, else switch to
   // it at its natural default direction.
-  const onSort = (key: BuySort, defaultDir: SortDir) => {
-    if (key === buySort) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setBuySort(key);
-      setSortDir(defaultDir);
-    }
-  };
+  const onSort = useCallback(
+    (s: { key: BuySort; defaultDir: SortDir }) => {
+      if (s.key === buySort) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      } else {
+        setBuySort(s.key);
+        setSortDir(s.defaultDir);
+      }
+    },
+    [buySort],
+  );
 
   const budget = game ? clubBudget(game.world, game.managedClubId) : 0;
   const squadCount = game ? game.world.clubs[game.managedClubId].playerIds.length : 0;
@@ -135,48 +139,66 @@ export default function MarketScreen() {
     return clubPlayers(game, game.managedClubId).sort(cmp[sellSort]);
   }, [game, mode, sellSort]);
 
-  if (!game) return <Redirect href="/" />;
-
-  const onBuy = (id: string) => {
+  const onBuy = useCallback((id: string) => {
     const res = buy(id);
     if (!res.ok) Alert.alert('Transfer blocked', res.reason);
-  };
-  const onSell = (id: string) => {
+  }, [buy]);
+  const onSell = useCallback((id: string) => {
     const res = sell(id);
     if (!res.ok) Alert.alert('Sale blocked', res.reason);
-  };
+  }, [sell]);
+  const openPlayer = useCallback((id: string) => router.push(`/player?id=${id}`), [router]);
 
-  const renderBuyRow = ({ item }: { item: Player }) => {
-    const fee = playerValue(item);
-    const club = game.world.clubs[item.clubId];
-    const sellerSize = club.playerIds.length;
-    const affordable = fee <= budget && squadCount < MARKET.MAX_SQUAD && sellerSize > MARKET.MIN_SQUAD;
-    return (
-      <PlayerRow
-        player={item}
-        subtitle={`${club.shortName} · OVR ${overall(item)} · Age ${item.age}`}
-        onPress={() => router.push(`/player?id=${item.id}`)}
-        right={
-          <Action label="Buy" amount={fee} enabled={affordable} onPress={() => onBuy(item.id)} />
-        }
-      />
-    );
-  };
+  const renderBuyRow = useCallback(
+    ({ item }: { item: Player }) => {
+      if (!game) return null;
+      const fee = playerValue(item);
+      const club = game.world.clubs[item.clubId];
+      const sellerSize = club.playerIds.length;
+      const affordable = fee <= budget && squadCount < MARKET.MAX_SQUAD && sellerSize > MARKET.MIN_SQUAD;
+      return (
+        <MarketBuyRow
+          player={item}
+          subtitle={`${club.shortName} · OVR ${overall(item)} · Age ${item.age}`}
+          fee={fee}
+          affordable={affordable}
+          onOpenPlayer={openPlayer}
+          onBuy={onBuy}
+        />
+      );
+    },
+    [game, budget, squadCount, openPlayer, onBuy],
+  );
 
-  const renderSellRow = ({ item }: { item: Player }) => {
-    const proceeds = Math.round((playerValue(item) * MARKET.SELL_RETURN) / 100) * 100;
-    const canSell = squadCount > MARKET.MIN_SQUAD && !!findBuyer(game.world, item, game.managedClubId);
-    return (
-      <PlayerRow
-        player={item}
-        subtitle={`${ROLE_LABELS[squadRole(game, item.id)]} · OVR ${overall(item)} · Age ${item.age}`}
-        onPress={() => router.push(`/player?id=${item.id}`)}
-        right={
-          <Action label="Sell" amount={proceeds} enabled={canSell} onPress={() => onSell(item.id)} />
-        }
-      />
-    );
-  };
+  const renderSellRow = useCallback(
+    ({ item }: { item: Player }) => {
+      if (!game) return null;
+      const proceeds = Math.round((playerValue(item) * MARKET.SELL_RETURN) / 100) * 100;
+      const canSell = squadCount > MARKET.MIN_SQUAD && !!findBuyer(game.world, item, game.managedClubId);
+      return (
+        <MarketSellRow
+          player={item}
+          subtitle={`${ROLE_LABELS[squadRole(game, item.id)]} · OVR ${overall(item)} · Age ${item.age}`}
+          proceeds={proceeds}
+          canSell={canSell}
+          onOpenPlayer={openPlayer}
+          onSell={onSell}
+        />
+      );
+    },
+    [game, squadCount, openPlayer, onSell],
+  );
+
+  const listEmpty = useMemo(
+    () => (
+      <Text style={styles.empty}>
+        {mode === 'buy' ? 'No players match your filters.' : 'No players to sell.'}
+      </Text>
+    ),
+    [styles, mode],
+  );
+
+  if (!game) return <Redirect href="/" />;
 
   return (
     <View style={styles.container}>
@@ -192,15 +214,7 @@ export default function MarketScreen() {
 
       <View style={styles.toggle}>
         {(['buy', 'sell'] as Mode[]).map((m) => (
-          <Pressable
-            key={m}
-            onPress={() => setMode(m)}
-            style={[styles.toggleBtn, mode === m && styles.toggleBtnActive]}
-          >
-            <Text style={[styles.toggleText, mode === m && styles.toggleTextActive]}>
-              {m === 'buy' ? 'Buy players' : 'Sell players'}
-            </Text>
-          </Pressable>
+          <ModeButton key={m} mode={m} active={mode === m} onSelect={setMode} />
         ))}
       </View>
 
@@ -208,7 +222,7 @@ export default function MarketScreen() {
         <View style={styles.filters}>
           <View style={styles.chipRow}>
             {POS_FILTERS.map((p) => (
-              <FilterChip key={p} label={p} active={pos === p} onPress={() => setPos(p)} />
+              <FilterChip key={p} label={p} active={pos === p} value={p} onSelect={setPos} />
             ))}
           </View>
           <ScrollView
@@ -216,13 +230,14 @@ export default function MarketScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.chipRow}
           >
-            <FilterChip label="All leagues" active={leagueId === 'ALL'} onPress={() => setLeagueId('ALL')} />
+            <FilterChip label="All leagues" active={leagueId === 'ALL'} value="ALL" onSelect={setLeagueId} />
             {leagues.map((l) => (
               <FilterChip
                 key={l.id}
                 label={l.name}
                 active={leagueId === l.id}
-                onPress={() => setLeagueId(l.id)}
+                value={l.id}
+                onSelect={setLeagueId}
               />
             ))}
           </ScrollView>
@@ -231,13 +246,14 @@ export default function MarketScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.chipRow}
           >
-            <FilterChip label="All nations" active={nat === 'ALL'} onPress={() => setNat('ALL')} />
+            <FilterChip label="All nations" active={nat === 'ALL'} value="ALL" onSelect={setNat} />
             {nationalities.map((n) => (
               <FilterChip
                 key={n}
                 label={`${flagFor(n)} ${n}`}
                 active={nat === n}
-                onPress={() => setNat(n)}
+                value={n}
+                onSelect={setNat}
               />
             ))}
           </ScrollView>
@@ -259,7 +275,8 @@ export default function MarketScreen() {
                   key={s.key}
                   label={label}
                   active={active}
-                  onPress={() => onSort(s.key, s.defaultDir)}
+                  value={s}
+                  onSelect={onSort}
                 />
               );
             })}
@@ -274,7 +291,8 @@ export default function MarketScreen() {
               key={s.key}
               label={s.label}
               active={sellSort === s.key}
-              onPress={() => setSellSort(s.key)}
+              value={s.key}
+              onSelect={setSellSort}
             />
           ))}
         </View>
@@ -282,18 +300,14 @@ export default function MarketScreen() {
 
       <FlatList
         data={mode === 'buy' ? buyList : sellList}
-        keyExtractor={(p) => p.id}
+        keyExtractor={playerKey}
         renderItem={mode === 'buy' ? renderBuyRow : renderSellRow}
         style={styles.list}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
         initialNumToRender={14}
         windowSize={11}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {mode === 'buy' ? 'No players match your filters.' : 'No players to sell.'}
-          </Text>
-        }
+        ListEmptyComponent={listEmpty}
       />
     </View>
   );
@@ -321,12 +335,86 @@ function Action({
   );
 }
 
-function FilterChip({
+// Memoised buy/sell mode toggle button: stable onPress from the stable setMode +
+// its own mode value.
+const ModeButton = memo(function ModeButton({
+  mode,
+  active,
+  onSelect,
+}: Readonly<{ mode: Mode; active: boolean; onSelect: (mode: Mode) => void }>) {
+  const styles = useThemedStyles(makeStyles);
+  const onPress = useCallback(() => onSelect(mode), [onSelect, mode]);
+  return (
+    <Pressable onPress={onPress} style={[styles.toggleBtn, active && styles.toggleBtnActive]}>
+      <Text style={[styles.toggleText, active && styles.toggleTextActive]}>
+        {mode === 'buy' ? 'Buy players' : 'Sell players'}
+      </Text>
+    </Pressable>
+  );
+});
+
+// Memoised market rows: each owns the per-item onPress (open player) and its
+// Action's onPress (buy/sell), built from the screen's stable callbacks + its
+// own id — so the FlatList rows don't get fresh closures / JSX props per render.
+const MarketBuyRow = memo(function MarketBuyRow({
+  player,
+  subtitle,
+  fee,
+  affordable,
+  onOpenPlayer,
+  onBuy,
+}: Readonly<{
+  player: Player;
+  subtitle: string;
+  fee: number;
+  affordable: boolean;
+  onOpenPlayer: (id: string) => void;
+  onBuy: (id: string) => void;
+}>) {
+  const open = useCallback(() => onOpenPlayer(player.id), [onOpenPlayer, player.id]);
+  const doBuy = useCallback(() => onBuy(player.id), [onBuy, player.id]);
+  const right = useMemo(
+    () => <Action label="Buy" amount={fee} enabled={affordable} onPress={doBuy} />,
+    [fee, affordable, doBuy],
+  );
+  return <PlayerRow player={player} subtitle={subtitle} onPress={open} right={right} />;
+});
+
+const MarketSellRow = memo(function MarketSellRow({
+  player,
+  subtitle,
+  proceeds,
+  canSell,
+  onOpenPlayer,
+  onSell,
+}: Readonly<{
+  player: Player;
+  subtitle: string;
+  proceeds: number;
+  canSell: boolean;
+  onOpenPlayer: (id: string) => void;
+  onSell: (id: string) => void;
+}>) {
+  const open = useCallback(() => onOpenPlayer(player.id), [onOpenPlayer, player.id]);
+  const doSell = useCallback(() => onSell(player.id), [onSell, player.id]);
+  const right = useMemo(
+    () => <Action label="Sell" amount={proceeds} enabled={canSell} onPress={doSell} />,
+    [proceeds, canSell, doSell],
+  );
+  return <PlayerRow player={player} subtitle={subtitle} onPress={open} right={right} />;
+});
+
+// Generic chip: owns a stable onPress built from the parent's stable onSelect +
+// its own value, so the filter/sort maps don't hand each chip a fresh closure
+// every render.
+function FilterChip<T>({
   label,
   active,
-  onPress,
-}: Readonly<{ label: string; active: boolean; onPress: () => void }>) {
+  value,
+  onSelect,
+}: Readonly<{ label: string; active: boolean; value: T; onSelect: (value: T) => void }>) {
   const styles = useThemedStyles(makeStyles);
+  const onPress = useCallback(() => onSelect(value), [onSelect, value]);
   return (
     <Pressable onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}>
       <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>

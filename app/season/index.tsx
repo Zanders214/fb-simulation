@@ -1,11 +1,11 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../../src/components/Card';
 import { Chip } from '../../src/components/Chip';
 import { Meta } from '../../src/components/Meta';
 import { PlayerRow } from '../../src/components/PlayerRow';
-import { leagueTable } from '../../src/engine';
+import { leagueTable, type Player } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
 import { squadByPosition, userClub } from '../../src/store/selectors';
 import { flagFor, ordinal } from '../../src/ui/format';
@@ -24,8 +24,16 @@ export default function SquadScreen() {
     return { pos, row, league, groups: squadByPosition(game, game.managedClubId), club: userClub(game) };
   }, [game]);
 
+  const openClub = useCallback(() => router.push('/club'), [router]);
+  const openPlayer = useCallback((playerId: string) => router.push(`/player?id=${playerId}`), [router]);
+  const clubStatsBtnStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.clubStatsBtn, pressed && styles.clubStatsBtnPressed],
+    [styles],
+  );
+
   if (!game || !summary) return <Redirect href="/" />;
   const { club, pos, row, league, groups } = summary;
+  const startingXI = game.squad.startingXI;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -46,9 +54,9 @@ export default function SquadScreen() {
           <Meta label="Points" value={`${row?.points ?? 0}`} />
         </View>
         <Pressable
-          onPress={() => router.push('/club')}
+          onPress={openClub}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.clubStatsBtn, pressed && styles.clubStatsBtnPressed]}
+          style={clubStatsBtnStyle}
         >
           <Text style={styles.clubStatsText}>Club stats ›</Text>
         </Pressable>
@@ -58,23 +66,14 @@ export default function SquadScreen() {
         <View key={position} style={styles.group}>
           <Text style={styles.groupTitle}>{positionName(position)}</Text>
           <Card style={styles.groupCard}>
-            {players.map((p) => {
-              const inXI = game.squad.startingXI.includes(p.id);
-              const subApps = p.seasonSubApps ?? 0;
-              const subtitle =
-                p.seasonApps > 0 || subApps > 0
-                  ? `${p.seasonGoals}G ${p.seasonAssists}A · ${p.seasonApps} (${subApps}) apps`
-                  : `Age ${p.age} · ${flagFor(p.nationality)}`;
-              return (
-                <PlayerRow
-                  key={p.id}
-                  player={p}
-                  subtitle={subtitle}
-                  selected={inXI}
-                  onPress={() => router.push(`/player?id=${p.id}`)}
-                />
-              );
-            })}
+            {players.map((p) => (
+              <SquadPlayerRow
+                key={p.id}
+                player={p}
+                inXI={startingXI.includes(p.id)}
+                onOpenPlayer={openPlayer}
+              />
+            ))}
           </Card>
         </View>
       ))}
@@ -86,6 +85,26 @@ export default function SquadScreen() {
 function positionName(p: string): string {
   return { GK: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', FWD: 'Forwards' }[p] ?? p;
 }
+
+// Memoised squad row: derives its subtitle and owns a stable onPress built from
+// the screen's stable openPlayer + its own id.
+const SquadPlayerRow = memo(function SquadPlayerRow({
+  player,
+  inXI,
+  onOpenPlayer,
+}: Readonly<{
+  player: Player;
+  inXI: boolean;
+  onOpenPlayer: (playerId: string) => void;
+}>) {
+  const subApps = player.seasonSubApps ?? 0;
+  const subtitle =
+    player.seasonApps > 0 || subApps > 0
+      ? `${player.seasonGoals}G ${player.seasonAssists}A · ${player.seasonApps} (${subApps}) apps`
+      : `Age ${player.age} · ${flagFor(player.nationality)}`;
+  const handlePress = useCallback(() => onOpenPlayer(player.id), [onOpenPlayer, player.id]);
+  return <PlayerRow player={player} subtitle={subtitle} selected={inXI} onPress={handlePress} />;
+});
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },

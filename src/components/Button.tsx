@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useThemedStyles, type Theme } from '../theme';
 
@@ -14,23 +15,28 @@ type Props = {
 
 export function Button({ label, onPress, variant = 'primary', disabled = false, style, testID }: Readonly<Props>) {
   const styles = useThemedStyles(makeStyles);
+  const accessibilityState = useMemo(() => ({ disabled }), [disabled]);
+  const pressableStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [
+      styles.base,
+      variant === 'primary' && styles.primary,
+      variant === 'secondary' && styles.secondary,
+      variant === 'ghost' && styles.ghost,
+      variant === 'danger' && styles.danger,
+      pressed && !disabled && styles.pressed,
+      disabled && styles.disabled,
+      style,
+    ],
+    [styles, variant, disabled, style],
+  );
   return (
     <Pressable
       testID={testID}
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      style={({ pressed }) => [
-        styles.base,
-        variant === 'primary' && styles.primary,
-        variant === 'secondary' && styles.secondary,
-        variant === 'ghost' && styles.ghost,
-        variant === 'danger' && styles.danger,
-        pressed && !disabled && styles.pressed,
-        disabled && styles.disabled,
-        style,
-      ]}
+      accessibilityState={accessibilityState}
+      style={pressableStyle}
     >
       <Text
         style={[

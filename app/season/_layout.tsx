@@ -1,14 +1,23 @@
+import { useCallback, useMemo } from 'react';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Tabs, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useThemedStyles, type Theme } from '../../src/theme';
 
+const tabIconStyle = { fontSize: 18 } as const;
+
 function tabIcon(emoji: string) {
-  const Icon = () => <Text style={{ fontSize: 18 }}>{emoji}</Text>;
+  const Icon = () => <Text style={tabIconStyle}>{emoji}</Text>;
   Icon.displayName = `TabIcon-${emoji}`;
   return Icon;
 }
+
+// Per-tab options are static (icons built from a fixed emoji), so hoist them.
+const SQUAD_TAB_OPTIONS = { title: 'Squad', tabBarIcon: tabIcon('👥') } as const;
+const LINEUP_TAB_OPTIONS = { title: 'Lineup', tabBarIcon: tabIcon('📋') } as const;
+const MARKET_TAB_OPTIONS = { title: 'Market', tabBarIcon: tabIcon('💰') } as const;
+const TABLE_TAB_OPTIONS = { title: 'Table', tabBarIcon: tabIcon('🏆') } as const;
 
 /**
  * Fixtures is the heart of a season, so its tab is a bold raised button in the
@@ -21,13 +30,17 @@ function FixturesTabButton({ accessibilityState, onPress, onLongPress }: BottomT
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
   const focused = accessibilityState?.selected ?? false;
+  const wrapStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.fabWrap, pressed && styles.fabPressed],
+    [styles],
+  );
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={accessibilityState}
       onPress={onPress}
       onLongPress={onLongPress}
-      style={({ pressed }) => [styles.fabWrap, pressed && styles.fabPressed]}
+      style={wrapStyle}
     >
       <View style={[styles.fab, focused && styles.fabFocused]}>
         <Text style={styles.fabIcon}>📅</Text>
@@ -39,14 +52,19 @@ function FixturesTabButton({ accessibilityState, onPress, onLongPress }: BottomT
   );
 }
 const renderFixturesButton = (props: BottomTabBarButtonProps) => <FixturesTabButton {...props} />;
+const FIXTURES_TAB_OPTIONS = { title: 'Fixtures', tabBarButton: renderFixturesButton } as const;
+
+const headerHomeStyle = { paddingHorizontal: 14 } as const;
 
 function HeaderHomeButton() {
   const router = useRouter();
   const theme = useTheme();
   const color = theme.dark ? theme.colors.onPrimary : theme.colors.text;
+  const goHome = useCallback(() => router.dismissTo('/'), [router]);
+  const iconStyle = useMemo(() => ({ color, fontSize: 22 }), [color]);
   return (
-    <Pressable onPress={() => router.dismissTo('/')} hitSlop={10} style={{ paddingHorizontal: 14 }}>
-      <Text style={{ color, fontSize: 22 }}>⌂</Text>
+    <Pressable onPress={goHome} hitSlop={10} style={headerHomeStyle}>
+      <Text style={iconStyle}>⌂</Text>
     </Pressable>
   );
 }
@@ -59,32 +77,44 @@ export default function SeasonLayout() {
   const headerBg = theme.dark ? theme.colors.primaryDark : theme.colors.surface;
   const headerText = theme.dark ? theme.colors.onPrimary : theme.colors.text;
 
+  const screenOptions = useMemo(
+    () => ({
+      headerStyle: { backgroundColor: headerBg },
+      headerTintColor: headerText,
+      headerTitleStyle: { fontWeight: '700' as const },
+      tabBarStyle: {
+        backgroundColor: theme.colors.surface,
+        borderTopColor: theme.colors.border,
+        height: 60 + insets.bottom,
+        paddingTop: 6,
+        paddingBottom: insets.bottom,
+        // Let the raised Fixtures button poke above the bar without being clipped.
+        overflow: 'visible' as const,
+      },
+      tabBarActiveTintColor: theme.colors.accent,
+      tabBarInactiveTintColor: theme.colors.textMuted,
+      sceneStyle: { backgroundColor: theme.colors.bg },
+      headerRight: renderHeaderHome,
+    }),
+    [
+      headerBg,
+      headerText,
+      theme.colors.surface,
+      theme.colors.border,
+      theme.colors.accent,
+      theme.colors.textMuted,
+      theme.colors.bg,
+      insets.bottom,
+    ],
+  );
+
   return (
-    <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: headerBg },
-        headerTintColor: headerText,
-        headerTitleStyle: { fontWeight: '700' },
-        tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-          height: 60 + insets.bottom,
-          paddingTop: 6,
-          paddingBottom: insets.bottom,
-          // Let the raised Fixtures button poke above the bar without being clipped.
-          overflow: 'visible',
-        },
-        tabBarActiveTintColor: theme.colors.accent,
-        tabBarInactiveTintColor: theme.colors.textMuted,
-        sceneStyle: { backgroundColor: theme.colors.bg },
-        headerRight: renderHeaderHome,
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: 'Squad', tabBarIcon: tabIcon('👥') }} />
-      <Tabs.Screen name="lineup" options={{ title: 'Lineup', tabBarIcon: tabIcon('📋') }} />
-      <Tabs.Screen name="fixtures" options={{ title: 'Fixtures', tabBarButton: renderFixturesButton }} />
-      <Tabs.Screen name="market" options={{ title: 'Market', tabBarIcon: tabIcon('💰') }} />
-      <Tabs.Screen name="table" options={{ title: 'Table', tabBarIcon: tabIcon('🏆') }} />
+    <Tabs screenOptions={screenOptions}>
+      <Tabs.Screen name="index" options={SQUAD_TAB_OPTIONS} />
+      <Tabs.Screen name="lineup" options={LINEUP_TAB_OPTIONS} />
+      <Tabs.Screen name="fixtures" options={FIXTURES_TAB_OPTIONS} />
+      <Tabs.Screen name="market" options={MARKET_TAB_OPTIONS} />
+      <Tabs.Screen name="table" options={TABLE_TAB_OPTIONS} />
     </Tabs>
   );
 }

@@ -1,8 +1,10 @@
+import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useThemedStyles, type Theme } from '../theme';
 
 /** A single key/value row: muted label on the left, bold value on the right. */
-export function StatLine({ label, value }: Readonly<{ label: string; value: string }>) {
+// Memoised: a primitive-prop leaf often rendered many times per screen.
+export const StatLine = memo(function StatLine({ label, value }: Readonly<{ label: string; value: string }>) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statLine}>
@@ -10,7 +12,7 @@ export function StatLine({ label, value }: Readonly<{ label: string; value: stri
       <Text style={styles.statValue}>{value}</Text>
     </View>
   );
-}
+});
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   statLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

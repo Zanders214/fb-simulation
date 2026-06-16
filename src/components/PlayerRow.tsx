@@ -1,11 +1,16 @@
-import type { ReactNode } from 'react';
+import { memo, useCallback, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { overall, type Player } from '../engine';
 import { availabilityColor, flagFor, formColor, formSymbol, overallColor, playerAvailability, positionColor } from '../ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import { Chip } from './Chip';
 
-export function PlayerRow({
+// Memoised: the row rendered for every entry in squad/market lists. It skips
+// re-rendering when its props are unchanged — fully effective at call sites that
+// pass a stable player and handler (e.g. lineup/table). Call sites that build an
+// inline `right`/`onPress` per render (e.g. the market lists) still re-render;
+// stabilising those is a separate, larger change kept out of this pass.
+export const PlayerRow = memo(function PlayerRow({
   player,
   onPress,
   onLongPress,
@@ -22,6 +27,10 @@ export function PlayerRow({
 }>) {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const pressableStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.row, selected && styles.selected, pressed && styles.pressed],
+    [styles, selected],
+  );
   const ovr = overall(player);
   const availability = playerAvailability(player);
   const body = (
@@ -58,14 +67,14 @@ export function PlayerRow({
         onPress={onPress}
         onLongPress={onLongPress}
         accessibilityRole="button"
-        style={({ pressed }) => [styles.row, selected && styles.selected, pressed && styles.pressed]}
+        style={pressableStyle}
       >
         {body}
       </Pressable>
     );
   }
   return <View style={[styles.row, selected && styles.selected]}>{body}</View>;
-}
+});
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   row: {

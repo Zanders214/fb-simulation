@@ -40,6 +40,9 @@ Then install **Expo Go** (App Store / Google Play) and scan the QR code.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run web` | Run in a browser at http://localhost:8082 |
 | `npm run demo` | Print a fully-simulated season to the console (balance/sanity check) |
+| `npm run bench` | Benchmark the simulation engine — per-season timing & heap growth (see [Performance tooling](#performance--efficiency-tooling)) |
+| `npm run bench:gc` | Same, with GC exposed for accurate retained/peak memory |
+| `npm run analyze` | Build the bundle and open **Expo Atlas** to see what's heavy on the device |
 | `npm run icons` | Regenerate the app icons (`assets/*.png`) from `scripts/generate-icons.mjs` |
 
 ## Project structure
@@ -106,6 +109,31 @@ CI already contains the SonarCloud step; it stays dormant until you connect the 
 4. Confirm the **Project Key** and **Organization Key** SonarCloud shows you match [`sonar-project.properties`](sonar-project.properties) (`fb-simulator_fb-simulator` / `fb-simulator`). Update that file if they differ.
 5. Generate a token and add it to the repo as a secret named **`SONAR_TOKEN`** (GitHub → Settings → Secrets and variables → Actions → New repository secret).
 6. The next pull request will be analysed automatically.
+
+## Performance & efficiency tooling
+
+SonarCloud and the ESLint rules above cover **static code smells**, but they
+can't measure how much memory or CPU the app actually uses at runtime. These
+three tools fill that gap — making it easier to keep the app fast and light:
+
+- **`eslint-plugin-react-perf`** (runs as part of `npm run lint`) — flags inline
+  object / function / JSX literals passed as props, which allocate a new
+  reference every render and defeat memoisation, causing avoidable re-renders.
+  The codebase is currently clean of these (list rows are extracted into
+  `React.memo`'d components with stable `useCallback` handlers), so the rules act
+  as a **warning** guard that surfaces any newly-introduced inline props before
+  they ship. The `style={[…]}` array rule is disabled: in React Native that's the
+  idiomatic StyleSheet-composition pattern and was almost all false positives.
+- **`npm run bench`** ([`scripts/bench.ts`](scripts/bench.ts)) — drives the pure
+  engine through full seasons and reports world-gen cost, per-season wall-clock,
+  and heap growth. The engine is the app's real CPU/memory hotspot, so this is
+  the fastest way to catch a change that makes simulation slower or leakier. Use
+  `npm run bench:gc` for accurate retained/peak heap. Optional args:
+  `npm run bench -- <seasons> <seed>`.
+- **`npm run analyze`** — runs an export with [Expo Atlas](https://docs.expo.dev/guides/analyzing-bundles/)
+  enabled (`EXPO_UNSTABLE_ATLAS=true`) and opens its viewer on the resulting
+  `.expo/atlas.jsonl`, a treemap of exactly which modules bloat the JS bundle
+  shipped to the device. (Uses an inline env var, so it's macOS/Linux-friendly.)
 
 ## Licensing
 

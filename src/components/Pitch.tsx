@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { overall, type Player } from '../engine';
 import { useThemedStyles, type Theme } from '../theme';
@@ -41,8 +42,8 @@ export function Pitch({
           slot={slot}
           player={player}
           selected={selectedId === player.id}
-          onPress={onSelect ? () => onSelect(player.id) : undefined}
-          onLongPress={onLongPressPlayer ? () => onLongPressPlayer(player.id) : undefined}
+          onSelect={onSelect}
+          onLongPressPlayer={onLongPressPlayer}
         />
       ))}
     </View>
@@ -53,20 +54,28 @@ function Marker({
   slot,
   player,
   selected,
-  onPress,
-  onLongPress,
+  onSelect,
+  onLongPressPlayer,
 }: Readonly<{
   slot: FormationSlot;
   player: Player;
   selected?: boolean;
-  onPress?: () => void;
-  onLongPress?: () => void;
+  onSelect?: (playerId: string) => void;
+  onLongPressPlayer?: (playerId: string) => void;
 }>) {
   const styles = useThemedStyles(makeStyles);
-  const wrap = [
-    styles.marker,
-    { left: `${slot.x * 100}%` as const, top: `${slot.y * 100}%` as const },
-  ];
+  const playerId = player.id;
+  const handlePress = useCallback(() => onSelect?.(playerId), [onSelect, playerId]);
+  const handleLongPress = useCallback(() => onLongPressPlayer?.(playerId), [onLongPressPlayer, playerId]);
+  const onPress = onSelect ? handlePress : undefined;
+  const onLongPress = onLongPressPlayer ? handleLongPress : undefined;
+  const wrap = useMemo(
+    () => [
+      styles.marker,
+      { left: `${slot.x * 100}%` as const, top: `${slot.y * 100}%` as const },
+    ],
+    [styles, slot.x, slot.y],
+  );
   const shirt = [
     styles.shirt,
     { backgroundColor: positionColor(player.position) },
@@ -90,6 +99,11 @@ function Marker({
     </>
   );
 
+  const pressableStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [...wrap, pressed && styles.pressed],
+    [wrap, styles],
+  );
+
   if (!onPress && !onLongPress) return <View style={wrap}>{body}</View>;
   return (
     <Pressable
@@ -97,7 +111,7 @@ function Marker({
       onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityLabel={`${slot.label}: ${player.name}`}
-      style={({ pressed }) => [...wrap, pressed && styles.pressed]}
+      style={pressableStyle}
     >
       {body}
     </Pressable>

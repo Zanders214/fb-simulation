@@ -1,8 +1,9 @@
 import { Redirect } from 'expo-router';
+import { memo, useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../src/components/Card';
 import { PlayerRow } from '../src/components/PlayerRow';
-import { overall, TRAINING } from '../src/engine';
+import { overall, TRAINING, type Player } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
 import { clubPlayers, trainingPlayers } from '../src/store/selectors';
 import { useThemedStyles, type Theme } from '../src/theme';
@@ -31,28 +32,46 @@ export default function TrainingScreen() {
       </Text>
 
       <Card style={styles.listCard}>
-        {players.map((p) => {
-          const inTraining = trainingSet.has(p.id);
-          const dimmed = full && !inTraining;
-          return (
-            <PlayerRow
-              key={p.id}
-              player={p}
-              selected={inTraining}
-              onPress={() => toggleTraining(p.id)}
-              right={
-                <View style={styles.right}>
-                  {inTraining && <Text style={styles.star}>★</Text>}
-                  <Text style={[styles.ovr, dimmed && styles.dim]}>{overall(p)}</Text>
-                </View>
-              }
-            />
-          );
-        })}
+        {players.map((p) => (
+          <TrainingPlayerRow
+            key={p.id}
+            player={p}
+            inTraining={trainingSet.has(p.id)}
+            dimmed={full && !trainingSet.has(p.id)}
+            onToggle={toggleTraining}
+          />
+        ))}
       </Card>
     </ScrollView>
   );
 }
+
+// Memoised row: owns its onPress (stable toggleTraining + its id) and the
+// ★ / OVR marker, so the map doesn't hand PlayerRow a new closure + JSX prop.
+const TrainingPlayerRow = memo(function TrainingPlayerRow({
+  player,
+  inTraining,
+  dimmed,
+  onToggle,
+}: Readonly<{
+  player: Player;
+  inTraining: boolean;
+  dimmed: boolean;
+  onToggle: (playerId: string) => void;
+}>) {
+  const styles = useThemedStyles(makeStyles);
+  const handlePress = useCallback(() => onToggle(player.id), [onToggle, player.id]);
+  const right = useMemo(
+    () => (
+      <View style={styles.right}>
+        {inTraining && <Text style={styles.star}>★</Text>}
+        <Text style={[styles.ovr, dimmed && styles.dim]}>{overall(player)}</Text>
+      </View>
+    ),
+    [styles, inTraining, dimmed, player],
+  );
+  return <PlayerRow player={player} selected={inTraining} onPress={handlePress} right={right} />;
+});
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
