@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
@@ -84,51 +84,49 @@ export default function CalendarScreen() {
     return map;
   }, [game, theme]);
 
-  if (!game) return <Redirect href="/" />;
+  const canSelect = useCallback(
+    (day: Date): boolean => !!game && !animating && dateToTargetMatchday(game, day) != null,
+    [game, animating],
+  );
 
-  const complete = isSeasonComplete(game);
-  const minMonth = startOfMonth(seasonStartDate(game));
-  const maxMonth = startOfMonth(seasonEndDate(game));
-  const canPrev = !animating && viewMonth.getTime() > minMonth.getTime();
-  const canNext = !animating && viewMonth.getTime() < maxMonth.getTime();
+  const runJump = useCallback(
+    (day: Date) => {
+      const before = useGameStore.getState().game;
+      if (!before) return;
+      const from = currentDate(before);
+      const played = simulateToDate(day);
+      if (played <= 0) return;
+      const after = useGameStore.getState().game;
+      if (!after) return;
+      const to = currentDate(after);
 
-  const canSelect = (day: Date): boolean => !animating && dateToTargetMatchday(game, day) != null;
+      toRef.current = to;
+      revealRef.current = from;
+      setRevealUpTo(from);
+      setViewMonth(startOfMonth(from));
+      setAnimating(true);
 
-  const runJump = (day: Date) => {
-    const before = useGameStore.getState().game;
-    if (!before) return;
-    const from = currentDate(before);
-    const played = simulateToDate(day);
-    if (played <= 0) return;
-    const after = useGameStore.getState().game;
-    if (!after) return;
-    const to = currentDate(after);
+      const stepDays = Math.max(1, Math.ceil(Math.max(1, diffDays(from, to)) / TARGET_FRAMES));
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        const prev = revealRef.current;
+        const next = new Date(Math.min(addDays(prev, stepDays).getTime(), to.getTime()));
+        revealRef.current = next;
+        setRevealUpTo(next);
+        if (next.getUTCMonth() !== prev.getUTCMonth() || next.getUTCFullYear() !== prev.getUTCFullYear()) {
+          setViewMonth(startOfMonth(next));
+        }
+        if (next.getTime() >= to.getTime()) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = null;
+          setAnimating(false);
+        }
+      }, INTERVAL_MS);
+    },
+    [simulateToDate],
+  );
 
-    toRef.current = to;
-    revealRef.current = from;
-    setRevealUpTo(from);
-    setViewMonth(startOfMonth(from));
-    setAnimating(true);
-
-    const stepDays = Math.max(1, Math.ceil(Math.max(1, diffDays(from, to)) / TARGET_FRAMES));
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      const prev = revealRef.current;
-      const next = new Date(Math.min(addDays(prev, stepDays).getTime(), to.getTime()));
-      revealRef.current = next;
-      setRevealUpTo(next);
-      if (next.getUTCMonth() !== prev.getUTCMonth() || next.getUTCFullYear() !== prev.getUTCFullYear()) {
-        setViewMonth(startOfMonth(next));
-      }
-      if (next.getTime() >= to.getTime()) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        timerRef.current = null;
-        setAnimating(false);
-      }
-    }, INTERVAL_MS);
-  };
-
-  const skip = () => {
+  const skip = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
     const to = toRef.current;
@@ -138,19 +136,34 @@ export default function CalendarScreen() {
       setViewMonth(startOfMonth(to));
     }
     setAnimating(false);
-  };
+  }, []);
 
-  const onSelectDay = (day: Date) => {
-    const target = dateToTargetMatchday(game, day);
-    if (target == null) return;
-    const count = target - game.season.currentMatchday + 1;
-    confirmAction({
-      title: 'Simulate ahead?',
-      message: `Play through to ${formatShortDate(day)} — ${count} match${count === 1 ? '' : 'es'}.`,
-      confirmLabel: 'Simulate',
-      onConfirm: () => runJump(day),
-    });
-  };
+  const onSelectDay = useCallback(
+    (day: Date) => {
+      if (!game) return;
+      const target = dateToTargetMatchday(game, day);
+      if (target == null) return;
+      const count = target - game.season.currentMatchday + 1;
+      confirmAction({
+        title: 'Simulate ahead?',
+        message: `Play through to ${formatShortDate(day)} — ${count} match${count === 1 ? '' : 'es'}.`,
+        confirmLabel: 'Simulate',
+        onConfirm: () => runJump(day),
+      });
+    },
+    [game, runJump],
+  );
+
+  const prevMonth = useCallback(() => setViewMonth((m) => addMonths(m, -1)), []);
+  const nextMonth = useCallback(() => setViewMonth((m) => addMonths(m, 1)), []);
+
+  if (!game) return <Redirect href="/" />;
+
+  const complete = isSeasonComplete(game);
+  const minMonth = startOfMonth(seasonStartDate(game));
+  const maxMonth = startOfMonth(seasonEndDate(game));
+  const canPrev = !animating && viewMonth.getTime() > minMonth.getTime();
+  const canNext = !animating && viewMonth.getTime() < maxMonth.getTime();
 
   let hint: string;
   if (animating) hint = 'Simulating…';
@@ -169,7 +182,7 @@ export default function CalendarScreen() {
 
       <View style={styles.monthNav}>
         <Pressable
-          onPress={() => setViewMonth(addMonths(viewMonth, -1))}
+          onPress={prevMonth}
           disabled={!canPrev}
           hitSlop={10}
           style={[styles.navBtn, !canPrev && styles.navBtnDisabled]}
@@ -178,7 +191,7 @@ export default function CalendarScreen() {
         </Pressable>
         <Text style={styles.monthLabel}>{formatMonthYear(viewMonth)}</Text>
         <Pressable
-          onPress={() => setViewMonth(addMonths(viewMonth, 1))}
+          onPress={nextMonth}
           disabled={!canNext}
           hitSlop={10}
           style={[styles.navBtn, !canNext && styles.navBtnDisabled]}

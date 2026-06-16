@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react';
+import { memo, useCallback, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { overall, type Player } from '../engine';
 import { availabilityColor, flagFor, formColor, formSymbol, overallColor, playerAvailability, positionColor } from '../ui/format';
@@ -27,6 +27,10 @@ export const PlayerRow = memo(function PlayerRow({
 }>) {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const pressableStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.row, selected && styles.selected, pressed && styles.pressed],
+    [styles, selected],
+  );
   const ovr = overall(player);
   const availability = playerAvailability(player);
   const body = (
@@ -63,7 +67,7 @@ export const PlayerRow = memo(function PlayerRow({
         onPress={onPress}
         onLongPress={onLongPress}
         accessibilityRole="button"
-        style={({ pressed }) => [styles.row, selected && styles.selected, pressed && styles.pressed]}
+        style={pressableStyle}
       >
         {body}
       </Pressable>

@@ -1,4 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
+import { useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
@@ -96,6 +97,7 @@ export default function MatchScreen() {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
   const lastOutcome = useGameStore((s) => s.lastOutcome);
+  const goBack = useCallback(() => router.back(), [router]);
 
   if (!game || !lastOutcome?.userResult) return <Redirect href="/season" />;
   const me = game.managedClubId;
@@ -163,7 +165,7 @@ export default function MatchScreen() {
         </>
       )}
 
-      <Button label="Continue" onPress={() => router.back()} style={styles.continue} testID="match-continue" />
+      <Button label="Continue" onPress={goBack} style={styles.continue} testID="match-continue" />
     </ScrollView>
   );
 }

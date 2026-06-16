@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
@@ -12,6 +13,7 @@ import {
   useThemedStyles,
   type Palette,
   type Theme,
+  type ThemePref,
 } from '../src/theme';
 
 export default function Settings() {
@@ -23,7 +25,7 @@ export default function Settings() {
   const themePref = usePrefsStore((s) => s.themePref);
   const setThemePref = usePrefsStore((s) => s.setThemePref);
 
-  const confirmReset = () => {
+  const confirmReset = useCallback(() => {
     confirmAction({
       title: 'Delete save?',
       message: 'Your current career will be permanently deleted.',
@@ -34,7 +36,7 @@ export default function Settings() {
         router.dismissTo('/');
       },
     });
-  };
+  }, [resetGame, router]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -49,11 +51,12 @@ export default function Settings() {
             return (
               <ThemeOption
                 key={opt.key}
+                optionKey={opt.key}
                 label={opt.label}
                 subtitle={opt.subtitle}
                 palette={palette}
                 selected={themePref === opt.key}
-                onPress={() => setThemePref(opt.key)}
+                onSelect={setThemePref}
               />
             );
           })}
@@ -75,26 +78,34 @@ export default function Settings() {
   );
 }
 
-function ThemeOption({
+const ThemeOption = memo(function ThemeOption({
+  optionKey,
   label,
   subtitle,
   palette,
   selected,
-  onPress,
+  onSelect,
 }: Readonly<{
+  optionKey: ThemePref;
   label: string;
   subtitle: string;
   palette: Palette;
   selected: boolean;
-  onPress: () => void;
+  onSelect: (pref: ThemePref) => void;
 }>) {
   const styles = useThemedStyles(makeStyles);
+  const onPress = useCallback(() => onSelect(optionKey), [onSelect, optionKey]);
+  const accessibilityState = useMemo(() => ({ selected }), [selected]);
+  const rowStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.themeRow, selected && styles.themeRowActive, pressed && styles.pressed],
+    [styles, selected],
+  );
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      style={({ pressed }) => [styles.themeRow, selected && styles.themeRowActive, pressed && styles.pressed]}
+      accessibilityState={accessibilityState}
+      style={rowStyle}
     >
       <View style={[styles.swatch, { backgroundColor: palette.bg, borderColor: palette.border }]}>
         <View style={[styles.swatchPrimary, { backgroundColor: palette.primary }]} />
@@ -107,7 +118,7 @@ function ThemeOption({
       <Text style={[styles.check, !selected && styles.checkHidden]}>✓</Text>
     </Pressable>
   );
-}
+});
 
 const makeStyles = (theme: Theme) =>
   StyleSheet.create({

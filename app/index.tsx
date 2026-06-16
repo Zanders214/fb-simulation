@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +14,7 @@ export default function Home() {
   const hasHydrated = useGameStore((s) => s.hasHydrated);
   const hasSave = useGameStore((s) => s.game !== null);
 
-  const startNewGame = () => {
+  const startNewGame = useCallback(() => {
     if (hasSave) {
       confirmAction({
         title: 'Start a new game?',
@@ -25,7 +26,10 @@ export default function Home() {
     } else {
       router.push('/new-game');
     }
-  };
+  }, [hasSave, router]);
+
+  const goToSeason = useCallback(() => router.push('/season'), [router]);
+  const goToSettings = useCallback(() => router.push('/settings'), [router]);
 
   if (!hasHydrated) {
     return (
@@ -45,7 +49,7 @@ export default function Home() {
 
       <View style={styles.menu}>
         {hasSave && (
-          <Button label="Continue" onPress={() => router.push('/season')} testID="home-continue" />
+          <Button label="Continue" onPress={goToSeason} testID="home-continue" />
         )}
         <Button
           label="New Game"
@@ -53,7 +57,7 @@ export default function Home() {
           onPress={startNewGame}
           testID="home-new-game"
         />
-        <Button label="Settings" variant="ghost" onPress={() => router.push('/settings')} testID="home-settings" />
+        <Button label="Settings" variant="ghost" onPress={goToSettings} testID="home-settings" />
       </View>
 
       <Text style={styles.footer}>pre-alpha</Text>

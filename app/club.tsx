@@ -1,5 +1,5 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
@@ -26,11 +26,11 @@ export default function ClubScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const clubId = id ?? game?.managedClubId;
   const stats = useMemo(() => (game && clubId ? clubRecords(game, clubId) : null), [game, clubId]);
+  const openPlayer = useCallback((pid: string) => router.push(`/player?id=${pid}`), [router]);
 
   if (!game || !clubId || !stats || !game.world.clubs[clubId]) return <Redirect href="/" />;
   const club = game.world.clubs[clubId];
   const country = game.world.leagues[club.leagueId]?.country ?? '';
-  const openPlayer = (pid: string) => router.push(`/player?id=${pid}`);
   // Season history is the user's own career (finishes + promotion/relegation), so
   // only show it on their club's page — not when deep-linking to a rival club.
   const isUserClub = clubId === game.managedClubId;

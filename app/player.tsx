@@ -1,4 +1,5 @@
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
@@ -39,25 +40,18 @@ export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const player = game && id ? game.world.players[id] : undefined;
 
-  if (!game || !player) return <Redirect href="/season" />;
+  // Derived purely from game/player; compute before any early return so the
+  // transfer callback (a hook) can close over a stable transfer descriptor.
+  const value = player ? playerValue(player) : 0;
+  const transfer = game && player ? transferState(game, player, value) : null;
+  const clubId = player?.clubId;
 
-  const ovr = overall(player);
-  const club = game.world.clubs[player.clubId];
-  const careerGoals = player.careerGoals ?? 0;
-  const careerAssists = player.careerAssists ?? 0;
-  const careerApps = player.careerApps ?? 0;
-  const seasonSubApps = player.seasonSubApps ?? 0;
-  const careerSubApps = player.careerSubApps ?? 0;
-  const careerCleanSheets = player.careerCleanSheets ?? 0;
-  const seasonCleanSheets = player.seasonCleanSheets ?? 0;
-  const availability = playerAvailability(player);
-  const value = playerValue(player);
-  // max(stored, current) keeps pre-update saves sensible before the next match.
-  const peakValue = Math.max(player.peakValue ?? 0, value);
-  const showCleanSheets = player.position === 'GK' || player.position === 'DEF';
-  const transfer = transferState(game, player, value);
+  const openClub = useCallback(() => {
+    if (clubId) router.push(`/club?id=${clubId}`);
+  }, [router, clubId]);
 
-  const onTransfer = () => {
+  const onTransfer = useCallback(() => {
+    if (!player || !transfer) return;
     if (transfer.mode === 'sell') {
       confirmAction({
         title: 'Sell player?',
@@ -80,7 +74,23 @@ export default function PlayerScreen() {
         },
       });
     }
-  };
+  }, [player, transfer, sell, buy]);
+
+  if (!game || !player || !transfer) return <Redirect href="/season" />;
+
+  const ovr = overall(player);
+  const club = game.world.clubs[player.clubId];
+  const careerGoals = player.careerGoals ?? 0;
+  const careerAssists = player.careerAssists ?? 0;
+  const careerApps = player.careerApps ?? 0;
+  const seasonSubApps = player.seasonSubApps ?? 0;
+  const careerSubApps = player.careerSubApps ?? 0;
+  const careerCleanSheets = player.careerCleanSheets ?? 0;
+  const seasonCleanSheets = player.seasonCleanSheets ?? 0;
+  const availability = playerAvailability(player);
+  // max(stored, current) keeps pre-update saves sensible before the next match.
+  const peakValue = Math.max(player.peakValue ?? 0, value);
+  const showCleanSheets = player.position === 'GK' || player.position === 'DEF';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -92,7 +102,7 @@ export default function PlayerScreen() {
               {player.name}
             </Text>
             {club ? (
-              <Pressable onPress={() => router.push(`/club?id=${player.clubId}`)} hitSlop={6} accessibilityRole="button">
+              <Pressable onPress={openClub} hitSlop={6} accessibilityRole="button">
                 <Text style={styles.club} numberOfLines={1}>
                   {club.name} ›
                 </Text>

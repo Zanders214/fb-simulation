@@ -117,11 +117,13 @@ can't measure how much memory or CPU the app actually uses at runtime. These
 three tools fill that gap — making it easier to keep the app fast and light:
 
 - **`eslint-plugin-react-perf`** (runs as part of `npm run lint`) — flags inline
-  object / array / function / JSX literals passed as props, which allocate a new
+  object / function / JSX literals passed as props, which allocate a new
   reference every render and defeat memoisation, causing avoidable re-renders.
-  These surface as **warnings** (they don't fail CI) so they can be triaged: the
-  high-value ones are the inline callbacks and objects; `style={[…]}` array
-  warnings are the idiomatic React Native pattern and are largely advisory.
+  The codebase is currently clean of these (list rows are extracted into
+  `React.memo`'d components with stable `useCallback` handlers), so the rules act
+  as a **warning** guard that surfaces any newly-introduced inline props before
+  they ship. The `style={[…]}` array rule is disabled: in React Native that's the
+  idiomatic StyleSheet-composition pattern and was almost all false positives.
 - **`npm run bench`** ([`scripts/bench.ts`](scripts/bench.ts)) — drives the pure
   engine through full seasons and reports world-gen cost, per-season wall-clock,
   and heap growth. The engine is the app's real CPU/memory hotspot, so this is

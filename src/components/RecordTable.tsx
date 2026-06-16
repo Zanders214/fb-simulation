@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RecordEntry } from '../engine';
 import { formatMoney, positionColor } from '../ui/format';
@@ -62,6 +63,12 @@ function Row({
 }>) {
   const styles = useThemedStyles(makeStyles);
   const isUser = highlightClubId != null && entry.club.id === highlightClubId;
+  const playerId = entry.player.id;
+  const onRowPress = useCallback(() => onPress?.(playerId), [onPress, playerId]);
+  const pressableStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.row, isUser && styles.userRow, pressed && styles.pressed],
+    [styles, isUser],
+  );
   const body = (
     <>
       <Text style={[styles.rPos, styles.cell]}>{rank}</Text>
@@ -86,9 +93,9 @@ function Row({
   if (onPress) {
     return (
       <Pressable
-        onPress={() => onPress(entry.player.id)}
+        onPress={onRowPress}
         accessibilityRole="button"
-        style={({ pressed }) => [styles.row, isUser && styles.userRow, pressed && styles.pressed]}
+        style={pressableStyle}
       >
         {body}
       </Pressable>

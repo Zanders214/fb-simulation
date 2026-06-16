@@ -1,10 +1,10 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
-import { generateWorld, type ClubId, type CountryId, type League, type LeagueId } from '../src/engine';
+import { generateWorld, type Club, type ClubId, type Country, type CountryId, type League, type LeagueId } from '../src/engine';
 import { useGameStore } from '../src/store/gameStore';
 import { flagFor } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
@@ -46,10 +46,13 @@ export default function NewGame() {
 
   const countries = Object.values(world.countries);
 
-  const leagueStrength = (lg: League) =>
-    Math.round(lg.clubIds.reduce((sum, id) => sum + world.clubs[id].reputation, 0) / lg.clubIds.length);
+  const leagueStrength = useCallback(
+    (lg: League) =>
+      Math.round(lg.clubIds.reduce((sum, id) => sum + world.clubs[id].reputation, 0) / lg.clubIds.length),
+    [world],
+  );
 
-  const start = () => {
+  const start = useCallback(() => {
     if (!leagueId) return;
     if (mode === 'takeover' && clubId) {
       newGame({ leagueId, mode: 'takeover', takeoverClubId: clubId }, seed);
@@ -71,7 +74,30 @@ export default function NewGame() {
       return;
     }
     router.replace('/season');
-  };
+  }, [leagueId, mode, clubId, clubName, shortName, primary, secondary, newGame, seed, router]);
+
+  // Step navigation + selection handlers. Selectors that close over per-item
+  // data live in the extracted memo rows; these are the step-level ones.
+  const selectCountry = useCallback((id: CountryId) => {
+    setCountryId(id);
+    setLeagueId(null);
+    setStep('league');
+  }, []);
+  const selectLeague = useCallback((id: LeagueId) => {
+    setLeagueId(id);
+    setClubId(null);
+    setStep('mode');
+  }, []);
+  const chooseTakeover = useCallback(() => { setMode('takeover'); setStep('configure'); }, []);
+  const chooseCreate = useCallback(() => { setMode('create'); setStep('configure'); }, []);
+  const backToCountry = useCallback(() => setStep('country'), []);
+  const backToLeague = useCallback(() => setStep('league'), []);
+  const backToMode = useCallback(() => setStep('mode'), []);
+  const onClubNameChange = useCallback((t: string) => {
+    setClubName(t);
+    setShortName((prev) => (prev ? prev : t.slice(0, 3).toUpperCase()));
+  }, []);
+  const onShortNameChange = useCallback((t: string) => setShortName(t.toUpperCase().slice(0, 3)), []);
 
   const canStart = mode === 'takeover' ? !!clubId : clubName.trim().length >= 2;
   const selectedLeague = leagueId ? world.leagues[leagueId] : null;
@@ -83,15 +109,7 @@ export default function NewGame() {
           <Text style={styles.h}>Choose a country</Text>
           <Text style={styles.sub}>Each country runs its own league pyramid — win promotion, avoid the drop.</Text>
           {countries.map((c) => (
-            <Pressable
-              key={c.id}
-              onPress={() => { setCountryId(c.id); setLeagueId(null); setStep('league'); }}
-            >
-              <Card style={styles.optionCard}>
-                <Text style={styles.optTitle}>{flagFor(c.name)} {c.name}</Text>
-                <Text style={styles.optDesc}>{c.leagueIds.length} divisions</Text>
-              </Card>
-            </Pressable>
+            <CountryCard key={c.id} country={c} onSelect={selectCountry} />
           ))}
         </>
       )}
@@ -102,23 +120,9 @@ export default function NewGame() {
           {world.countries[countryId].leagueIds
             .map((id) => world.leagues[id])
             .map((lg) => (
-              <Pressable
-                key={lg.id}
-                onPress={() => { setLeagueId(lg.id); setClubId(null); setStep('mode'); }}
-              >
-                <Card style={styles.optionCard}>
-                  <View style={styles.leagueHead}>
-                    <Text style={styles.optTitle}>{flagFor(lg.country)} {lg.name}</Text>
-                    <Text style={styles.tierBadge}>{tierLabel(lg.tier)}</Text>
-                  </View>
-                  <Text style={styles.optDesc}>{lg.clubIds.length} clubs · avg rating {leagueStrength(lg)}</Text>
-                  <View style={styles.barTrack}>
-                    <View style={[styles.barFill, { width: `${leagueStrength(lg)}%` }]} />
-                  </View>
-                </Card>
-              </Pressable>
+              <LeagueCard key={lg.id} league={lg} strength={leagueStrength(lg)} onSelect={selectLeague} />
             ))}
-          <Button label="Back" variant="ghost" onPress={() => setStep('country')} style={styles.mt} />
+          <Button label="Back" variant="ghost" onPress={backToCountry} style={styles.mt} />
         </>
       )}
 
@@ -126,19 +130,19 @@ export default function NewGame() {
         <>
           <Text style={styles.h}>How do you want to start?</Text>
           <Text style={styles.sub}>{selectedLeague.name} · {tierLabel(selectedLeague.tier)}</Text>
-          <Pressable onPress={() => { setMode('takeover'); setStep('configure'); }}>
+          <Pressable onPress={chooseTakeover}>
             <Card style={styles.optionCard}>
               <Text style={styles.optTitle}>Take over an existing club</Text>
               <Text style={styles.optDesc}>Pick one of the division’s clubs and manage its current squad.</Text>
             </Card>
           </Pressable>
-          <Pressable onPress={() => { setMode('create'); setStep('configure'); }}>
+          <Pressable onPress={chooseCreate}>
             <Card style={styles.optionCard}>
               <Text style={styles.optTitle}>Create a new club</Text>
               <Text style={styles.optDesc}>Name and colour a brand-new club that joins this division as the newcomer.</Text>
             </Card>
           </Pressable>
-          <Button label="Back" variant="ghost" onPress={() => setStep('league')} style={styles.mt} />
+          <Button label="Back" variant="ghost" onPress={backToLeague} style={styles.mt} />
         </>
       )}
 
@@ -148,25 +152,11 @@ export default function NewGame() {
           {world.leagues[leagueId].clubIds
             .map((id) => world.clubs[id])
             .sort((a, b) => b.reputation - a.reputation)
-            .map((club) => {
-              const selected = clubId === club.id;
-              return (
-                <Pressable key={club.id} onPress={() => setClubId(club.id)}>
-                  <Card style={[styles.clubRow, selected && styles.clubSelected]}>
-                    <Chip label={club.shortName} color={club.primaryColor} />
-                    <View style={styles.clubInfo}>
-                      <Text style={styles.clubName}>{club.name}</Text>
-                      <View style={styles.barTrack}>
-                        <View style={[styles.barFill, { width: `${club.reputation}%` }]} />
-                      </View>
-                    </View>
-                    <Text style={styles.rep}>{club.reputation}</Text>
-                  </Card>
-                </Pressable>
-              );
-            })}
+            .map((club) => (
+              <ClubPickRow key={club.id} club={club} selected={clubId === club.id} onSelect={setClubId} />
+            ))}
           <Button label="Start career" onPress={start} disabled={!canStart} style={styles.mt} testID="start-career" />
-          <Button label="Back" variant="ghost" onPress={() => setStep('mode')} />
+          <Button label="Back" variant="ghost" onPress={backToMode} />
         </>
       )}
 
@@ -177,7 +167,7 @@ export default function NewGame() {
             <Text style={styles.fieldLabel}>Club name</Text>
             <TextInput
               value={clubName}
-              onChangeText={(t) => { setClubName(t); if (!shortName) setShortName(t.slice(0, 3).toUpperCase()); }}
+              onChangeText={onClubNameChange}
               placeholder="e.g. Riverside United"
               placeholderTextColor={theme.colors.textMuted}
               style={styles.input}
@@ -187,7 +177,7 @@ export default function NewGame() {
             <Text style={styles.fieldLabel}>Short code (3 letters)</Text>
             <TextInput
               value={shortName}
-              onChangeText={(t) => setShortName(t.toUpperCase().slice(0, 3))}
+              onChangeText={onShortNameChange}
               placeholder="RIV"
               placeholderTextColor={theme.colors.textMuted}
               style={styles.input}
@@ -200,7 +190,7 @@ export default function NewGame() {
             <Swatches selected={secondary} onSelect={setSecondary} />
           </Card>
           <Button label="Start career" onPress={start} disabled={!canStart} style={styles.mt} testID="start-career" />
-          <Button label="Back" variant="ghost" onPress={() => setStep('mode')} />
+          <Button label="Back" variant="ghost" onPress={backToMode} />
         </>
       )}
     </ScrollView>
@@ -212,15 +202,91 @@ function Swatches({ selected, onSelect }: Readonly<{ selected: string; onSelect:
   return (
     <View style={styles.swatches}>
       {COLOR_SWATCHES.map((c) => (
-        <Pressable
-          key={c}
-          onPress={() => onSelect(c)}
-          style={[styles.swatch, { backgroundColor: c }, selected === c && styles.swatchSelected]}
-        />
+        <Swatch key={c} color={c} selected={selected === c} onSelect={onSelect} />
       ))}
     </View>
   );
 }
+
+// Memoised colour swatch: stable onPress (stable onSelect + its colour).
+const Swatch = memo(function Swatch({
+  color,
+  selected,
+  onSelect,
+}: Readonly<{ color: string; selected: boolean; onSelect: (c: string) => void }>) {
+  const styles = useThemedStyles(makeStyles);
+  const onPress = useCallback(() => onSelect(color), [onSelect, color]);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.swatch, { backgroundColor: color }, selected && styles.swatchSelected]}
+    />
+  );
+});
+
+// Memoised wizard rows: each owns a stable onPress (stable parent setter + its
+// own id) so the country/league/club maps don't hand out fresh closures.
+const CountryCard = memo(function CountryCard({
+  country,
+  onSelect,
+}: Readonly<{ country: Country; onSelect: (id: CountryId) => void }>) {
+  const styles = useThemedStyles(makeStyles);
+  const onPress = useCallback(() => onSelect(country.id), [onSelect, country.id]);
+  return (
+    <Pressable onPress={onPress}>
+      <Card style={styles.optionCard}>
+        <Text style={styles.optTitle}>{flagFor(country.name)} {country.name}</Text>
+        <Text style={styles.optDesc}>{country.leagueIds.length} divisions</Text>
+      </Card>
+    </Pressable>
+  );
+});
+
+const LeagueCard = memo(function LeagueCard({
+  league,
+  strength,
+  onSelect,
+}: Readonly<{ league: League; strength: number; onSelect: (id: LeagueId) => void }>) {
+  const styles = useThemedStyles(makeStyles);
+  const onPress = useCallback(() => onSelect(league.id), [onSelect, league.id]);
+  return (
+    <Pressable onPress={onPress}>
+      <Card style={styles.optionCard}>
+        <View style={styles.leagueHead}>
+          <Text style={styles.optTitle}>{flagFor(league.country)} {league.name}</Text>
+          <Text style={styles.tierBadge}>{tierLabel(league.tier)}</Text>
+        </View>
+        <Text style={styles.optDesc}>{league.clubIds.length} clubs · avg rating {strength}</Text>
+        <View style={styles.barTrack}>
+          <View style={[styles.barFill, { width: `${strength}%` }]} />
+        </View>
+      </Card>
+    </Pressable>
+  );
+});
+
+const ClubPickRow = memo(function ClubPickRow({
+  club,
+  selected,
+  onSelect,
+}: Readonly<{ club: Club; selected: boolean; onSelect: (id: ClubId) => void }>) {
+  const styles = useThemedStyles(makeStyles);
+  const onPress = useCallback(() => onSelect(club.id), [onSelect, club.id]);
+  return (
+    <Pressable onPress={onPress}>
+      <Card style={[styles.clubRow, selected && styles.clubSelected]}>
+        <Chip label={club.shortName} color={club.primaryColor} />
+        <View style={styles.clubInfo}>
+          <Text style={styles.clubName}>{club.name}</Text>
+          <View style={styles.barTrack}>
+            <View style={[styles.barFill, { width: `${club.reputation}%` }]} />
+          </View>
+        </View>
+        <Text style={styles.rep}>{club.reputation}</Text>
+      </Card>
+    </Pressable>
+  );
+});
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
