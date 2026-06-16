@@ -28,13 +28,16 @@ module.exports = [
       'react/no-array-index-key': 'error', // S6479
       'react/no-unstable-nested-components': 'error', // S6478
       // ---- react-perf: runtime efficiency, not just code smell ----
-      // Inline object/array/function/JSX literals passed as props create a new
+      // Inline object/function/JSX literals passed as props create a new
       // reference every render, defeating memo/PureComponent and forcing child
       // re-renders. SonarCloud doesn't measure this; these catch it before CI.
       'react-perf/jsx-no-new-object-as-prop': 'warn',
-      'react-perf/jsx-no-new-array-as-prop': 'warn',
       'react-perf/jsx-no-new-function-as-prop': 'warn',
       'react-perf/jsx-no-jsx-as-prop': 'warn',
+      // Off: in React Native `style={[a, b]}` array composition is the idiomatic
+      // pattern and a StyleSheet-id array is cheap, so this rule is almost all
+      // false-positive noise that drowns out the signal from the rules above.
+      'react-perf/jsx-no-new-array-as-prop': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
