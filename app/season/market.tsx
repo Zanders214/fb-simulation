@@ -3,6 +3,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
+  type ListRenderItem,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -149,8 +150,8 @@ export default function MarketScreen() {
   }, [sell]);
   const openPlayer = useCallback((id: string) => router.push(`/player?id=${id}`), [router]);
 
-  const renderBuyRow = useCallback(
-    ({ item }: { item: Player }) => {
+  const renderBuyRow = useCallback<ListRenderItem<Player>>(
+    ({ item }) => {
       if (!game) return null;
       const fee = playerValue(item);
       const club = game.world.clubs[item.clubId];
@@ -170,8 +171,8 @@ export default function MarketScreen() {
     [game, budget, squadCount, openPlayer, onBuy],
   );
 
-  const renderSellRow = useCallback(
-    ({ item }: { item: Player }) => {
+  const renderSellRow = useCallback<ListRenderItem<Player>>(
+    ({ item }) => {
       if (!game) return null;
       const proceeds = Math.round((playerValue(item) * MARKET.SELL_RETURN) / 100) * 100;
       const canSell = squadCount > MARKET.MIN_SQUAD && !!findBuyer(game.world, item, game.managedClubId);
