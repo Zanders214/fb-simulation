@@ -1,5 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Chip } from '../../src/components/Chip';
 import { RecordTable } from '../../src/components/RecordTable';
@@ -14,9 +14,12 @@ export default function TableScreen() {
   const styles = useThemedStyles(makeStyles);
   const [showRecords, setShowRecords] = useState(false);
   const records = useMemo(() => (game ? leagueRecords(game, 5) : null), [game]);
+  // Stable handlers (passed to memoised RecordTable rows / the toggle) — kept
+  // above the early return so the hooks run unconditionally.
+  const openPlayer = useCallback((id: string) => router.push(`/player?id=${id}`), [router]);
+  const toggleRecords = useCallback(() => setShowRecords((v) => !v), []);
   if (!game || !records) return <Redirect href="/" />;
   const rows = leagueTable(game);
-  const openPlayer = (id: string) => router.push(`/player?id=${id}`);
 
   // Highlight the promotion (top) and relegation (bottom) bands, but only where a
   // tier actually exists above / below in this country's pyramid.
@@ -88,7 +91,7 @@ export default function TableScreen() {
       )}
 
       <Pressable
-        onPress={() => setShowRecords((v) => !v)}
+        onPress={toggleRecords}
         accessibilityRole="button"
         style={({ pressed }) => [styles.recordsBtn, pressed && styles.recordsBtnPressed]}
       >

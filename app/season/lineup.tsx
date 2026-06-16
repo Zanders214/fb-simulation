@@ -1,5 +1,5 @@
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
@@ -22,6 +22,13 @@ export default function LineupScreen() {
   const swapPositions = useGameStore((s) => s.swapPositions);
   const [selected, setSelected] = useState<string | null>(null);
 
+  // Stable nav handlers (router is a module singleton) so the buttons / Pitch
+  // don't get a fresh function each render. Declared before the early return so
+  // the hooks run unconditionally.
+  const openPlayer = useCallback((id: string) => router.push(`/player?id=${id}`), []);
+  const goRoles = useCallback(() => router.push('/roles'), []);
+  const goTraining = useCallback(() => router.push('/training'), []);
+
   if (!game) return <Redirect href="/" />;
   const { squad } = game;
   const xiSet = new Set(squad.startingXI);
@@ -38,8 +45,6 @@ export default function LineupScreen() {
   const issues = validateXI(game.world, squad, game.managedClubId);
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
-
-  const openPlayer = (id: string) => router.push(`/player?id=${id}`);
 
   // An injured/suspended player can't be put into the XI; warn and abort the swap.
   const blockIfUnavailable = (incomingId: string): boolean => {
@@ -100,11 +105,11 @@ export default function LineupScreen() {
       </View>
 
       <View style={styles.actionRow}>
-        <Button label="⭐  Roles" variant="secondary" onPress={() => router.push('/roles')} style={styles.actionBtn} />
+        <Button label="⭐  Roles" variant="secondary" onPress={goRoles} style={styles.actionBtn} />
         <Button
           label={`🏋  Training · ${trainingCount}/${TRAINING.SLOTS}`}
           variant="secondary"
-          onPress={() => router.push('/training')}
+          onPress={goTraining}
           style={styles.actionBtn}
         />
       </View>
