@@ -8,6 +8,7 @@ import {
   playMatchday,
 } from '../season';
 import { clubRanking } from '../ranking';
+import { computeTable } from '../standings';
 import { clubBudget, transferPlayer } from '../transfers';
 import { isPlayableXI } from '../world';
 
@@ -317,5 +318,59 @@ describe('season', () => {
       expect(p.injuredMatches ?? 0).toBeGreaterThanOrEqual(0);
       expect(p.suspendedMatches ?? 0).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('world-wide simulation', () => {
+  it('schedules every other league at game start', () => {
+    const s = freshTakeover();
+    const leagueIds = Object.keys(s.world.leagues);
+    const otherIds = Object.keys(s.season.otherFixtures);
+    expect(otherIds.sort()).toEqual(leagueIds.filter((l) => l !== s.season.leagueId).sort());
+    for (const lid of otherIds) expect(s.season.otherFixtures[lid].length).toBe(16 * 15);
+  });
+
+  it('develops players in other leagues and keeps only a slim score there', () => {
+    const s = freshTakeover();
+    const otherLid = Object.keys(s.season.otherFixtures)[0];
+    const sampleClub = s.world.leagues[otherLid].clubIds[0];
+    const apps = () =>
+      s.world.clubs[sampleClub].playerIds.reduce((a, id) => a + s.world.players[id].seasonApps, 0);
+
+    const before = apps();
+    playMatchday(s);
+    expect(apps()).toBeGreaterThan(before); // a club in another league actually played
+
+    const md1 = s.season.otherFixtures[otherLid].filter((f) => f.matchday === 1);
+    expect(md1.length).toBe(8);
+    for (const f of md1) {
+      expect(f.score).toBeDefined(); // table-ready
+      expect(f.result).toBeUndefined(); // but no heavy result is retained
+    }
+  });
+
+  it('builds complete real tables for other leagues over a full season', () => {
+    const s = freshTakeover();
+    playFullSeason(s);
+    const otherLid = Object.keys(s.season.otherFixtures)[0];
+    const table = computeTable(s.season.otherFixtures[otherLid], s.world.leagues[otherLid].clubIds);
+    expect(table.length).toBe(16);
+    for (const row of table) expect(row.played).toBe(30);
+    expect(table.reduce((a, r) => a + r.gf, 0)).toBe(table.reduce((a, r) => a + r.ga, 0));
+  });
+
+  it('runs promotion and relegation in every country, not just the user’s', () => {
+    const s = freshTakeover();
+    const userCountryId = s.world.leagues[s.season.leagueId].countryId;
+    const userCountryLeagues = new Set(s.world.countries[userCountryId].leagueIds);
+    const before = new Map(Object.values(s.world.clubs).map((c) => [c.id, c.leagueId]));
+
+    playFullSeason(s);
+    advanceSeason(s);
+
+    const movedOutsideUserCountry = Object.values(s.world.clubs).filter(
+      (c) => c.leagueId !== before.get(c.id) && !userCountryLeagues.has(before.get(c.id) as string),
+    );
+    expect(movedOutsideUserCountry.length).toBeGreaterThan(0);
   });
 });

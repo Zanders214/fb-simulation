@@ -43,6 +43,15 @@ export interface Player {
   // ---- evolving development state (mutated by progression) ----
   form: number; // -5..+5 EMA of recent ratings, affects the next match only
   growthXp: number; // fractional accumulator; crossing ±1 nudges a stat
+  // ---- form-event streaks (0..3 level; read via `?? 0`) ----
+  // Consecutive APPEARANCES recording the same event escalate its form swing
+  // (L1 ×1, L2 ×1.5, L3 ×2). Climbs when the event repeats, snaps to 0 on a
+  // played match without it, cools one level on a missed match.
+  goalStreak?: number;
+  assistStreak?: number;
+  cleanSheetStreak?: number; // GK/DEF only, like clean-sheet form
+  yellowStreak?: number; // bookings escalate the form penalty, tracked apart from reds
+  redStreak?: number;
   // ---- season counters (reset each season, for UI like top scorers) ----
   seasonGoals: number;
   seasonAssists: number;
@@ -92,7 +101,12 @@ export interface Club {
   peakSquadValue?: number;
   /** All-time goals/assists scored while at this club, keyed by player id. */
   playerContributions?: Record<PlayerId, ClubContribution>;
+  /** Recent W/D/L, oldest first, capped to the last few matches (read via `?? []`). */
+  recentForm?: RecentResult[];
 }
+
+/** A single match result from a club's perspective (compact W/D/L history). */
+export type RecentResult = 'W' | 'D' | 'L';
 
 export interface League {
   id: LeagueId;
@@ -191,7 +205,14 @@ export interface Fixture {
   matchday: number; // 1-based
   homeClubId: ClubId;
   awayClubId: ClubId;
+  /** Full result, kept only for the user's league (powers the match viewer). */
   result?: MatchResult;
+  /**
+   * Slim final score, stored for non-user leagues instead of the full result:
+   * per-player effects are applied immediately during simulation, so only the
+   * score is needed afterwards (for the table) and the save stays small.
+   */
+  score?: { homeGoals: number; awayGoals: number };
 }
 
 export interface TableRow {
@@ -210,6 +231,12 @@ export interface Season {
   number: number; // 1-based
   leagueId: LeagueId;
   fixtures: Fixture[];
+  /**
+   * Schedules for every OTHER league in the world, keyed by league id. Played in
+   * lock-step with the user's league each matchday so every player develops; each
+   * fixture carries only a slim `score` (no full result) to keep the save small.
+   */
+  otherFixtures: Record<LeagueId, Fixture[]>;
   currentMatchday: number; // next matchday to play; > totalMatchdays when finished
   totalMatchdays: number;
 }

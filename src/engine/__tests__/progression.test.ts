@@ -1,6 +1,16 @@
-import { SIM } from '../config';
-import { applyCard, applyInjury, applyMatchProgression, applySeasonEnd, applyTrainingProgression } from '../progression';
-import type { CardEvent, InjuryEvent, PlayerRating } from '../types';
+import { FORM, SIM } from '../config';
+import {
+  applyCard,
+  applyInjury,
+  applyMatchProgression,
+  applySeasonEnd,
+  applyTrainingProgression,
+  decayInactiveStreaks,
+  recentFormCushion,
+  streakMultiplier,
+} from '../progression';
+import { rewardMultiplierFromExpected } from '../ranking';
+import type { CardEvent, InjuryEvent, PlayerRating, RecentResult } from '../types';
 import { makePlayer } from './factory';
 
 function rating(r: number, goals = 0, assists = 0): PlayerRating {
@@ -212,5 +222,270 @@ describe('cards and injuries', () => {
     expect(p.injuredMatches).toBe(5); // a worse injury extends the lay-off
     applyInjury(p, injury(1));
     expect(p.injuredMatches).toBe(5); // a lighter knock never shortens it
+  });
+});
+
+describe('form / momentum', () => {
+  const fresh = () => makePlayer({ position: 'MID', age: 26, potential: 70 });
+  const card = (type: CardEvent['type']): CardEvent => ({ minute: 30, clubId: 'C', playerId: 'x', type });
+  const injury = (matchesOut: number): InjuryEvent => ({ minute: 30, clubId: 'C', playerId: 'x', matchesOut });
+
+  it('rises on a win and falls on a loss', () => {
+    const won = fresh();
+    const lost = fresh();
+    applyMatchProgression(won, rating(6.5), { score: 1, oppExpected: 0.5 });
+    applyMatchProgression(lost, rating(6.5), { score: 0, oppExpected: 0.5 });
+    expect(won.form).toBeGreaterThan(0);
+    expect(lost.form).toBeLessThan(0);
+  });
+
+  it('rewards an upset win more than an expected one, and dents a loss to a giant less', () => {
+    const upset = fresh();
+    const routine = fresh();
+    applyMatchProgression(upset, rating(6.5), { score: 1, oppExpected: 0.1 }); // beat a favourite
+    applyMatchProgression(routine, rating(6.5), { score: 1, oppExpected: 0.9 }); // beat a minnow
+    expect(upset.form).toBeGreaterThan(routine.form);
+
+    const toGiant = fresh();
+    const toMinnow = fresh();
+    applyMatchProgression(toGiant, rating(6.5), { score: 0, oppExpected: 0.1 });
+    applyMatchProgression(toMinnow, rating(6.5), { score: 0, oppExpected: 0.9 });
+    expect(toGiant.form).toBeGreaterThan(toMinnow.form); // losing to a giant hurts less
+  });
+
+  it('treats a draw as opponent-aware (upset vs a giant, negative vs a minnow, ~0 at parity)', () => {
+    const vsGiant = fresh();
+    const vsParity = fresh();
+    const vsMinnow = fresh();
+    applyMatchProgression(vsGiant, rating(6.5), { score: 0.5, oppExpected: 0.1 });
+    applyMatchProgression(vsParity, rating(6.5), { score: 0.5, oppExpected: 0.5 });
+    applyMatchProgression(vsMinnow, rating(6.5), { score: 0.5, oppExpected: 0.9 });
+    expect(vsGiant.form).toBeGreaterThan(0);
+    expect(vsParity.form).toBeCloseTo(0, 5);
+    expect(vsMinnow.form).toBeLessThan(0);
+  });
+
+  it('adds opponent-scaled bonuses for goals', () => {
+    const vsStrong = fresh();
+    const vsWeak = fresh();
+    applyMatchProgression(vsStrong, rating(7, 1, 0), { score: 1, oppExpected: 0.1 });
+    applyMatchProgression(vsWeak, rating(7, 1, 0), { score: 1, oppExpected: 0.9 });
+    expect(vsStrong.form).toBeGreaterThan(vsWeak.form);
+  });
+
+  it('credits a clean sheet only to keepers and defenders', () => {
+    const def = makePlayer({ position: 'DEF', age: 26 });
+    const fwd = makePlayer({ position: 'FWD', age: 26 });
+    applyMatchProgression(def, rating(6.5), { score: 0.5, oppExpected: 0.5, cleanSheet: true });
+    applyMatchProgression(fwd, rating(6.5), { score: 0.5, oppExpected: 0.5, cleanSheet: true });
+    expect(def.form).toBeGreaterThan(fwd.form);
+    expect(fwd.form).toBeCloseTo(0, 5);
+  });
+
+  it('decays toward zero over a quiet appearance', () => {
+    const p = fresh();
+    p.form = 4;
+    applyMatchProgression(p, rating(6.5), { score: 0.5, oppExpected: 0.5 });
+    expect(p.form).toBeCloseTo(4 * (1 - FORM.DECAY), 5);
+  });
+
+  it('clamps to the configured range', () => {
+    const p = fresh();
+    for (let i = 0; i < 20; i++) applyMatchProgression(p, rating(9, 3, 2), { score: 1, oppExpected: 0.05 });
+    expect(p.form).toBeLessThanOrEqual(FORM.MAX);
+    expect(p.form).toBeGreaterThan(FORM.MAX - 1e-6);
+  });
+
+  it('couples development to form — good form grows a player harder', () => {
+    const inForm = makePlayer({ position: 'FWD', age: 20, attacking: 50, potential: 90 });
+    const outOfForm = makePlayer({ position: 'FWD', age: 20, attacking: 50, potential: 90 });
+    inForm.form = 5;
+    outOfForm.form = -5;
+    applyMatchProgression(inForm, rating(7.5), { score: 0.5, oppExpected: 0.5 });
+    applyMatchProgression(outOfForm, rating(7.5), { score: 0.5, oppExpected: 0.5 });
+    expect(inForm.growthXp).toBeGreaterThan(outOfForm.growthXp);
+  });
+
+  it('a booking dents form, softened against a stronger opponent', () => {
+    const vsStrong = makePlayer({ position: 'DEF' });
+    const vsWeak = makePlayer({ position: 'DEF' });
+    applyCard(vsStrong, card('yellow'), rewardMultiplierFromExpected(0.1)); // big opp -> mult > 1 -> softer
+    applyCard(vsWeak, card('yellow'), rewardMultiplierFromExpected(0.9)); // small opp -> mult < 1 -> harsher
+    expect(vsStrong.form).toBeLessThan(0);
+    expect(vsWeak.form).toBeLessThan(vsStrong.form);
+  });
+
+  it('docks form on injury, scaled by lay-off length, and caps the hit', () => {
+    const light = makePlayer({ position: 'FWD' });
+    const heavy = makePlayer({ position: 'FWD' });
+    const huge = makePlayer({ position: 'FWD' });
+    applyInjury(light, injury(1), () => 1);
+    applyInjury(heavy, injury(6), () => 1);
+    applyInjury(huge, injury(100), () => 1);
+    expect(light.form).toBeLessThan(0);
+    expect(heavy.form).toBeLessThan(light.form);
+    expect(huge.form).toBeCloseTo(-FORM.INJURY_MAX, 5);
+  });
+
+  it('comes back unaffected on a low random roll, and is untouched with no rng', () => {
+    const lucky = makePlayer({ position: 'FWD' });
+    applyInjury(lucky, injury(5), () => 0);
+    expect(lucky.form).toBe(0);
+
+    const unitCaller = makePlayer({ position: 'FWD' });
+    unitCaller.form = 2;
+    applyInjury(unitCaller, injury(3));
+    expect(unitCaller.form).toBe(2);
+  });
+});
+
+describe('form streaks', () => {
+  const fwd = () => makePlayer({ position: 'FWD', age: 26, potential: 70 });
+  const def = () => makePlayer({ position: 'DEF', age: 26, potential: 70 });
+  const card = (type: CardEvent['type']): CardEvent => ({ minute: 30, clubId: 'C', playerId: 'x', type });
+  // a neutral appearance (0-0 draw at parity) so only the streaked event moves form
+  const goalMatch = () => ({ score: 0.5 as const, oppExpected: 0.5 });
+
+  it('scales the multiplier 1x / 1.5x / 2x and caps there', () => {
+    expect(streakMultiplier(0)).toBe(1);
+    expect(streakMultiplier(1)).toBe(1);
+    expect(streakMultiplier(2)).toBe(1.5);
+    expect(streakMultiplier(3)).toBe(2);
+    expect(streakMultiplier(4)).toBe(2); // capped
+  });
+
+  it('climbs the goal streak on consecutive scoring matches and caps at level 3', () => {
+    const p = fwd();
+    applyMatchProgression(p, rating(7, 1), goalMatch());
+    expect(p.goalStreak).toBe(1);
+    applyMatchProgression(p, rating(7, 1), goalMatch());
+    expect(p.goalStreak).toBe(2);
+    applyMatchProgression(p, rating(7, 1), goalMatch());
+    expect(p.goalStreak).toBe(3);
+    applyMatchProgression(p, rating(7, 1), goalMatch());
+    expect(p.goalStreak).toBe(3); // capped
+  });
+
+  it('snaps a streak to zero on a played match without the event, even from the cap', () => {
+    const p = fwd();
+    p.goalStreak = 3;
+    applyMatchProgression(p, rating(6.5, 0), goalMatch()); // played, did not score
+    expect(p.goalStreak).toBe(0);
+  });
+
+  it('cools an inactive player one level per missed match (floor 0)', () => {
+    const p = fwd();
+    p.goalStreak = 3;
+    p.assistStreak = 2;
+    p.yellowStreak = 1;
+    decayInactiveStreaks(p);
+    expect(p.goalStreak).toBe(2);
+    expect(p.assistStreak).toBe(1);
+    expect(p.yellowStreak).toBe(0);
+    decayInactiveStreaks(p);
+    expect(p.goalStreak).toBe(1);
+    expect(p.yellowStreak).toBe(0); // stays at floor
+  });
+
+  it('a second consecutive goal swings form more than the first', () => {
+    const first = fwd();
+    const second = fwd();
+    second.goalStreak = 1; // already scored once; this goal lands at level 2
+    applyMatchProgression(first, rating(7, 1), goalMatch());
+    applyMatchProgression(second, rating(7, 1), goalMatch());
+    expect(second.form).toBeGreaterThan(first.form);
+    // level 2 is exactly 1.5x the flat goal bonus on top of the (zero) base swing
+    expect(second.form).toBeCloseTo(first.form * 1.5, 5);
+  });
+
+  it('escalates assist and clean-sheet streaks the same way', () => {
+    const assister = fwd();
+    assister.assistStreak = 1;
+    const oneAssist = fwd();
+    applyMatchProgression(oneAssist, rating(7, 0, 1), goalMatch());
+    applyMatchProgression(assister, rating(7, 0, 1), goalMatch());
+    expect(assister.assistStreak).toBe(2);
+    expect(assister.form).toBeCloseTo(oneAssist.form * 1.5, 5);
+
+    const keeper = def();
+    keeper.cleanSheetStreak = 1;
+    const oneSheet = def();
+    applyMatchProgression(oneSheet, rating(6.5), { ...goalMatch(), cleanSheet: true });
+    applyMatchProgression(keeper, rating(6.5), { ...goalMatch(), cleanSheet: true });
+    expect(keeper.cleanSheetStreak).toBe(2);
+    expect(keeper.form).toBeCloseTo(oneSheet.form * 1.5, 5);
+  });
+
+  it('tracks yellow and red streaks apart and amplifies a repeated booking', () => {
+    const first = def();
+    const repeat = def();
+    applyMatchProgression(first, rating(6.5), { ...goalMatch(), gotYellow: true });
+    applyMatchProgression(repeat, rating(6.5), { ...goalMatch(), gotYellow: true });
+    applyMatchProgression(repeat, rating(6.5), { ...goalMatch(), gotYellow: true });
+    expect(first.yellowStreak).toBe(1);
+    expect(repeat.yellowStreak).toBe(2);
+    // a yellow leaves the red streak untouched
+    expect(repeat.redStreak).toBe(0);
+
+    applyCard(first, card('yellow'));
+    applyCard(repeat, card('yellow'));
+    // both penalties land on a fresh (0) form, so the level-2 hit is 1.5x deeper
+    expect(repeat.form).toBeCloseTo(first.form * 1.5, 5);
+  });
+
+  it('a played match without a booking resets the card streak', () => {
+    const p = def();
+    p.yellowStreak = 3;
+    applyMatchProgression(p, rating(6.5), goalMatch()); // played, not booked
+    expect(p.yellowStreak).toBe(0);
+  });
+
+  it('zeroes every streak at season end', () => {
+    const p = fwd();
+    p.goalStreak = 3;
+    p.assistStreak = 2;
+    p.cleanSheetStreak = 1;
+    p.yellowStreak = 2;
+    p.redStreak = 1;
+    applySeasonEnd(p);
+    expect(p.goalStreak).toBe(0);
+    expect(p.assistStreak).toBe(0);
+    expect(p.cleanSheetStreak).toBe(0);
+    expect(p.yellowStreak).toBe(0);
+    expect(p.redStreak).toBe(0);
+  });
+});
+
+describe('recent-form cushion on bad results', () => {
+  const fresh = () => makePlayer({ position: 'MID', age: 26, potential: 70 });
+  const hist = (...rs: RecentResult[]): RecentResult[] => rs;
+
+  it('softens a bad result more the longer the winning run', () => {
+    expect(recentFormCushion(hist())).toBe(1);
+    expect(recentFormCushion(hist('L', 'L'))).toBe(1);
+    expect(recentFormCushion(hist('D', 'L'))).toBe(1);
+    expect(recentFormCushion(hist('W', 'L'))).toBe(FORM.RESULT_CUSHION_WIN1); // 1 of last 2
+    expect(recentFormCushion(hist('L', 'W'))).toBe(FORM.RESULT_CUSHION_WIN1);
+    expect(recentFormCushion(hist('L', 'W', 'W'))).toBe(FORM.RESULT_CUSHION_WIN2); // last 2 in a row
+    expect(recentFormCushion(hist('W', 'W', 'W'))).toBe(FORM.RESULT_CUSHION_WIN3); // last 3 in a row
+    // only the most recent matches matter — an old win past the window doesn't count
+    expect(recentFormCushion(hist('W', 'W', 'W', 'L'))).toBe(FORM.RESULT_CUSHION_WIN1);
+    expect(recentFormCushion(hist('W', 'W', 'W', 'L', 'L'))).toBe(1);
+  });
+
+  it('reduces a loss hit for a side on a run, but never dampens a win', () => {
+    const cold = fresh();
+    const hot = fresh();
+    applyMatchProgression(cold, rating(6.5), { score: 0, oppExpected: 0.5 });
+    applyMatchProgression(hot, rating(6.5), { score: 0, oppExpected: 0.5, lossCushion: FORM.RESULT_CUSHION_WIN3 });
+    expect(cold.form).toBeLessThan(0);
+    expect(hot.form).toBeGreaterThan(cold.form); // less negative
+    expect(hot.form).toBeCloseTo(cold.form * FORM.RESULT_CUSHION_WIN3, 5);
+
+    const wonPlain = fresh();
+    const wonHot = fresh();
+    applyMatchProgression(wonPlain, rating(6.5), { score: 1, oppExpected: 0.5 });
+    applyMatchProgression(wonHot, rating(6.5), { score: 1, oppExpected: 0.5, lossCushion: FORM.RESULT_CUSHION_WIN3 });
+    expect(wonHot.form).toBeCloseTo(wonPlain.form, 5); // win unaffected by the cushion
   });
 });

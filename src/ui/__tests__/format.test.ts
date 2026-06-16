@@ -1,5 +1,5 @@
 import { COUNTRIES, NATIONALITIES } from '../../engine/names';
-import { flagFor } from '../format';
+import { flagFor, formLabel } from '../format';
 
 describe('flagFor', () => {
   it('maps known nationalities to their emoji flag', () => {
@@ -27,5 +27,25 @@ describe('flagFor', () => {
 
   it('falls back to the original string when unmapped', () => {
     expect(flagFor('Testland')).toBe('Testland');
+  });
+});
+
+describe('formLabel', () => {
+  it.each<[number, string]>([
+    [5, 'Prime'],
+    [4.5, 'Prime'],
+    [4, 'Excellent'],
+    [3, 'Excellent'],
+    [2, 'Good'],
+    [1.5, 'Good'],
+    [0, 'Average'],
+    [-1, 'Average'],
+    [-1.5, 'Poor'],
+    [-3, 'Terrible'],
+    [-4, 'Terrible'],
+    [-4.5, 'Washed'],
+    [-5, 'Washed'],
+  ])('labels form %p as %p', (form, label) => {
+    expect(formLabel(form)).toBe(label);
   });
 });

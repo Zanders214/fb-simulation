@@ -55,6 +55,7 @@ function isValidSavedGame(value: unknown): value is GameState {
   if (!isRecord(value)) return false;
   const world = value.world;
   const squad = value.squad;
+  const season = value.season;
   return (
     typeof value.managedClubId === 'string' &&
     isRecord(world) &&
@@ -65,7 +66,11 @@ function isValidSavedGame(value: unknown): value is GameState {
     isRecord(world.players) &&
     isRecord(squad) &&
     Array.isArray(squad.startingXI) &&
-    isRecord(value.season)
+    isRecord(season) &&
+    // `otherFixtures` arrived with the fully-simulated world (every league played
+    // match-by-match); its absence marks a pre-simulation save, which we drop
+    // rather than crash `playMatchday` on a missing schedule map.
+    isRecord(season.otherFixtures)
   );
 }
 

@@ -35,6 +35,23 @@ describe('save load robustness', () => {
     expect(useGameStore.getState().hasHydrated).toBe(true);
   });
 
+  it('rejects a pre-simulation save whose season has no otherFixtures', async () => {
+    const w = generateWorld(2024);
+    const game = createGame(w, {
+      leagueId: 'L0',
+      mode: 'takeover',
+      takeoverClubId: w.leagues['L0'].clubIds[0],
+    });
+    // An older (v2) save: a valid-looking season, but without the all-league
+    // schedules the fully-simulated world needs. It must fall back to no save.
+    const legacy = { ...game, season: { ...game.season } };
+    delete (legacy.season as { otherFixtures?: unknown }).otherFixtures;
+    await seed({ version: 2, state: { game: legacy } });
+
+    await useGameStore.persist.rehydrate();
+    expect(useGameStore.getState().game).toBeNull();
+  });
+
   it('loads a valid current-version save unchanged', async () => {
     const w = generateWorld(2024);
     const game = createGame(w, {

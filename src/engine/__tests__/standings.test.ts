@@ -1,5 +1,5 @@
 import { computeTable } from '../standings';
-import type { MatchResult, Season } from '../types';
+import type { Fixture, MatchResult } from '../types';
 
 function res(h: number, a: number): MatchResult {
   return {
@@ -21,19 +21,13 @@ function res(h: number, a: number): MatchResult {
 
 describe('standings', () => {
   it('orders by points, then goal difference, then goals for', () => {
-    const season: Season = {
-      number: 1,
-      leagueId: 'L',
-      currentMatchday: 3,
-      totalMatchdays: 2,
-      fixtures: [
-        { id: 'f1', matchday: 1, homeClubId: 'A', awayClubId: 'B', result: res(3, 0) },
-        { id: 'f2', matchday: 1, homeClubId: 'C', awayClubId: 'D', result: res(1, 0) },
-        { id: 'f3', matchday: 2, homeClubId: 'A', awayClubId: 'C', result: res(1, 1) },
-        { id: 'f4', matchday: 2, homeClubId: 'B', awayClubId: 'D', result: res(2, 2) },
-      ],
-    };
-    const t = computeTable(season, ['A', 'B', 'C', 'D']);
+    const fixtures: Fixture[] = [
+      { id: 'f1', matchday: 1, homeClubId: 'A', awayClubId: 'B', result: res(3, 0) },
+      { id: 'f2', matchday: 1, homeClubId: 'C', awayClubId: 'D', result: res(1, 0) },
+      { id: 'f3', matchday: 2, homeClubId: 'A', awayClubId: 'C', result: res(1, 1) },
+      { id: 'f4', matchday: 2, homeClubId: 'B', awayClubId: 'D', result: res(2, 2) },
+    ];
+    const t = computeTable(fixtures, ['A', 'B', 'C', 'D']);
 
     // A: W+D = 4 pts, GD +3 ; C: W+D = 4 pts, GD +1 ; D: L+D = 1 pt, GD -1 ; B: L+D = 1 pt, GD -3
     expect(t.map((r) => r.clubId)).toEqual(['A', 'C', 'D', 'B']);
@@ -43,5 +37,16 @@ describe('standings', () => {
     expect(t[2].points).toBe(1);
     expect(t[3].points).toBe(1);
     expect(t.every((r) => r.played === 2)).toBe(true);
+  });
+
+  it('counts fixtures that carry only a slim score (non-user leagues)', () => {
+    const fixtures: Fixture[] = [
+      { id: 'f1', matchday: 1, homeClubId: 'A', awayClubId: 'B', score: { homeGoals: 2, awayGoals: 0 } },
+      { id: 'f2', matchday: 1, homeClubId: 'A', awayClubId: 'B', result: res(0, 0) },
+    ];
+    const t = computeTable(fixtures, ['A', 'B']);
+    const a = t.find((r) => r.clubId === 'A');
+    expect(a?.played).toBe(2);
+    expect(a?.points).toBe(4); // a win (slim score) + a draw (full result)
   });
 });

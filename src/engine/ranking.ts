@@ -62,12 +62,22 @@ export function applyMatchRanking(world: World, result: MatchResult): void {
 }
 
 /**
+ * Opponent-strength multiplier from an already-computed expected score: 1 at
+ * parity (exp 0.5), up to REWARD_MULT_MAX vs a much stronger side (low exp), down
+ * to REWARD_MULT_MIN vs a much weaker one. Shared by match income and form so
+ * "how big was this opponent" is measured the same way everywhere.
+ */
+export function rewardMultiplierFromExpected(expected: number): number {
+  return clamp(2 - 2 * expected, RANKING.REWARD_MULT_MIN, RANKING.REWARD_MULT_MAX);
+}
+
+/**
  * Win-income multiplier for beating an opponent, by the ranking gap: 1 at parity,
  * up to REWARD_MULT_MAX against a much stronger side, down to REWARD_MULT_MIN
  * against a much weaker one.
  */
 export function rankingRewardMultiplier(myRating: number, oppRating: number): number {
-  return clamp(2 - 2 * expectedScore(myRating, oppRating), RANKING.REWARD_MULT_MIN, RANKING.REWARD_MULT_MAX);
+  return rewardMultiplierFromExpected(expectedScore(myRating, oppRating));
 }
 
 /**

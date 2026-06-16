@@ -106,6 +106,27 @@ export function formColor(form: number, theme: Theme): string {
   return theme.colors.textMuted;
 }
 
+/** Signed, one-decimal form value for display, e.g. `+2.3` / `-1.0` / `+0.0`. */
+export function formValue(form: number): string {
+  return `${form >= 0 ? '+' : ''}${form.toFixed(1)}`;
+}
+
+/**
+ * Descriptive band for a form value (clamped to -5..+5). The ±1.5 inflection
+ * matches `formSymbol`/`formColor`; the ±4.5 extremes flag genuinely peaking
+ * ("Prime") and washed ("Washed") players — form decays each appearance, so an
+ * exact ±5 rarely sits on screen, but the top/bottom band still surfaces.
+ */
+export function formLabel(form: number): string {
+  if (form >= 4.5) return 'Prime';
+  if (form >= 3) return 'Excellent';
+  if (form >= 1.5) return 'Good';
+  if (form > -1.5) return 'Average';
+  if (form > -3) return 'Poor';
+  if (form > -4.5) return 'Terrible';
+  return 'Washed';
+}
+
 /**
  * Emoji flag per nationality. Keys match the names in engine `NATIONALITIES`.
  * England has no country-code emoji that renders reliably (the St George's cross
