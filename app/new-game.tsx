@@ -95,7 +95,7 @@ export default function NewGame() {
   const backToMode = useCallback(() => setStep('mode'), []);
   const onClubNameChange = useCallback((t: string) => {
     setClubName(t);
-    setShortName((prev) => (prev ? prev : t.slice(0, 3).toUpperCase()));
+    setShortName((prev) => prev || t.slice(0, 3).toUpperCase());
   }, []);
   const onShortNameChange = useCallback((t: string) => setShortName(t.toUpperCase().slice(0, 3)), []);
 
