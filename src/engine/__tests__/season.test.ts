@@ -7,9 +7,10 @@ import {
   leagueTable,
   playMatchday,
 } from '../season';
-import { clubRanking } from '../ranking';
+import { CONTENT } from '../config';
+import { clubRanking, initialRanking } from '../ranking';
 import { computeTable } from '../standings';
-import { clubBudget, transferPlayer } from '../transfers';
+import { clubBudget, initialBudget, transferPlayer } from '../transfers';
 import { isPlayableXI } from '../world';
 
 function freshTakeover(seed = 2026) {
@@ -43,6 +44,20 @@ describe('season', () => {
     expect(w.clubs[s.managedClubId].name).toBe('My FC');
     expect(w.clubs[s.managedClubId].isUserClub).toBe(true);
     expect(s.world.leagues['L0'].clubIds.length).toBe(16); // league size unchanged
+  });
+
+  it('starts a created club as a mid-table newcomer (reputation, budget, ranking)', () => {
+    const w = generateWorld(7);
+    const s = createGame(w, {
+      leagueId: 'L0',
+      mode: 'create',
+      newClub: { name: 'My FC', shortName: 'MFC', primaryColor: '#ffffff', secondaryColor: '#000000' },
+    });
+    const club = w.clubs[s.managedClubId];
+    // Derived from NEW_CLUB_REPUTATION, not inherited from the weakest club.
+    expect(club.reputation).toBe(CONTENT.NEW_CLUB_REPUTATION);
+    expect(club.budget).toBe(initialBudget(CONTENT.NEW_CLUB_REPUTATION));
+    expect(club.ranking).toBe(initialRanking(CONTENT.NEW_CLUB_REPUTATION));
   });
 
   it('plays a full season to completion with a complete table', () => {

@@ -1,5 +1,5 @@
 import { overall } from './attrs';
-import { FORM, MARKET, SAVE_VERSION } from './config';
+import { CONTENT, FORM, MARKET, SAVE_VERSION } from './config';
 import { generateFixtures } from './fixtures';
 import {
   applyCard,
@@ -15,6 +15,7 @@ import {
   applyMatchRanking,
   clubRanking,
   expectedScore,
+  initialRanking,
   rankingPositionDelta,
   rewardMultiplierFromExpected,
 } from './ranking';
@@ -37,7 +38,7 @@ import type {
   TableRow,
   World,
 } from './types';
-import { clubBudget, clubSquadValue, matchIncome, type MatchOutcome, playerValue, seasonPrize } from './transfers';
+import { clubBudget, clubSquadValue, initialBudget, matchIncome, type MatchOutcome, playerValue, seasonPrize } from './transfers';
 import { autoPickSquad, isAvailable } from './world';
 
 export interface NewGameOptions {
@@ -93,6 +94,12 @@ export function createGame(world: World, opts: NewGameOptions): GameState {
     weakest.primaryColor = opts.newClub.primaryColor;
     weakest.secondaryColor = opts.newClub.secondaryColor;
     weakest.isUserClub = true;
+    // A brand-new club arrives as a mid-table newcomer rather than inheriting the
+    // weakest club's bottom-tier standing: reset reputation and re-derive its
+    // budget and ranking from it. The (modest) squad it takes over is kept.
+    weakest.reputation = CONTENT.NEW_CLUB_REPUTATION;
+    weakest.budget = initialBudget(CONTENT.NEW_CLUB_REPUTATION);
+    weakest.ranking = initialRanking(CONTENT.NEW_CLUB_REPUTATION);
     managedClubId = weakest.id;
   }
 

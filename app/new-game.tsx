@@ -47,8 +47,10 @@ export default function NewGame() {
   const countries = Object.values(world.countries);
 
   const leagueStrength = useCallback(
-    (lg: League) =>
-      Math.round(lg.clubIds.reduce((sum, id) => sum + world.clubs[id].reputation, 0) / lg.clubIds.length),
+    (lg: League) => {
+      if (lg.clubIds.length === 0) return 0;
+      return Math.round(lg.clubIds.reduce((sum, id) => sum + world.clubs[id].reputation, 0) / lg.clubIds.length);
+    },
     [world],
   );
 
