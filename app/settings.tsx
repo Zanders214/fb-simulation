@@ -25,6 +25,20 @@ export default function Settings() {
   const themePref = usePrefsStore((s) => s.themePref);
   const setThemePref = usePrefsStore((s) => s.setThemePref);
 
+  const startNewGame = useCallback(() => {
+    if (hasSave) {
+      confirmAction({
+        title: 'Start a new game?',
+        message: 'This will replace your current save.',
+        confirmLabel: 'New Game',
+        destructive: true,
+        onConfirm: () => router.push('/new-game'),
+      });
+    } else {
+      router.push('/new-game');
+    }
+  }, [hasSave, router]);
+
   const confirmReset = useCallback(() => {
     confirmAction({
       title: 'Delete save?',
@@ -66,7 +80,8 @@ export default function Settings() {
       <Card style={styles.mt}>
         <Text style={styles.label}>Save</Text>
         <Text style={styles.value}>{hasSave ? 'A career is in progress.' : 'No saved career.'}</Text>
-        <Button label="Delete save" variant="danger" onPress={confirmReset} disabled={!hasSave} style={styles.btn} />
+        <Button label="New Game" variant="secondary" onPress={startNewGame} style={styles.btn} />
+        <Button label="Delete save" variant="danger" onPress={confirmReset} disabled={!hasSave} style={styles.btnTight} />
       </Card>
 
       <Card style={styles.mt}>
@@ -129,6 +144,7 @@ const makeStyles = (theme: Theme) =>
     value: { color: theme.colors.text, fontSize: theme.font.body, marginTop: theme.spacing(0.5) },
     muted: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: theme.spacing(1) },
     btn: { marginTop: theme.spacing(2) },
+    btnTight: { marginTop: theme.spacing(1) },
 
     themeList: { marginTop: theme.spacing(1.5), gap: theme.spacing(1) },
     themeRow: {

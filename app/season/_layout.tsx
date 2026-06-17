@@ -54,22 +54,29 @@ function FixturesTabButton({ accessibilityState, onPress, onLongPress }: BottomT
 const renderFixturesButton = (props: BottomTabBarButtonProps) => <FixturesTabButton {...props} />;
 const FIXTURES_TAB_OPTIONS = { title: 'Fixtures', tabBarButton: renderFixturesButton } as const;
 
-const headerHomeStyle = { paddingHorizontal: 14 } as const;
+const headerIconStyle = { paddingHorizontal: 14 } as const;
+const headerRightRowStyle = { flexDirection: 'row' as const, alignItems: 'center' as const };
 
-function HeaderHomeButton() {
+function HeaderRightButtons() {
   const router = useRouter();
   const theme = useTheme();
   const color = theme.dark ? theme.colors.onPrimary : theme.colors.text;
   const goHome = useCallback(() => router.dismissTo('/'), [router]);
+  const goSettings = useCallback(() => router.push('/settings'), [router]);
   const iconStyle = useMemo(() => ({ color, fontSize: 22 }), [color]);
   return (
-    <Pressable onPress={goHome} hitSlop={10} style={headerHomeStyle}>
-      <Text style={iconStyle}>⌂</Text>
-    </Pressable>
+    <View style={headerRightRowStyle}>
+      <Pressable onPress={goSettings} hitSlop={10} style={headerIconStyle} testID="season-settings">
+        <Text style={iconStyle}>⚙</Text>
+      </Pressable>
+      <Pressable onPress={goHome} hitSlop={10} style={headerIconStyle} testID="season-home">
+        <Text style={iconStyle}>⌂</Text>
+      </Pressable>
+    </View>
   );
 }
 
-const renderHeaderHome = () => <HeaderHomeButton />;
+const renderHeaderRight = () => <HeaderRightButtons />;
 
 export default function SeasonLayout() {
   const theme = useTheme();
@@ -94,7 +101,7 @@ export default function SeasonLayout() {
       tabBarActiveTintColor: theme.colors.accent,
       tabBarInactiveTintColor: theme.colors.textMuted,
       sceneStyle: { backgroundColor: theme.colors.bg },
-      headerRight: renderHeaderHome,
+      headerRight: renderHeaderRight,
     }),
     [
       headerBg,
