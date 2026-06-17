@@ -1,17 +1,43 @@
-import { Redirect } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Redirect, useRouter } from 'expo-router';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Chip } from '../../src/components/Chip';
-import { leagueTable } from '../../src/engine';
+import { RecordTable } from '../../src/components/RecordTable';
+import { leagueRecords, leagueTable, PYRAMID, type Club, type TableRow as LeagueRow } from '../../src/engine';
 import { useGame } from '../../src/store/gameStore';
-import { theme } from '../../src/theme';
+import { flagFor } from '../../src/ui/format';
+import { useThemedStyles, type Theme } from '../../src/theme';
 
 export default function TableScreen() {
   const game = useGame();
-  if (!game) return <Redirect href="/" />;
+  const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
+  const [showRecords, setShowRecords] = useState(false);
+  const records = useMemo(() => (game ? leagueRecords(game, 5) : null), [game]);
+  // Stable handlers (passed to memoised RecordTable rows / the toggle) — kept
+  // above the early return so the hooks run unconditionally.
+  const openPlayer = useCallback((id: string) => router.push(`/player?id=${id}`), [router]);
+  const openClub = useCallback((clubId: string) => router.push(`/club?id=${clubId}`), [router]);
+  const toggleRecords = useCallback(() => setShowRecords((v) => !v), []);
+  const recordsBtnStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.recordsBtn, pressed && styles.recordsBtnPressed],
+    [styles],
+  );
+  if (!game || !records) return <Redirect href="/" />;
   const rows = leagueTable(game);
+
+  // Highlight the promotion (top) and relegation (bottom) bands, but only where a
+  // tier actually exists above / below in this country's pyramid.
+  const league = game.world.leagues[game.season.leagueId];
+  const country = game.world.countries[league.countryId];
+  const tierIdx = country ? country.leagueIds.indexOf(league.id) : 0;
+  const hasAbove = tierIdx > 0;
+  const hasBelow = country ? tierIdx < country.leagueIds.length - 1 : false;
+  const slots = PYRAMID.PROMOTION_SLOTS;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.leagueTitle} numberOfLines={1}>{`${flagFor(league.country)} ${league.name}`}</Text>
       <View style={styles.headerRow}>
         <Text style={[styles.pos, styles.hCell]}>#</Text>
         <Text style={[styles.club, styles.hCell]}>Club</Text>
@@ -23,34 +49,105 @@ export default function TableScreen() {
         <Text style={[styles.pts, styles.hCell]}>Pts</Text>
       </View>
 
-      {rows.map((r, i) => {
-        const club = game.world.clubs[r.clubId];
-        const isUser = r.clubId === game.managedClubId;
-        return (
-          <View key={r.clubId} style={[styles.row, isUser && styles.userRow]}>
-            <Text style={[styles.pos, styles.cell]}>{i + 1}</Text>
-            <View style={styles.clubCell}>
-              <Chip label={club.shortName} color={club.primaryColor} />
-              <Text style={[styles.clubName, isUser && styles.userText]} numberOfLines={1}>
-                {club.name}
-              </Text>
+      {rows.map((r, i) => (
+        <TableRow
+          key={r.clubId}
+          row={r}
+          club={game.world.clubs[r.clubId]}
+          rank={i + 1}
+          isUser={r.clubId === game.managedClubId}
+          promo={hasAbove && i < slots}
+          releg={hasBelow && i >= rows.length - slots}
+          onOpenClub={openClub}
+        />
+      ))}
+
+      {(hasAbove || hasBelow) && (
+        <View style={styles.legend}>
+          {hasAbove && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotPromo]} />
+              <Text style={styles.legendText}>Promotion</Text>
             </View>
-            <Text style={[styles.num, styles.cell]}>{r.played}</Text>
-            <Text style={[styles.num, styles.cell]}>{r.won}</Text>
-            <Text style={[styles.num, styles.cell]}>{r.drawn}</Text>
-            <Text style={[styles.num, styles.cell]}>{r.lost}</Text>
-            <Text style={[styles.num, styles.cell]}>{r.gd > 0 ? `+${r.gd}` : r.gd}</Text>
-            <Text style={[styles.pts, styles.cell, styles.ptsVal]}>{r.points}</Text>
-          </View>
-        );
-      })}
+          )}
+          {hasBelow && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotReleg]} />
+              <Text style={styles.legendText}>Relegation</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      <Pressable
+        onPress={toggleRecords}
+        accessibilityRole="button"
+        style={recordsBtnStyle}
+      >
+        <Text style={styles.recordsBtnText}>{showRecords ? 'Hide Records ▲' : 'Records ▼'}</Text>
+      </Pressable>
+
+      {showRecords && (
+        <View style={styles.recordsSection}>
+          <RecordTable title="Top Scorers" statLabel="G" entries={records.topScorers} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
+          <RecordTable title="Top Assisters" statLabel="A" entries={records.topAssisters} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
+          <RecordTable title="Top Goalkeepers" statLabel="CS" entries={records.topGoalkeepers} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
+          <RecordTable title="Most Cards" statLabel="Cards" entries={records.mostCards} highlightClubId={game.managedClubId} onPressRow={openPlayer} />
+        </View>
+      )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+// Memoised standings row: owns a stable onPress (stable openClub + its club id)
+// and its pressed-state style, so the table map doesn't hand each row fresh
+// closures every render.
+const TableRow = memo(function TableRow({
+  row,
+  club,
+  rank,
+  isUser,
+  promo,
+  releg,
+  onOpenClub,
+}: Readonly<{
+  row: LeagueRow;
+  club: Club;
+  rank: number;
+  isUser: boolean;
+  promo: boolean;
+  releg: boolean;
+  onOpenClub: (clubId: string) => void;
+}>) {
+  const styles = useThemedStyles(makeStyles);
+  const handlePress = useCallback(() => onOpenClub(row.clubId), [onOpenClub, row.clubId]);
+  const rowStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.row, isUser && styles.userRow, pressed && styles.rowPressed],
+    [styles, isUser],
+  );
+  return (
+    <Pressable onPress={handlePress} accessibilityRole="button" style={rowStyle}>
+      <Text style={[styles.pos, styles.cell, promo && styles.posPromo, releg && styles.posReleg]}>{rank}</Text>
+      <View style={styles.clubCell}>
+        <Chip label={club.shortName} color={club.primaryColor} />
+        <Text style={[styles.clubName, isUser && styles.userText]} numberOfLines={1}>
+          {club.name}
+        </Text>
+      </View>
+      <Text style={[styles.num, styles.cell]}>{row.played}</Text>
+      <Text style={[styles.num, styles.cell]}>{row.won}</Text>
+      <Text style={[styles.num, styles.cell]}>{row.drawn}</Text>
+      <Text style={[styles.num, styles.cell]}>{row.lost}</Text>
+      <Text style={[styles.num, styles.cell]}>{row.gd > 0 ? `+${row.gd}` : row.gd}</Text>
+      <Text style={[styles.pts, styles.cell, styles.ptsVal]}>{row.points}</Text>
+    </Pressable>
+  );
+});
+
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(1.5), paddingBottom: theme.spacing(4) },
+  leagueTitle: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '800', marginBottom: theme.spacing(1) },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -69,13 +166,38 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   userRow: { backgroundColor: theme.colors.surfaceAlt, borderRadius: theme.radius.sm },
+  rowPressed: { opacity: 0.6 },
   cell: { color: theme.colors.text, fontSize: theme.font.small },
   userText: { fontWeight: '800' },
   pos: { width: 22, textAlign: 'center' },
+  posPromo: { color: theme.colors.win, fontWeight: '800' },
+  posReleg: { color: theme.colors.loss, fontWeight: '800' },
   club: { flex: 1 },
   clubCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1) },
   clubName: { color: theme.colors.text, fontSize: theme.font.small, flex: 1 },
   num: { width: 26, textAlign: 'center' },
   pts: { width: 34, textAlign: 'center', fontWeight: '800' },
   ptsVal: { color: theme.colors.accent },
+
+  // promotion / relegation legend
+  legend: { flexDirection: 'row', gap: theme.spacing(2), marginTop: theme.spacing(1.5), paddingHorizontal: theme.spacing(0.5) },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(0.75) },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendDotPromo: { backgroundColor: theme.colors.win },
+  legendDotReleg: { backgroundColor: theme.colors.loss },
+  legendText: { color: theme.colors.textMuted, fontSize: theme.font.small },
+
+  // records toggle + section
+  recordsBtn: {
+    marginTop: theme.spacing(2),
+    paddingVertical: theme.spacing(1.25),
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+  },
+  recordsBtnPressed: { opacity: 0.8 },
+  recordsBtnText: { color: theme.colors.accent, fontSize: theme.font.body, fontWeight: '800' },
+  recordsSection: { marginTop: theme.spacing(1.5), gap: theme.spacing(2) },
 });

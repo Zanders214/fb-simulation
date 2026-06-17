@@ -1,8 +1,23 @@
 import { overall } from './attrs';
-import { DEFAULT_FORMATION, FORMATIONS } from './config';
+import { DEFAULT_FORMATION, FORMATIONS, TRAINING } from './config';
 import type { ClubId, Formation, Player, Position, SquadConfig, SquadRoles, World } from './types';
 
 const SLOT_ORDER: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
+
+/** A player sidelined by injury this matchday (read defensively for old saves). */
+export function isInjured(player: Player): boolean {
+  return (player.injuredMatches ?? 0) > 0;
+}
+
+/** A player serving a suspension (e.g. after a red card). */
+export function isSuspended(player: Player): boolean {
+  return (player.suspendedMatches ?? 0) > 0;
+}
+
+/** Whether a player is fit and free to be selected (not injured, not suspended). */
+export function isAvailable(player: Player): boolean {
+  return !isInjured(player) && !isSuspended(player);
+}
 
 function clubPlayers(world: World, clubId: ClubId): Player[] {
   return world.clubs[clubId].playerIds.map((id) => world.players[id]).filter(Boolean);
@@ -14,10 +29,12 @@ const byAttackingDesc = (a: Player, b: Player) => (b.attrs.attacking ?? 0) - (a.
 /**
  * Pick a sensible starting XI + bench + roles for a club, filling the formation
  * with the best players per position and falling back to best-available when a
- * position is short. Used for the user's initial squad and for every AI club.
+ * position is short. Injured/suspended players are skipped so an AI club always
+ * fields who it actually has available. Used for the user's initial squad and
+ * for every AI club, every matchday.
  */
 export function autoPickSquad(world: World, clubId: ClubId, formation: Formation = DEFAULT_FORMATION): SquadConfig {
-  const players = clubPlayers(world, clubId);
+  const players = clubPlayers(world, clubId).filter(isAvailable);
   const need = FORMATIONS[formation];
   const used = new Set<string>();
   const xi: Player[] = [];
@@ -55,13 +72,36 @@ export function autoPickSquad(world: World, clubId: ClubId, formation: Formation
   return { formation, startingXI, bench, roles: { captainId, penaltyTakerId, freeKickTakerId } };
 }
 
-export type XIIssueType = 'count' | 'duplicate' | 'not-owned' | 'no-gk' | 'off-position' | 'role-not-in-xi';
+export type XIIssueType =
+  | 'count'
+  | 'duplicate'
+  | 'not-owned'
+  | 'no-gk'
+  | 'off-position'
+  | 'role-not-in-xi'
+  | 'unavailable';
 
 export interface XIIssue {
   type: XIIssueType;
   message: string;
   /** Off-position is a soft warning (allowed with a rating penalty); the rest are hard errors. */
   severity: 'error' | 'warning';
+}
+
+/**
+ * Soft warnings for any injured/suspended starters: they're auto-replaced from
+ * the bench at kickoff, but the manager should know to fix the lineup themselves.
+ */
+function unavailableStarterIssues(players: Player[]): XIIssue[] {
+  const issues: XIIssue[] = [];
+  for (const p of players) {
+    if (isInjured(p)) {
+      issues.push({ type: 'unavailable', message: `${p.name} is injured and can't play.`, severity: 'warning' });
+    } else if (isSuspended(p)) {
+      issues.push({ type: 'unavailable', message: `${p.name} is suspended and can't play.`, severity: 'warning' });
+    }
+  }
+  return issues;
 }
 
 /** Validate a lineup. Returns all issues (errors + warnings); empty/warnings-only means playable. */
@@ -90,6 +130,7 @@ export function validateXI(world: World, squad: SquadConfig, clubId: ClubId): XI
   if (gkCount !== 1) {
     issues.push({ type: 'no-gk', message: `You need exactly one goalkeeper (have ${gkCount}).`, severity: 'error' });
   }
+  issues.push(...unavailableStarterIssues(players));
 
   const need = FORMATIONS[squad.formation];
   const have: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
@@ -135,16 +176,111 @@ export function setRole(squad: SquadConfig, role: keyof SquadRoles, playerId: Pl
   return { ...squad, roles: { ...squad.roles, [role]: playerId } };
 }
 
+/**
+ * Toggle a player in or out of the training slots. Removing is always allowed;
+ * adding is ignored once the slots are full (caps the squad at `max`). Returns a
+ * new SquadConfig so the store can publish a fresh reference.
+ */
+export function toggleTraining(squad: SquadConfig, playerId: string, max: number = TRAINING.SLOTS): SquadConfig {
+  const current = squad.trainingIds ?? [];
+  if (current.includes(playerId)) {
+    return { ...squad, trainingIds: current.filter((id) => id !== playerId) };
+  }
+  if (current.length >= max) return squad;
+  return { ...squad, trainingIds: [...current, playerId] };
+}
+
 type PlayerIdOrUndefined = string | undefined;
 
 /**
+ * Drop a player from the tactical setup entirely: remove him from the starting
+ * XI and bench, and clear any role he held. Used when a player leaves the club
+ * (e.g. a transfer out) so the lineup never references an unowned player.
+ */
+export function removeFromSquad(squad: SquadConfig, playerId: string): SquadConfig {
+  const roles: SquadRoles = { ...squad.roles };
+  for (const key of Object.keys(roles) as (keyof SquadRoles)[]) {
+    if (roles[key] === playerId) roles[key] = undefined;
+  }
+  return {
+    ...squad,
+    startingXI: squad.startingXI.filter((id) => id !== playerId),
+    bench: squad.bench.filter((id) => id !== playerId),
+    roles,
+    trainingIds: squad.trainingIds?.filter((id) => id !== playerId),
+  };
+}
+
+/**
+ * Remove a player who is leaving the club from the tactical setup, keeping the
+ * starting XI full. If he was a starter, his slot is filled in place — preserving
+ * the formation's slot order — by the best available owned replacement: the
+ * highest-overall player of the same position, falling back to best-available
+ * when none is left. The replacement is promoted out of the bench/reserves; any
+ * role the departing player held is cleared. He is also dropped from the bench.
+ *
+ * `playerId` may still be listed in the club's `playerIds` (this is called before
+ * the transfer is committed); he is always excluded from replacement candidates.
+ */
+export function replaceInSquad(world: World, squad: SquadConfig, clubId: ClubId, playerId: string): SquadConfig {
+  const xiIndex = squad.startingXI.indexOf(playerId);
+  if (xiIndex === -1) return removeFromSquad(squad, playerId);
+
+  const inXI = new Set(squad.startingXI);
+  const candidates = world.clubs[clubId].playerIds
+    .filter((id) => id !== playerId && !inXI.has(id))
+    .map((id) => world.players[id])
+    .filter(Boolean);
+  if (!candidates.length) return removeFromSquad(squad, playerId);
+
+  const pos = world.players[playerId]?.position;
+  const samePos = candidates.filter((p) => p.position === pos);
+  const replacement = (samePos.length ? samePos : candidates).slice().sort(byOverallDesc)[0];
+
+  const startingXI = squad.startingXI.slice();
+  startingXI[xiIndex] = replacement.id;
+  const roles: SquadRoles = { ...squad.roles };
+  for (const key of Object.keys(roles) as (keyof SquadRoles)[]) {
+    if (roles[key] === playerId) roles[key] = undefined;
+  }
+  return {
+    ...squad,
+    startingXI,
+    bench: squad.bench.filter((id) => id !== playerId && id !== replacement.id),
+    roles,
+    trainingIds: squad.trainingIds?.filter((id) => id !== playerId),
+  };
+}
+
+/**
  * Swap a player who is currently on the bench (or unused) into the XI in place
- * of a starter, keeping slot order. Returns a new SquadConfig.
+ * of a starter, keeping slot order. Any roles (captain, penalty/free-kick taker)
+ * held by the outgoing player transfer to the incoming one, so the XI never ends
+ * up with a role assigned to a benched player. Returns a new SquadConfig.
  */
 export function swapPlayer(squad: SquadConfig, outId: string, inId: string): SquadConfig {
   if (!squad.startingXI.includes(outId)) return squad;
   const startingXI = squad.startingXI.map((id) => (id === outId ? inId : id));
   const bench = squad.bench.map((id) => (id === inId ? outId : id));
   if (!squad.bench.includes(inId)) bench.push(outId);
-  return { ...squad, startingXI, bench: bench.filter((id) => id !== inId) };
+  const roles = { ...squad.roles };
+  for (const key of Object.keys(roles) as (keyof SquadRoles)[]) {
+    if (roles[key] === outId) roles[key] = inId;
+  }
+  return { ...squad, startingXI, bench: bench.filter((id) => id !== inId), roles };
+}
+
+/**
+ * Swap the pitch positions of two players who are both already in the starting
+ * XI by exchanging their slots. Roles stay with the players (both remain in the
+ * XI), so nothing else changes. Returns a new SquadConfig.
+ */
+export function swapStarters(squad: SquadConfig, aId: string, bId: string): SquadConfig {
+  const ai = squad.startingXI.indexOf(aId);
+  const bi = squad.startingXI.indexOf(bId);
+  if (ai === -1 || bi === -1 || ai === bi) return squad;
+  const startingXI = squad.startingXI.slice();
+  startingXI[ai] = bId;
+  startingXI[bi] = aId;
+  return { ...squad, startingXI };
 }

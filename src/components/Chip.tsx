@@ -1,24 +1,28 @@
+import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { theme } from '../theme';
+import { useThemedStyles, type Theme } from '../theme';
 
 /** Small pill used for position tags, OVR values, roles, etc. */
-export function Chip({
+// Memoised: rendered once per PlayerRow (and in many lists) with primitive-only
+// props, so it can safely skip re-rendering when a parent list re-renders.
+export const Chip = memo(function Chip({
   label,
   color,
   textColor,
-}: {
+}: Readonly<{
   label: string;
   color?: string;
   textColor?: string;
-}) {
+}>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.chip, color ? { backgroundColor: color } : null]}>
       <Text style={[styles.text, textColor ? { color: textColor } : null]}>{label}</Text>
     </View>
   );
-}
+});
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   chip: {
     minWidth: 34,
     paddingHorizontal: 7,

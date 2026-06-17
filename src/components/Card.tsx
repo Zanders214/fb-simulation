@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { theme } from '../theme';
+import { useThemedStyles, type Theme } from '../theme';
 
-export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+export function Card({ children, style }: Readonly<{ children: ReactNode; style?: StyleProp<ViewStyle> }>) {
+  const styles = useThemedStyles(makeStyles);
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   card: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.md,

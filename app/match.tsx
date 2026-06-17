@@ -1,17 +1,103 @@
 import { Redirect, useRouter } from 'expo-router';
+import { useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { Chip } from '../src/components/Chip';
-import type { MatchResult } from '../src/engine';
+import { MARKET, type CardEvent, type MatchResult } from '../src/engine';
 import { useGame, useGameStore } from '../src/store/gameStore';
-import { goalTypeTag } from '../src/ui/format';
-import { theme } from '../src/theme';
+import { cardEmoji, formatMoney, goalTypeTag, matchesLabel } from '../src/ui/format';
+import { useTheme, useThemedStyles, type Theme } from '../src/theme';
+
+type Game = NonNullable<ReturnType<typeof useGame>>;
+
+/** The sub-line for a card: only reds carry one ("sent off" / "second yellow"). */
+function cardSecondary(c: CardEvent): string | undefined {
+  if (c.type !== 'red') return undefined;
+  return c.secondYellow ? 'second yellow' : 'sent off';
+}
+
+/** One entry on the match timeline: a goal, a card, or an injury. */
+interface TimelineItem {
+  key: string;
+  minute: number;
+  isHome: boolean;
+  icon: string;
+  primary: string;
+  primaryTag?: string; // muted suffix, e.g. a goal type
+  secondary?: string; // e.g. the assister, "second yellow", or time out
+}
+
+/** Flatten a result's goals, cards and injuries into one minute-sorted timeline. */
+function buildTimeline(r: MatchResult, game: Game): TimelineItem[] {
+  const name = (id: string) => game.world.players[id]?.name ?? 'Unknown';
+  const items: TimelineItem[] = [];
+
+  r.events.forEach((e, i) => {
+    items.push({
+      key: `g${i}`,
+      minute: e.minute,
+      isHome: e.clubId === r.homeClubId,
+      icon: '⚽',
+      primary: name(e.scorerId),
+      primaryTag: goalTypeTag(e.type),
+      secondary: e.assistId ? `assist: ${name(e.assistId)}` : undefined,
+    });
+  });
+  (r.cards ?? []).forEach((c, i) => {
+    items.push({
+      key: `c${i}`,
+      minute: c.minute,
+      isHome: c.clubId === r.homeClubId,
+      icon: cardEmoji(c.type),
+      primary: name(c.playerId),
+      secondary: cardSecondary(c),
+    });
+  });
+  (r.injuries ?? []).forEach((inj, i) => {
+    items.push({
+      key: `i${i}`,
+      minute: inj.minute,
+      isHome: inj.clubId === r.homeClubId,
+      icon: '🚑',
+      primary: name(inj.playerId),
+      secondary: `out ${matchesLabel(inj.matchesOut)}`,
+    });
+  });
+  (r.subs ?? []).forEach((s, i) => {
+    items.push({
+      key: `s${i}`,
+      minute: s.minute,
+      isHome: s.clubId === r.homeClubId,
+      icon: '🔁',
+      primary: name(s.onPlayerId),
+      secondary: `for ${name(s.offPlayerId)}`,
+    });
+  });
+  return items.sort((a, b) => a.minute - b.minute);
+}
+
+type Outcome = 'WIN' | 'DRAW' | 'DEFEAT';
+
+function matchOutcome(my: number, opp: number): Outcome {
+  if (my > opp) return 'WIN';
+  if (my < opp) return 'DEFEAT';
+  return 'DRAW';
+}
+
+function outcomeColorFor(outcome: Outcome, theme: Theme): string {
+  if (outcome === 'WIN') return theme.colors.win;
+  if (outcome === 'DEFEAT') return theme.colors.loss;
+  return theme.colors.draw;
+}
 
 export default function MatchScreen() {
   const router = useRouter();
   const game = useGame();
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const lastOutcome = useGameStore((s) => s.lastOutcome);
+  const goBack = useCallback(() => router.back(), [router]);
 
   if (!game || !lastOutcome?.userResult) return <Redirect href="/season" />;
   const me = game.managedClubId;
@@ -22,11 +108,11 @@ export default function MatchScreen() {
   const isHome = r.homeClubId === me;
   const myGoals = isHome ? r.homeGoals : r.awayGoals;
   const oppGoals = isHome ? r.awayGoals : r.homeGoals;
-  const outcome = myGoals > oppGoals ? 'WIN' : myGoals < oppGoals ? 'DEFEAT' : 'DRAW';
-  const outcomeColor =
-    outcome === 'WIN' ? theme.colors.win : outcome === 'DEFEAT' ? theme.colors.loss : theme.colors.draw;
+  const outcome = matchOutcome(myGoals, oppGoals);
+  const outcomeColor = outcomeColorFor(outcome, theme);
 
   const others = lastOutcome.results.filter((res) => res !== r);
+  const timeline = buildTimeline(r, game);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -46,29 +132,25 @@ export default function MatchScreen() {
         </View>
       </Card>
 
-      <Text style={styles.sectionTitle}>Goals</Text>
-      <Card style={styles.goalsCard}>
-        {r.events.length === 0 ? (
+      {lastOutcome.userEarnings != null && (
+        <Text style={[styles.earnings, { color: outcomeColor }]}>
+          Match fee +{formatMoney(lastOutcome.userEarnings)}
+        </Text>
+      )}
+      {outcome === 'WIN' && lastOutcome.userEarnings != null && lastOutcome.userEarnings > MARKET.MATCH_INCOME.WIN && (
+        <Text style={styles.upset}>Upset bonus — you beat a higher-ranked side</Text>
+      )}
+
+      <Card style={styles.timelineCard}>
+        {timeline.length === 0 ? (
           <Text style={styles.noGoals}>No goals.</Text>
         ) : (
-          r.events.map((e, i) => {
-            const club = game.world.clubs[e.clubId];
-            const scorer = game.world.players[e.scorerId];
-            const assist = e.assistId ? game.world.players[e.assistId] : undefined;
-            return (
-              <View key={i} style={styles.goalRow}>
-                <Text style={styles.minute}>{e.minute}'</Text>
-                <Chip label={club.shortName} color={club.primaryColor} />
-                <View style={styles.goalInfo}>
-                  <Text style={styles.scorer}>
-                    {scorer?.name ?? 'Unknown'}
-                    <Text style={styles.tag}>{goalTypeTag(e.type)}</Text>
-                  </Text>
-                  {assist && <Text style={styles.assist}>assist: {assist.name}</Text>}
-                </View>
-              </View>
-            );
-          })
+          <>
+            <View style={styles.spine} />
+            {timeline.map((item) => (
+              <TimelineEntry key={item.key} item={item} />
+            ))}
+          </>
         )}
       </Card>
 
@@ -76,19 +158,49 @@ export default function MatchScreen() {
         <>
           <Text style={styles.sectionTitle}>Elsewhere this matchday</Text>
           <Card style={styles.othersCard}>
-            {others.map((res, i) => (
-              <OtherResult key={i} res={res} game={game} />
+            {others.map((res) => (
+              <OtherResult key={`${res.homeClubId}-${res.awayClubId}`} res={res} game={game} />
             ))}
           </Card>
         </>
       )}
 
-      <Button label="Continue" onPress={() => router.back()} style={styles.continue} testID="match-continue" />
+      <Button label="Continue" onPress={goBack} style={styles.continue} testID="match-continue" />
     </ScrollView>
   );
 }
 
-function OtherResult({ res, game }: { res: MatchResult; game: NonNullable<ReturnType<typeof useGame>> }) {
+function TimelineEntry({ item }: Readonly<{ item: TimelineItem }>) {
+  const styles = useThemedStyles(makeStyles);
+  const info = (
+    <View style={[styles.goalInfo, item.isHome ? styles.goalInfoHome : styles.goalInfoAway]}>
+      <Text style={[styles.scorer, item.isHome ? styles.alignEnd : styles.alignStart]} numberOfLines={1}>
+        {item.primary}
+        {item.primaryTag ? <Text style={styles.tag}>{item.primaryTag}</Text> : null}
+      </Text>
+      {item.secondary && (
+        <Text style={[styles.assist, item.isHome ? styles.alignEnd : styles.alignStart]} numberOfLines={1}>
+          {item.secondary}
+        </Text>
+      )}
+    </View>
+  );
+
+  return (
+    <View style={styles.timelineRow}>
+      <View style={styles.timelineSide}>{item.isHome ? info : null}</View>
+      <View style={styles.timelineCenter}>
+        {item.isHome && <Text style={styles.ball}>{item.icon}</Text>}
+        <Text style={styles.minute}>{`${item.minute}'`}</Text>
+        {!item.isHome && <Text style={styles.ball}>{item.icon}</Text>}
+      </View>
+      <View style={styles.timelineSide}>{item.isHome ? null : info}</View>
+    </View>
+  );
+}
+
+function OtherResult({ res, game }: Readonly<{ res: MatchResult; game: NonNullable<ReturnType<typeof useGame>> }>) {
+  const styles = useThemedStyles(makeStyles);
   const h = game.world.clubs[res.homeClubId];
   const a = game.world.clubs[res.awayClubId];
   return (
@@ -100,7 +212,7 @@ function OtherResult({ res, game }: { res: MatchResult; game: NonNullable<Return
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.bg },
   content: { padding: theme.spacing(2), gap: theme.spacing(1), paddingBottom: theme.spacing(4) },
   outcome: { fontSize: theme.font.heading, fontWeight: '900', textAlign: 'center', letterSpacing: 2, marginTop: theme.spacing(1) },
@@ -112,12 +224,30 @@ const styles = StyleSheet.create({
   teamNameRight: { textAlign: 'right' },
   score: { color: theme.colors.text, fontSize: 30, fontWeight: '900', paddingHorizontal: theme.spacing(1.5) },
   sectionTitle: { color: theme.colors.textMuted, fontSize: theme.font.small, textTransform: 'uppercase', letterSpacing: 1, marginTop: theme.spacing(1) },
-  goalsCard: { gap: theme.spacing(1) },
+  timelineCard: { paddingVertical: theme.spacing(1.5), gap: theme.spacing(1.25) },
   noGoals: { color: theme.colors.textMuted, fontSize: theme.font.body, textAlign: 'center' },
-  goalRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing(1.25) },
-  minute: { color: theme.colors.textMuted, fontSize: theme.font.small, minWidth: 28, fontWeight: '700' },
-  goalInfo: { flex: 1 },
+  spine: {
+    position: 'absolute',
+    top: theme.spacing(1.5),
+    bottom: theme.spacing(1.5),
+    left: '50%',
+    width: 2,
+    marginLeft: -1,
+    backgroundColor: theme.colors.border,
+  },
+  earnings: { textAlign: 'center', fontSize: theme.font.body, fontWeight: '800', letterSpacing: 0.5 },
+  upset: { textAlign: 'center', color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: -theme.spacing(0.5) },
+  timelineRow: { flexDirection: 'row', alignItems: 'center' },
+  timelineSide: { flex: 1 },
+  timelineCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing(0.5), minWidth: 64 },
+  ball: { fontSize: 12 },
+  minute: { color: theme.colors.textMuted, fontSize: theme.font.small, fontWeight: '700' },
+  goalInfo: { flexShrink: 1 },
+  goalInfoHome: { alignItems: 'flex-end', paddingRight: theme.spacing(1) },
+  goalInfoAway: { alignItems: 'flex-start', paddingLeft: theme.spacing(1) },
   scorer: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '600' },
+  alignEnd: { textAlign: 'right' },
+  alignStart: { textAlign: 'left' },
   tag: { color: theme.colors.textMuted, fontWeight: '400', fontSize: theme.font.small },
   assist: { color: theme.colors.textMuted, fontSize: theme.font.small },
   othersCard: { gap: theme.spacing(0.75) },

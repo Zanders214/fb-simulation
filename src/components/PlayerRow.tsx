@@ -1,24 +1,38 @@
-import type { ReactNode } from 'react';
+import { memo, useCallback, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { overall, type Player } from '../engine';
-import { formColor, formSymbol, overallColor, positionColor } from '../ui/format';
-import { theme } from '../theme';
+import { availabilityColor, flagFor, formColor, formSymbol, overallColor, playerAvailability, positionColor } from '../ui/format';
+import { useTheme, useThemedStyles, type Theme } from '../theme';
 import { Chip } from './Chip';
 
-export function PlayerRow({
+// Memoised: the row rendered for every entry in squad/market lists. It skips
+// re-rendering when its props are unchanged — fully effective at call sites that
+// pass a stable player and handler (e.g. lineup/table). Call sites that build an
+// inline `right`/`onPress` per render (e.g. the market lists) still re-render;
+// stabilising those is a separate, larger change kept out of this pass.
+export const PlayerRow = memo(function PlayerRow({
   player,
   onPress,
+  onLongPress,
   selected,
   subtitle,
   right,
-}: {
+}: Readonly<{
   player: Player;
   onPress?: () => void;
+  onLongPress?: () => void;
   selected?: boolean;
   subtitle?: string;
   right?: ReactNode;
-}) {
+}>) {
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const pressableStyle = useCallback(
+    ({ pressed }: { pressed: boolean }) => [styles.row, selected && styles.selected, pressed && styles.pressed],
+    [styles, selected],
+  );
   const ovr = overall(player);
+  const availability = playerAvailability(player);
   const body = (
     <>
       <Chip label={player.position} color={positionColor(player.position)} />
@@ -27,33 +41,42 @@ export function PlayerRow({
           {player.name}
         </Text>
         <Text style={styles.sub} numberOfLines={1}>
-          {subtitle ?? `Age ${player.age} · ${player.nationality}`}
+          {subtitle ?? `Age ${player.age} · ${flagFor(player.nationality)}`}
         </Text>
       </View>
+      {availability && (
+        <Text
+          style={[styles.statusTag, { color: availabilityColor(availability.kind), borderColor: availabilityColor(availability.kind) }]}
+          numberOfLines={1}
+        >
+          {availability.kind === 'injured' ? '✚' : '⊘'} {availability.matches}
+        </Text>
+      )}
       {right ?? (
         <View style={styles.stat}>
-          <Text style={[styles.ovr, { color: overallColor(ovr) }]}>{ovr}</Text>
-          <Text style={[styles.form, { color: formColor(player.form) }]}>{formSymbol(player.form)}</Text>
+          <Text style={[styles.ovr, { color: overallColor(ovr, theme) }]}>{ovr}</Text>
+          <Text style={[styles.form, { color: formColor(player.form, theme) }]}>{formSymbol(player.form)}</Text>
         </View>
       )}
     </>
   );
 
-  if (onPress) {
+  if (onPress || onLongPress) {
     return (
       <Pressable
         onPress={onPress}
+        onLongPress={onLongPress}
         accessibilityRole="button"
-        style={({ pressed }) => [styles.row, selected && styles.selected, pressed && styles.pressed]}
+        style={pressableStyle}
       >
         {body}
       </Pressable>
     );
   }
   return <View style={[styles.row, selected && styles.selected]}>{body}</View>;
-}
+});
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -67,6 +90,15 @@ const styles = StyleSheet.create({
   info: { flex: 1, minWidth: 0 },
   name: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '600' },
   sub: { color: theme.colors.textMuted, fontSize: theme.font.small },
+  statusTag: {
+    fontSize: theme.font.small,
+    fontWeight: '800',
+    borderWidth: 1,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: theme.spacing(0.75),
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
   stat: { alignItems: 'center', minWidth: 38 },
   ovr: { fontSize: theme.font.body, fontWeight: '800' },
   form: { fontSize: theme.font.small },

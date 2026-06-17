@@ -6,16 +6,24 @@ import {
   COUNTRIES,
   FIRST_NAMES,
   LAST_NAMES,
-  LEAGUE_SUFFIXES,
   NATIONALITIES,
+  TIER_SUFFIXES,
 } from './names';
+import { initialRanking } from './ranking';
 import { gaussian, randInt, type Rng, streamFor } from './rng';
-import type { Club, League, Player, Position, World } from './types';
+import { initialBudget } from './transfers';
+import type { Club, Country, League, Player, Position, World } from './types';
 import { clamp } from './util';
 
 // Salts give each entity an independent, order-independent PRNG stream so the
 // world is byte-stable for a given seed regardless of generation order.
 const SALT = { LEAGUE: 101, CLUB: 211, PLAYER: 307 } as const;
+
+/** Average squad reputation for a tier (1 = top). Clamped to the table's range. */
+function tierRepMean(tier: number): number {
+  const means = CONTENT.TIER_REP_MEAN;
+  return means[Math.min(tier - 1, means.length - 1)];
+}
 
 const POSITIONS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 
@@ -67,6 +75,14 @@ function pickAge(rng: Rng): number {
   return Math.round((randInt(rng, 17, 36) + randInt(rng, 17, 36)) / 2);
 }
 
+/** Growth headroom above current overall — younger players have more potential. */
+function potentialHeadroom(rng: Rng, age: number): number {
+  if (age <= 20) return randInt(rng, 6, 18);
+  if (age <= 24) return randInt(rng, 3, 12);
+  if (age <= 28) return randInt(rng, 0, 5);
+  return 0;
+}
+
 function generatePlayer(rng: Rng, id: string, clubId: string, position: Position, clubRep: number): Player {
   const base = clamp(gaussian(rng, clubRep, 7), 30, 95);
   const facet = POSITION_FACETS[position];
@@ -96,12 +112,22 @@ function generatePlayer(rng: Rng, id: string, clubId: string, position: Position
     seasonGoals: 0,
     seasonAssists: 0,
     seasonApps: 0,
+    seasonSubApps: 0,
+    seasonCleanSheets: 0,
+    seasonYellowCards: 0,
+    seasonRedCards: 0,
+    careerGoals: 0,
+    careerAssists: 0,
+    careerApps: 0,
+    careerSubApps: 0,
+    careerCleanSheets: 0,
+    careerYellowCards: 0,
+    careerRedCards: 0,
+    peakValue: 0,
   };
 
   const ov = overall(player);
-  const headroom =
-    age <= 20 ? randInt(rng, 6, 18) : age <= 24 ? randInt(rng, 3, 12) : age <= 28 ? randInt(rng, 0, 5) : 0;
-  player.potential = clamp(ov + headroom, ov, 99);
+  player.potential = clamp(ov + potentialHeadroom(rng, age), ov, 99);
   return player;
 }
 
@@ -119,53 +145,93 @@ function generateSquad(seed: number, li: number, ci: number, club: Club): Player
   return out;
 }
 
+/** Generate one league (tier `tier` of `countryId`) and all of its clubs + players. */
+function generateLeague(
+  seed: number,
+  li: number,
+  countryName: string,
+  countryId: string,
+  tier: number,
+  clubs: Record<string, Club>,
+  players: Record<string, Player>,
+): League {
+  const leagueId = `L${li}`;
+  const tierSuffix = TIER_SUFFIXES[tier - 1] ?? `Tier ${tier}`;
+  const league: League = {
+    id: leagueId,
+    name: `${countryName} ${tierSuffix}`,
+    country: countryName,
+    countryId,
+    tier,
+    clubIds: [],
+  };
+  const usedPlaces = new Set<string>();
+  const usedShort = new Set<string>();
+  const repMean = tierRepMean(tier);
+
+  for (let ci = 0; ci < CONTENT.CLUBS_PER_LEAGUE; ci++) {
+    const cr = streamFor(seed, SALT.CLUB, li, ci);
+    const clubId = `${leagueId}_C${ci}`;
+    const { name, shortName } = pickClubName(cr, usedPlaces, usedShort);
+    const reputation = Math.round(
+      clamp(gaussian(cr, repMean, CONTENT.REP_SD), CONTENT.REP_MIN, CONTENT.REP_MAX),
+    );
+    const [primaryColor, secondaryColor] = pickColors(cr);
+    const club: Club = {
+      id: clubId,
+      leagueId,
+      name,
+      shortName,
+      reputation,
+      budget: initialBudget(reputation),
+      ranking: initialRanking(reputation),
+      primaryColor,
+      secondaryColor,
+      playerIds: [],
+    };
+
+    for (const p of generateSquad(seed, li, ci, club)) {
+      players[p.id] = p;
+      club.playerIds.push(p.id);
+    }
+
+    clubs[clubId] = club;
+    league.clubIds.push(clubId);
+  }
+
+  return league;
+}
+
 /**
- * Generate the entire world (all leagues, clubs, players) deterministically
- * from a single seed. Same seed + same generatorVersion => identical world.
+ * Generate the entire world deterministically from a single seed: a set of
+ * countries, each running a stacked pyramid of `TIERS_PER_COUNTRY` leagues
+ * (top → bottom), with higher tiers fielding stronger, richer clubs. Same seed +
+ * same generatorVersion => identical world.
+ *
+ * League ids are assigned in pyramid order (`L0` = country 0 / tier 1), so the
+ * top flight of the first country is always `L0`.
  */
 export function generateWorld(seed: number, generatorVersion = CONTENT.GENERATOR_VERSION): World {
+  const countries: Record<string, Country> = {};
   const leagues: Record<string, League> = {};
   const clubs: Record<string, Club> = {};
   const players: Record<string, Player> = {};
 
-  for (let li = 0; li < CONTENT.LEAGUES; li++) {
-    const leagueId = `L${li}`;
-    const country = COUNTRIES[li % COUNTRIES.length];
-    const suffix = LEAGUE_SUFFIXES[li % LEAGUE_SUFFIXES.length];
-    const league: League = { id: leagueId, name: `${country} ${suffix}`, country, clubIds: [] };
-    const usedPlaces = new Set<string>();
-    const usedShort = new Set<string>();
+  let li = 0;
+  for (let co = 0; co < CONTENT.COUNTRY_COUNT; co++) {
+    const countryId = `CT${co}`;
+    const countryName = COUNTRIES[co % COUNTRIES.length];
+    const country: Country = { id: countryId, name: countryName, leagueIds: [] };
 
-    for (let ci = 0; ci < CONTENT.CLUBS_PER_LEAGUE; ci++) {
-      const cr = streamFor(seed, SALT.CLUB, li, ci);
-      const clubId = `${leagueId}_C${ci}`;
-      const { name, shortName } = pickClubName(cr, usedPlaces, usedShort);
-      const reputation = Math.round(
-        clamp(gaussian(cr, CONTENT.REP_MEAN, CONTENT.REP_SD), CONTENT.REP_MIN, CONTENT.REP_MAX),
-      );
-      const [primaryColor, secondaryColor] = pickColors(cr);
-      const club: Club = {
-        id: clubId,
-        leagueId,
-        name,
-        shortName,
-        reputation,
-        primaryColor,
-        secondaryColor,
-        playerIds: [],
-      };
-
-      for (const p of generateSquad(seed, li, ci, club)) {
-        players[p.id] = p;
-        club.playerIds.push(p.id);
-      }
-
-      clubs[clubId] = club;
-      league.clubIds.push(clubId);
+    for (let tier = 1; tier <= CONTENT.TIERS_PER_COUNTRY; tier++) {
+      const league = generateLeague(seed, li, countryName, countryId, tier, clubs, players);
+      leagues[league.id] = league;
+      country.leagueIds.push(league.id);
+      li++;
     }
 
-    leagues[leagueId] = league;
+    countries[countryId] = country;
   }
 
-  return { seed, generatorVersion, leagues, clubs, players };
+  return { seed, generatorVersion, countries, leagues, clubs, players };
 }

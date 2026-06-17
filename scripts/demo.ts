@@ -5,13 +5,14 @@
  */
 import { overall } from '../src/engine/attrs';
 import { generateWorld } from '../src/engine/content';
-import { createGame, isSeasonComplete, leagueTable, playMatchday } from '../src/engine/season';
+import { advanceSeason, createGame, isSeasonComplete, leagueTable, playMatchday } from '../src/engine/season';
 
 const seed = Number(process.argv[2] ?? 2026);
 const w = generateWorld(seed);
-const leagueId = 'L0';
+// Start in a middle tier so promotion/relegation is visible across seasons.
+const leagueId = 'L1';
 const league = w.leagues[leagueId];
-console.log(`Seed ${seed} — League: ${league.name} — ${league.clubIds.length} clubs`);
+console.log(`Seed ${seed} — League: ${league.name} (${league.country}, tier ${league.tier}) — ${league.clubIds.length} clubs`);
 
 const s = createGame(w, { leagueId, mode: 'takeover', takeoverClubId: league.clubIds[0] });
 const club = w.clubs[s.managedClubId];
@@ -30,11 +31,46 @@ for (let i = 0; i < 5; i++) {
   const h = w.clubs[userResult.homeClubId].shortName;
   const a = w.clubs[userResult.awayClubId].shortName;
   const scorers = userResult.events.map((e) => `${w.players[e.scorerId].lastName} ${e.minute}'`).join(', ');
-  console.log(`  ${h} ${userResult.homeGoals}-${userResult.awayGoals} ${a}    ${scorers}`);
+  const cards = userResult.cards.map((c) => `${c.type === 'yellow' ? '🟨' : '🟥'}${w.players[c.playerId].lastName}`).join(' ');
+  const injuries = userResult.injuries.map((iv) => `🚑${w.players[iv.playerId].lastName}(${iv.matchesOut})`).join(' ');
+  const myId = s.managedClubId;
+  const subs = userResult.subs
+    .filter((x) => x.clubId === myId)
+    .map((x) => `🔁${w.players[x.onPlayerId].lastName} ${x.minute}'`)
+    .join(' ');
+  const cardsPart = cards ? `   ${cards}` : '';
+  const injuriesPart = injuries ? `   ${injuries}` : '';
+  const subsPart = subs ? `   ${subs}` : '';
+  console.log(`  ${h} ${userResult.homeGoals}-${userResult.awayGoals} ${a}    ${scorers}${cardsPart}${injuriesPart}${subsPart}`);
 }
 
-let guard = 0;
-while (!isSeasonComplete(s) && guard++ < 200) playMatchday(s);
+function playToEnd() {
+  let guard = 0;
+  while (!isSeasonComplete(s) && guard++ < 200) playMatchday(s);
+}
+
+playToEnd();
+
+// Discipline & injury tally across the whole season just played (every fixture).
+let yellow = 0;
+let red = 0;
+let injuries = 0;
+let subs = 0;
+for (const f of s.season.fixtures) {
+  if (!f.result) continue;
+  for (const c of f.result.cards) {
+    if (c.type === 'yellow') yellow++;
+    else red++;
+  }
+  injuries += f.result.injuries.length;
+  subs += f.result.subs.length;
+}
+const games = s.season.fixtures.filter((f) => f.result).length;
+console.log(
+  `\nSeason discipline: ${yellow} yellow, ${red} red over ${games} games ` +
+    `(${(yellow / games).toFixed(2)} / ${(red / games).toFixed(2)} per game); ${injuries} injuries; ` +
+    `${subs} subs (${(subs / (games * 2)).toFixed(2)} per team/game).`,
+);
 
 console.log('\nFinal table:');
 leagueTable(s).forEach((r, i) => {
@@ -44,3 +80,20 @@ leagueTable(s).forEach((r, i) => {
     `  ${String(i + 1).padStart(2)}. ${c.shortName.padEnd(4)} P${r.played} W${r.won} D${r.drawn} L${r.lost}  ${r.gf}-${r.ga} (${r.gd >= 0 ? '+' : ''}${r.gd})  ${r.points}pts${you}`,
   );
 });
+
+function movementArrow(movement: string | undefined): string {
+  if (movement === 'promoted') return '⬆ promoted';
+  if (movement === 'relegated') return '⬇ relegated';
+  return '— stayed';
+}
+
+console.log('\nPromotion / relegation over the next few seasons:');
+for (let n = 0; n < 4; n++) {
+  advanceSeason(s); // rolls over the season just played, applying pro/rel
+  const h = s.history[s.history.length - 1];
+  const played = w.leagues[h.leagueId ?? ''];
+  console.log(
+    `  Season ${h.season}: ${club.shortName} finished ${h.userPosition} in ${played?.name} → ${movementArrow(h.movement)}`,
+  );
+  playToEnd();
+}

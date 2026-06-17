@@ -1,6 +1,43 @@
-import type { GoalType, Position } from '../engine';
-import { theme } from '../theme';
+import type { CardType, GoalType, Player, Position } from '../engine';
+import type { Theme } from '../theme';
 
+/** Conventional, theme-independent card colours (amber / red). */
+export const CARD_COLORS: Record<CardType, string> = {
+  yellow: '#f1c40f',
+  red: '#e74c3c',
+};
+
+export function cardEmoji(type: CardType): string {
+  return type === 'yellow' ? '🟨' : '🟥';
+}
+
+/** `1 match` / `3 matches`. */
+export function matchesLabel(n: number): string {
+  return `${n} ${n === 1 ? 'match' : 'matches'}`;
+}
+
+export interface Availability {
+  kind: 'injured' | 'suspended';
+  matches: number;
+  /** Short status line, e.g. "Injured · 3 matches". */
+  label: string;
+}
+
+/** A player's current unavailability (injury takes precedence), or null if fit. */
+export function playerAvailability(player: Player): Availability | null {
+  const injured = player.injuredMatches ?? 0;
+  if (injured > 0) return { kind: 'injured', matches: injured, label: `Injured · ${matchesLabel(injured)}` };
+  const suspended = player.suspendedMatches ?? 0;
+  if (suspended > 0) return { kind: 'suspended', matches: suspended, label: `Suspended · ${matchesLabel(suspended)}` };
+  return null;
+}
+
+/** Colour for an availability status: amber for injuries, red for suspensions. */
+export function availabilityColor(kind: Availability['kind']): string {
+  return kind === 'injured' ? '#e67e22' : CARD_COLORS.red;
+}
+
+/** Position tag colours are conventional (GK gold, DEF blue, …) and theme-independent. */
 export function positionColor(pos: Position): string {
   switch (pos) {
     case 'GK':
@@ -14,18 +51,28 @@ export function positionColor(pos: Position): string {
   }
 }
 
-export function ratingColor(r: number): string {
+export function ratingColor(r: number, theme: Theme): string {
   if (r >= 7.5) return theme.colors.win;
   if (r >= 6.5) return '#8bc34a';
   if (r >= 5.5) return theme.colors.draw;
   return theme.colors.loss;
 }
 
-export function overallColor(ovr: number): string {
+export function overallColor(ovr: number, theme: Theme): string {
   if (ovr >= 82) return theme.colors.win;
   if (ovr >= 72) return '#8bc34a';
   if (ovr >= 62) return theme.colors.draw;
   return theme.colors.textMuted;
+}
+
+/** Format a money amount (stored in thousands) as e.g. €90.0M / €750K / €0. */
+export function formatMoney(thousands: number): string {
+  if (thousands <= 0) return '€0';
+  if (thousands >= 1000) {
+    const m = thousands / 1000;
+    return `€${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  return `€${Math.round(thousands)}K`;
 }
 
 export function ordinal(n: number): string {
@@ -53,8 +100,71 @@ export function formSymbol(form: number): string {
   return '–';
 }
 
-export function formColor(form: number): string {
+export function formColor(form: number, theme: Theme): string {
   if (form >= 1.5) return theme.colors.win;
   if (form <= -1.5) return theme.colors.loss;
   return theme.colors.textMuted;
+}
+
+/** Signed, one-decimal form value for display, e.g. `+2.3` / `-1.0` / `+0.0`. */
+export function formValue(form: number): string {
+  return `${form >= 0 ? '+' : ''}${form.toFixed(1)}`;
+}
+
+/**
+ * Descriptive band for a form value (clamped to -5..+5). The ±1.5 inflection
+ * matches `formSymbol`/`formColor`; the ±4.5 extremes flag genuinely peaking
+ * ("Prime") and washed ("Washed") players — form decays each appearance, so an
+ * exact ±5 rarely sits on screen, but the top/bottom band still surfaces.
+ */
+export function formLabel(form: number): string {
+  if (form >= 4.5) return 'Prime';
+  if (form >= 3) return 'Excellent';
+  if (form >= 1.5) return 'Good';
+  if (form > -1.5) return 'Average';
+  if (form > -3) return 'Poor';
+  if (form > -4.5) return 'Terrible';
+  return 'Washed';
+}
+
+/**
+ * Emoji flag per nationality. Keys match the names in engine `NATIONALITIES`.
+ * England has no country-code emoji that renders reliably (the St George's cross
+ * is a subdivision tag sequence many platforms can't draw), so it falls back to
+ * the UK flag; every other nation is a regional-indicator pair.
+ */
+const NATIONALITY_FLAGS: Record<string, string> = {
+  England: '🇬🇧',
+  Spain: '🇪🇸',
+  Italy: '🇮🇹',
+  Germany: '🇩🇪',
+  France: '🇫🇷',
+  Netherlands: '🇳🇱',
+  Portugal: '🇵🇹',
+  Brazil: '🇧🇷',
+  Argentina: '🇦🇷',
+  Belgium: '🇧🇪',
+  Croatia: '🇭🇷',
+  Denmark: '🇩🇰',
+  Sweden: '🇸🇪',
+  Norway: '🇳🇴',
+  Poland: '🇵🇱',
+  Switzerland: '🇨🇭',
+  Austria: '🇦🇹',
+  Greece: '🇬🇷',
+  Turkey: '🇹🇷',
+  Japan: '🇯🇵',
+  'United States': '🇺🇸',
+  Mexico: '🇲🇽',
+  Nigeria: '🇳🇬',
+  Senegal: '🇸🇳',
+  Colombia: '🇨🇴',
+  Uruguay: '🇺🇾',
+  Ghana: '🇬🇭',
+  Morocco: '🇲🇦',
+};
+
+/** Emoji flag for a player's nationality; falls back to the name if unmapped. */
+export function flagFor(nationality: string): string {
+  return NATIONALITY_FLAGS[nationality] ?? nationality;
 }
