@@ -3,8 +3,8 @@ import { useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../src/components/Button';
-import { useGameStore } from '../src/store/gameStore';
-import { confirmAction } from '../src/ui/confirm';
+import { MatchdayHome } from '../src/components/home/MatchdayHome';
+import { useGame, useGameStore } from '../src/store/gameStore';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
 export default function Home() {
@@ -12,23 +12,9 @@ export default function Home() {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
   const hasHydrated = useGameStore((s) => s.hasHydrated);
-  const hasSave = useGameStore((s) => s.game !== null);
+  const game = useGame();
 
-  const startNewGame = useCallback(() => {
-    if (hasSave) {
-      confirmAction({
-        title: 'Start a new game?',
-        message: 'This will replace your current save.',
-        confirmLabel: 'New Game',
-        destructive: true,
-        onConfirm: () => router.push('/new-game'),
-      });
-    } else {
-      router.push('/new-game');
-    }
-  }, [hasSave, router]);
-
-  const goToSeason = useCallback(() => router.push('/season'), [router]);
+  const startNewGame = useCallback(() => router.push('/new-game'), [router]);
   const goToSettings = useCallback(() => router.push('/settings'), [router]);
 
   if (!hasHydrated) {
@@ -39,6 +25,9 @@ export default function Home() {
     );
   }
 
+  // With an active career, Home is the matchday dashboard; otherwise a start menu.
+  if (game) return <MatchdayHome game={game} />;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.hero}>
@@ -48,15 +37,7 @@ export default function Home() {
       </View>
 
       <View style={styles.menu}>
-        {hasSave && (
-          <Button label="Continue" onPress={goToSeason} testID="home-continue" />
-        )}
-        <Button
-          label="New Game"
-          variant={hasSave ? 'secondary' : 'primary'}
-          onPress={startNewGame}
-          testID="home-new-game"
-        />
+        <Button label="New Game" onPress={startNewGame} testID="home-new-game" />
         <Button label="Settings" variant="ghost" onPress={goToSettings} testID="home-settings" />
       </View>
 
