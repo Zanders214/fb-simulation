@@ -16,6 +16,6 @@ export const StatLine = memo(function StatLine({ label, value }: Readonly<{ labe
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   statLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statLabel: { color: theme.colors.textMuted, fontSize: theme.font.body },
-  statValue: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '800' },
+  statLabel: { color: theme.colors.textMuted, fontFamily: theme.fonts.body, fontSize: theme.font.body },
+  statValue: { color: theme.colors.text, fontFamily: theme.fonts.numeric, fontSize: theme.font.body, fontWeight: '800' },
 });

@@ -7,13 +7,15 @@ import { useGameStore } from '../src/store/gameStore';
 import { usePrefsStore } from '../src/store/prefsStore';
 import { confirmAction } from '../src/ui/confirm';
 import {
+  MODE_OPTIONS,
   resolveTheme,
-  THEME_OPTIONS,
+  STYLE_OPTIONS,
   themes,
   useThemedStyles,
+  type ModePref,
   type Palette,
+  type StyleName,
   type Theme,
-  type ThemePref,
 } from '../src/theme';
 
 export default function Settings() {
@@ -22,8 +24,16 @@ export default function Settings() {
   const scheme = useColorScheme();
   const hasSave = useGameStore((s) => s.game !== null);
   const resetGame = useGameStore((s) => s.resetGame);
-  const themePref = usePrefsStore((s) => s.themePref);
-  const setThemePref = usePrefsStore((s) => s.setThemePref);
+  const stylePref = usePrefsStore((s) => s.stylePref);
+  const modePref = usePrefsStore((s) => s.modePref);
+  const setStylePref = usePrefsStore((s) => s.setStylePref);
+  const setModePref = usePrefsStore((s) => s.setModePref);
+
+  // Preview each style swatch in the appearance the user is currently resolving to.
+  const resolvedMode = resolveTheme(stylePref, modePref, scheme).mode;
+
+  const onSelectStyle = useCallback((key: string) => setStylePref(key as StyleName), [setStylePref]);
+  const onSelectMode = useCallback((key: string) => setModePref(key as ModePref), [setModePref]);
 
   const confirmReset = useCallback(() => {
     confirmAction({
@@ -41,25 +51,40 @@ export default function Settings() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Card>
+        <Text style={styles.label}>Style</Text>
+        <Text style={styles.muted}>Typography and layout treatment — each restyles the whole app.</Text>
+        <View style={styles.optionList}>
+          {STYLE_OPTIONS.map((opt) => (
+            <OptionRow
+              key={opt.key}
+              optionKey={opt.key}
+              label={opt.label}
+              subtitle={opt.subtitle}
+              palette={themes[`${opt.key}:${resolvedMode}`].colors}
+              selected={stylePref === opt.key}
+              onSelect={onSelectStyle}
+            />
+          ))}
+        </View>
+      </Card>
+
+      <Card style={styles.mt}>
         <Text style={styles.label}>Appearance</Text>
         <Text style={styles.muted}>
-          “System” follows your device’s light/dark setting. Pick a theme to override it.
+          “System” follows your device’s light/dark setting. Pick one to override it.
         </Text>
-        <View style={styles.themeList}>
-          {THEME_OPTIONS.map((opt) => {
-            const palette = opt.key === 'system' ? resolveTheme('system', scheme).colors : themes[opt.key].colors;
-            return (
-              <ThemeOption
-                key={opt.key}
-                optionKey={opt.key}
-                label={opt.label}
-                subtitle={opt.subtitle}
-                palette={palette}
-                selected={themePref === opt.key}
-                onSelect={setThemePref}
-              />
-            );
-          })}
+        <View style={styles.optionList}>
+          {MODE_OPTIONS.map((opt) => (
+            <OptionRow
+              key={opt.key}
+              optionKey={opt.key}
+              label={opt.label}
+              subtitle={opt.subtitle}
+              palette={resolveTheme(stylePref, opt.key, scheme).colors}
+              selected={modePref === opt.key}
+              onSelect={onSelectMode}
+            />
+          ))}
         </View>
       </Card>
 
@@ -78,7 +103,7 @@ export default function Settings() {
   );
 }
 
-const ThemeOption = memo(function ThemeOption({
+const OptionRow = memo(function OptionRow({
   optionKey,
   label,
   subtitle,
@@ -86,34 +111,29 @@ const ThemeOption = memo(function ThemeOption({
   selected,
   onSelect,
 }: Readonly<{
-  optionKey: ThemePref;
+  optionKey: string;
   label: string;
   subtitle: string;
   palette: Palette;
   selected: boolean;
-  onSelect: (pref: ThemePref) => void;
+  onSelect: (key: string) => void;
 }>) {
   const styles = useThemedStyles(makeStyles);
   const onPress = useCallback(() => onSelect(optionKey), [onSelect, optionKey]);
   const accessibilityState = useMemo(() => ({ selected }), [selected]);
   const rowStyle = useCallback(
-    ({ pressed }: { pressed: boolean }) => [styles.themeRow, selected && styles.themeRowActive, pressed && styles.pressed],
+    ({ pressed }: { pressed: boolean }) => [styles.row, selected && styles.rowActive, pressed && styles.pressed],
     [styles, selected],
   );
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={accessibilityState}
-      style={rowStyle}
-    >
+    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={accessibilityState} style={rowStyle}>
       <View style={[styles.swatch, { backgroundColor: palette.bg, borderColor: palette.border }]}>
         <View style={[styles.swatchPrimary, { backgroundColor: palette.primary }]} />
         <View style={[styles.swatchAccent, { backgroundColor: palette.accent }]} />
       </View>
-      <View style={styles.themeText}>
-        <Text style={styles.themeLabel}>{label}</Text>
-        <Text style={styles.themeSub}>{subtitle}</Text>
+      <View style={styles.optionText}>
+        <Text style={styles.optionLabel}>{label}</Text>
+        <Text style={styles.optionSub}>{subtitle}</Text>
       </View>
       <Text style={[styles.check, !selected && styles.checkHidden]}>✓</Text>
     </Pressable>
@@ -125,13 +145,29 @@ const makeStyles = (theme: Theme) =>
     container: { flex: 1, backgroundColor: theme.colors.bg },
     content: { padding: theme.spacing(2), paddingBottom: theme.spacing(4) },
     mt: { marginTop: theme.spacing(2) },
-    label: { color: theme.colors.textMuted, fontSize: theme.font.small, textTransform: 'uppercase', letterSpacing: 1 },
-    value: { color: theme.colors.text, fontSize: theme.font.body, marginTop: theme.spacing(0.5) },
-    muted: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: theme.spacing(1) },
+    label: {
+      color: theme.colors.textMuted,
+      fontFamily: theme.fonts.body,
+      fontSize: theme.font.small,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    value: {
+      color: theme.colors.text,
+      fontFamily: theme.fonts.body,
+      fontSize: theme.font.body,
+      marginTop: theme.spacing(0.5),
+    },
+    muted: {
+      color: theme.colors.textMuted,
+      fontFamily: theme.fonts.body,
+      fontSize: theme.font.small,
+      marginTop: theme.spacing(1),
+    },
     btn: { marginTop: theme.spacing(2) },
 
-    themeList: { marginTop: theme.spacing(1.5), gap: theme.spacing(1) },
-    themeRow: {
+    optionList: { marginTop: theme.spacing(1.5), gap: theme.spacing(1) },
+    row: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: theme.spacing(1.5),
@@ -141,7 +177,7 @@ const makeStyles = (theme: Theme) =>
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surfaceAlt,
     },
-    themeRowActive: { borderColor: theme.colors.accent },
+    rowActive: { borderColor: theme.colors.accent },
     pressed: { opacity: 0.7 },
     swatch: {
       width: 46,
@@ -154,9 +190,9 @@ const makeStyles = (theme: Theme) =>
     },
     swatchPrimary: { width: 26, height: 26, borderRadius: 13 },
     swatchAccent: { position: 'absolute', right: 5, bottom: 5, width: 14, height: 14, borderRadius: 7 },
-    themeText: { flex: 1, minWidth: 0 },
-    themeLabel: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '700' },
-    themeSub: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 1 },
+    optionText: { flex: 1, minWidth: 0 },
+    optionLabel: { color: theme.colors.text, fontFamily: theme.fonts.heading, fontWeight: theme.fonts.headingWeight, fontSize: theme.font.body },
+    optionSub: { color: theme.colors.textMuted, fontFamily: theme.fonts.body, fontSize: theme.font.small, marginTop: 1 },
     check: { color: theme.colors.accent, fontSize: 20, fontWeight: '900', minWidth: 24, textAlign: 'center' },
     checkHidden: { opacity: 0 },
   });

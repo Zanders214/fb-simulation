@@ -16,6 +16,6 @@ export function Meta({ label, value }: Readonly<{ label: string; value: string }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   meta: { alignItems: 'center', flex: 1 },
-  metaValue: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '800' },
-  metaLabel: { color: theme.colors.textMuted, fontSize: theme.font.small, marginTop: 2 },
+  metaValue: { color: theme.colors.text, fontFamily: theme.fonts.numeric, fontSize: theme.font.body, fontWeight: '800' },
+  metaLabel: { color: theme.colors.textMuted, fontFamily: theme.fonts.body, fontSize: theme.font.small, marginTop: 2 },
 });

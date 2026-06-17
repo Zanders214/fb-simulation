@@ -170,6 +170,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   headCell: { flex: 1, alignItems: 'center', paddingVertical: theme.spacing(0.5) },
   headText: {
     color: theme.colors.textMuted,
+    fontFamily: theme.fonts.body,
     fontSize: theme.font.small,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -188,6 +189,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   todayCell: { borderColor: theme.colors.accent, borderWidth: 2 },
   dayNum: {
     color: theme.colors.textMuted,
+    fontFamily: theme.fonts.numeric,
     fontSize: 10,
     fontWeight: '700',
     paddingLeft: 3,
@@ -198,6 +200,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   cross: { color: theme.colors.textMuted, fontSize: 14, fontWeight: '700' },
   matchDot: { width: 8, height: 8, borderRadius: 4 },
   resultWrap: { alignItems: 'center', justifyContent: 'center' },
-  resultLetter: { fontSize: 12, fontWeight: '900', lineHeight: 14 },
-  resultScore: { color: theme.colors.text, fontSize: 10, fontWeight: '700' },
+  resultLetter: { fontFamily: theme.fonts.heading, fontSize: 12, fontWeight: '900', lineHeight: 14 },
+  resultScore: { color: theme.colors.text, fontFamily: theme.fonts.numeric, fontSize: 10, fontWeight: '700' },
 });

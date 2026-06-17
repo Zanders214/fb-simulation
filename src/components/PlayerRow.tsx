@@ -88,9 +88,10 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   selected: { backgroundColor: theme.colors.surfaceAlt, borderWidth: 1, borderColor: theme.colors.accent },
   pressed: { opacity: 0.6 },
   info: { flex: 1, minWidth: 0 },
-  name: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '600' },
-  sub: { color: theme.colors.textMuted, fontSize: theme.font.small },
+  name: { color: theme.colors.text, fontFamily: theme.fonts.body, fontSize: theme.font.body, fontWeight: '600' },
+  sub: { color: theme.colors.textMuted, fontFamily: theme.fonts.body, fontSize: theme.font.small },
   statusTag: {
+    fontFamily: theme.fonts.numeric,
     fontSize: theme.font.small,
     fontWeight: '800',
     borderWidth: 1,
@@ -100,6 +101,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     overflow: 'hidden',
   },
   stat: { alignItems: 'center', minWidth: 38 },
-  ovr: { fontSize: theme.font.body, fontWeight: '800' },
+  ovr: { fontFamily: theme.fonts.numeric, fontSize: theme.font.body, fontWeight: '800' },
   form: { fontSize: theme.font.small },
 });

@@ -10,7 +10,9 @@ export function Card({ children, style }: Readonly<{ children: ReactNode; style?
 const makeStyles = (theme: Theme) => StyleSheet.create({
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
+    // Terminal squares its corners for a gridded, data-dense feel; the softer
+    // styles round more generously.
+    borderRadius: theme.style === 'terminal' ? theme.radius.sm : theme.radius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing(2),

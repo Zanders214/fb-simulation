@@ -1,8 +1,9 @@
 import { useCallback, useMemo } from 'react';
-import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import { Tabs, useRouter } from 'expo-router';
+import type { BottomTabBarButtonProps, BottomTabHeaderProps } from '@react-navigation/bottom-tabs';
+import { Tabs } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScreenHeader } from '../../src/components/ScreenHeader';
 import { useTheme, useThemedStyles, type Theme } from '../../src/theme';
 
 const tabIconStyle = { fontSize: 18 } as const;
@@ -54,34 +55,18 @@ function FixturesTabButton({ accessibilityState, onPress, onLongPress }: BottomT
 const renderFixturesButton = (props: BottomTabBarButtonProps) => <FixturesTabButton {...props} />;
 const FIXTURES_TAB_OPTIONS = { title: 'Fixtures', tabBarButton: renderFixturesButton } as const;
 
-const headerHomeStyle = { paddingHorizontal: 14 } as const;
-
-function HeaderHomeButton() {
-  const router = useRouter();
-  const theme = useTheme();
-  const color = theme.dark ? theme.colors.onPrimary : theme.colors.text;
-  const goHome = useCallback(() => router.dismissTo('/'), [router]);
-  const iconStyle = useMemo(() => ({ color, fontSize: 22 }), [color]);
-  return (
-    <Pressable onPress={goHome} hitSlop={10} style={headerHomeStyle}>
-      <Text style={iconStyle}>⌂</Text>
-    </Pressable>
-  );
-}
-
-const renderHeaderHome = () => <HeaderHomeButton />;
+// Season tabs have no back button — the ⌂ home shortcut is the escape hatch.
+const renderTabHeader = ({ options }: BottomTabHeaderProps) => (
+  <ScreenHeader title={options.title ?? ''} showBack={false} showHome />
+);
 
 export default function SeasonLayout() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const headerBg = theme.dark ? theme.colors.primaryDark : theme.colors.surface;
-  const headerText = theme.dark ? theme.colors.onPrimary : theme.colors.text;
 
   const screenOptions = useMemo(
     () => ({
-      headerStyle: { backgroundColor: headerBg },
-      headerTintColor: headerText,
-      headerTitleStyle: { fontWeight: '700' as const },
+      header: renderTabHeader,
       tabBarStyle: {
         backgroundColor: theme.colors.surface,
         borderTopColor: theme.colors.border,
@@ -94,11 +79,8 @@ export default function SeasonLayout() {
       tabBarActiveTintColor: theme.colors.accent,
       tabBarInactiveTintColor: theme.colors.textMuted,
       sceneStyle: { backgroundColor: theme.colors.bg },
-      headerRight: renderHeaderHome,
     }),
     [
-      headerBg,
-      headerText,
       theme.colors.surface,
       theme.colors.border,
       theme.colors.accent,

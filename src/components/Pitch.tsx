@@ -120,6 +120,10 @@ function Marker({
 
 const MARKER_W = 60;
 
+// Shirt silhouette per style: Broadcast rounded-square, Programme circle,
+// Terminal sharp token.
+const SHIRT_RADIUS: Record<string, number> = { broadcast: 8, programme: 21, terminal: 2 };
+
 const makeStyles = (theme: Theme) => StyleSheet.create({
   pitch: {
     width: '100%',
@@ -171,14 +175,14 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   shirt: {
     width: 42,
     height: 42,
-    borderRadius: theme.radius.sm,
+    borderRadius: SHIRT_RADIUS[theme.style],
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'rgba(0,0,0,0.25)',
   },
   shirtSelected: { borderColor: theme.colors.accent, borderWidth: 3 },
-  shirtLabel: { color: theme.colors.onPrimary, fontWeight: '900', fontSize: theme.font.small },
+  shirtLabel: { color: theme.colors.onPrimary, fontFamily: theme.fonts.numeric, fontWeight: '900', fontSize: theme.font.small },
   statusDot: {
     position: 'absolute',
     top: -6,
@@ -195,6 +199,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   name: {
     marginTop: 2,
     color: theme.colors.text,
+    fontFamily: theme.fonts.body,
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
@@ -204,6 +209,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   },
   ovr: {
     color: theme.colors.accent,
+    fontFamily: theme.fonts.numeric,
     fontSize: 10,
     fontWeight: '800',
     textShadowColor: 'rgba(0,0,0,0.85)',

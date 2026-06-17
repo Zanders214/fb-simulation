@@ -1,16 +1,20 @@
 /**
- * Theming. A `Theme` bundles a colour `Palette` with the shared spacing / radius
- * / font tokens. The "standard" theme follows the OS light/dark setting; a few
- * extra themes can be picked explicitly. Screens never import a static palette —
- * they read the active theme via `useTheme()` / `useThemedStyles()` so a change
- * re-skins the whole app live.
+ * Theming on two independent axes.
+ *
+ * - **style** (`broadcast` · `programme` · `terminal`) sets the *typography* and a
+ *   handful of structural treatments (header shape, table density, CTA shape, …).
+ * - **mode** (`light` · `dark`, or `system`) sets the colour *palette*.
+ *
+ * A concrete `Theme` is the pair `(style, mode)` — six in total. Screens never
+ * import a static palette: they read the active theme via `useTheme()` /
+ * `useThemedStyles()`, so changing either axis re-skins the whole app live.
  */
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 import { usePrefsStore } from '../store/prefsStore';
 
-/** Theme-independent design tokens. Only colours change between themes. */
+/** Axis-independent design tokens. Only colours + fonts change between themes. */
 const tokens = {
   spacing: (n: number) => n * 8,
   radius: { sm: 8, md: 12, lg: 16, pill: 999 },
@@ -42,8 +46,9 @@ const WHITE = '#ffffff';
 const PITCH_GREEN = '#0b6e4f';
 const SIGNAL_RED = '#e5484d';
 
-// ----------------------------------------------------------------- palettes
-const dark: Palette = {
+// --------------------------------------------------------------- A · Broadcast
+// Pitch-green & gold. The app's heritage look — reused unchanged for both modes.
+const broadcastDark: Palette = {
   primary: PITCH_GREEN,
   primaryDark: '#08543c',
   accent: '#f4c430',
@@ -61,7 +66,7 @@ const dark: Palette = {
   field: PITCH_GREEN,
 };
 
-const light: Palette = {
+const broadcastLight: Palette = {
   primary: PITCH_GREEN,
   primaryDark: '#0a5f45',
   accent: '#9a6700',
@@ -79,61 +84,65 @@ const light: Palette = {
   field: PITCH_GREEN,
 };
 
-const midnight: Palette = {
-  primary: '#3b5bdb',
-  primaryDark: '#243a8f',
-  accent: '#ffd43b',
-  bg: '#0b1020',
-  surface: '#161d33',
-  surfaceAlt: '#212a47',
-  text: '#eef1fb',
-  textMuted: '#9aa6c8',
-  border: '#2b3559',
-  danger: '#ff6b6b',
-  win: '#51cf66',
-  draw: '#fcc419',
-  loss: '#ff6b6b',
+// --------------------------------------------------------------- B · Programme
+// Editorial, warm paper. Both modes are new.
+const programmeLight: Palette = {
+  primary: '#0a5f45',
+  primaryDark: '#08543c',
+  accent: '#9a6700',
+  bg: '#f4f1ea',
+  surface: WHITE,
+  surfaceAlt: '#eae4d8',
+  text: '#1c1a14',
+  textMuted: '#6b6457',
+  border: '#ddd5c6',
+  danger: '#c0392b',
+  win: '#1f8f3c',
+  draw: '#9a6700',
+  loss: '#c0392b',
   onPrimary: WHITE,
-  field: '#16633f',
+  field: PITCH_GREEN,
 };
 
-const claret: Palette = {
-  primary: '#7a263a',
-  primaryDark: '#5c1b2b',
-  accent: '#7cc1f0',
-  bg: '#1a1014',
-  surface: '#281a1f',
-  surfaceAlt: '#37242b',
-  text: '#f7eef1',
-  textMuted: '#c4a8b0',
-  border: '#452e36',
+const programmeDark: Palette = {
+  primary: '#0a5f45',
+  primaryDark: '#073f2d',
+  accent: '#c9a227',
+  bg: '#16140f',
+  surface: '#211e17',
+  surfaceAlt: '#2c2820',
+  text: '#f3efe6',
+  textMuted: '#a89f8d',
+  border: '#363128',
   danger: SIGNAL_RED,
-  win: '#5bbf6a',
-  draw: '#e0b341',
+  win: '#3fb950',
+  draw: '#d6a728',
   loss: SIGNAL_RED,
   onPrimary: WHITE,
-  field: '#1f6e44',
+  field: PITCH_GREEN,
 };
 
-const sunset: Palette = {
-  primary: '#e8590c',
-  primaryDark: '#b8430a',
-  accent: '#ffd43b',
-  bg: '#1d1410',
-  surface: '#2c1f17',
-  surfaceAlt: '#3c2a1f',
-  text: '#fbf0e8',
-  textMuted: '#ccb4a3',
-  border: '#48342a',
-  danger: '#ef5350',
-  win: '#66bb6a',
-  draw: '#ffb300',
-  loss: '#ef5350',
+// ---------------------------------------------------------------- C · Terminal
+// Slate & teal. Dark is the heritage `graphite` look; light is new.
+const terminalLight: Palette = {
+  primary: '#475569',
+  primaryDark: '#334155',
+  accent: '#0d9488',
+  bg: '#f3f5f7',
+  surface: WHITE,
+  surfaceAlt: '#e9edf1',
+  text: '#14181f',
+  textMuted: '#5b6573',
+  border: '#d6dce3',
+  danger: '#dc2626',
+  win: '#16a34a',
+  draw: '#ca8a04',
+  loss: '#dc2626',
   onPrimary: WHITE,
-  field: '#2f7d4f',
+  field: '#2a5e46',
 };
 
-const graphite: Palette = {
+const terminalDark: Palette = {
   primary: '#475569',
   primaryDark: '#334155',
   accent: '#2dd4bf',
@@ -151,67 +160,134 @@ const graphite: Palette = {
   field: '#2a5e46',
 };
 
-const RAW = {
-  light: { isDark: false, colors: light },
-  dark: { isDark: true, colors: dark },
-  midnight: { isDark: true, colors: midnight },
-  claret: { isDark: true, colors: claret },
-  sunset: { isDark: true, colors: sunset },
-  graphite: { isDark: true, colors: graphite },
-} as const;
+// ----------------------------------------------------------------------- axes
+export type StyleName = 'broadcast' | 'programme' | 'terminal';
+export type Mode = 'light' | 'dark';
+/** Concrete theme identity — also the `useThemedStyles` cache key. */
+export type ThemeName = `${StyleName}:${Mode}`;
+/** What the user picks for the colour axis. */
+export type ModePref = 'system' | 'light' | 'dark';
 
-export type ThemeName = keyof typeof RAW;
+const PALETTES: Record<StyleName, Record<Mode, Palette>> = {
+  broadcast: { light: broadcastLight, dark: broadcastDark },
+  programme: { light: programmeLight, dark: programmeDark },
+  terminal: { light: terminalLight, dark: terminalDark },
+};
+
+/** Per-style typography. Family strings must match the loaded `expo-font` names. */
+export interface Fonts {
+  /** Display / titles / scores. */
+  heading: string;
+  /** UI text. */
+  body: string;
+  /** Table figures, scorelines, OVR. */
+  numeric: string;
+  /** Fallback weight before fonts load / on platforms missing the family. */
+  headingWeight: '600' | '700' | '800';
+  /** Broadcast & Terminal headings shout; Programme stays sentence-case. */
+  uppercaseHeadings: boolean;
+}
+
+const FONTS: Record<StyleName, Fonts> = {
+  broadcast: {
+    heading: 'BarlowCondensed_800ExtraBold',
+    body: 'Barlow_400Regular',
+    numeric: 'Barlow_600SemiBold',
+    headingWeight: '800',
+    uppercaseHeadings: true,
+  },
+  programme: {
+    heading: 'Newsreader_600SemiBold',
+    body: 'HankenGrotesk_400Regular',
+    numeric: 'Newsreader_500Medium',
+    headingWeight: '600',
+    uppercaseHeadings: false,
+  },
+  terminal: {
+    heading: 'IBMPlexMono_600SemiBold',
+    body: 'IBMPlexSans_400Regular',
+    numeric: 'IBMPlexMono_500Medium',
+    headingWeight: '700',
+    uppercaseHeadings: false,
+  },
+};
 
 export interface Theme {
   name: ThemeName;
+  style: StyleName;
+  mode: Mode;
   /** True for dark themes — drives the status bar style and a few adaptive bits. */
   dark: boolean;
   colors: Palette;
+  fonts: Fonts;
   spacing: (n: number) => number;
   radius: typeof tokens.radius;
+  /** Numeric size scale (distinct from `fonts`, which carries families/weights). */
   font: typeof tokens.font;
 }
 
+const STYLE_NAMES: StyleName[] = ['broadcast', 'programme', 'terminal'];
+const MODE_NAMES: Mode[] = ['light', 'dark'];
+
+function buildTheme(style: StyleName, mode: Mode): Theme {
+  return {
+    name: `${style}:${mode}`,
+    style,
+    mode,
+    dark: mode === 'dark',
+    colors: PALETTES[style][mode],
+    fonts: FONTS[style],
+    ...tokens,
+  };
+}
+
 export const themes = Object.fromEntries(
-  (Object.keys(RAW) as ThemeName[]).map((name) => [
-    name,
-    { name, dark: RAW[name].isDark, colors: RAW[name].colors, ...tokens } satisfies Theme,
-  ]),
+  STYLE_NAMES.flatMap((style) =>
+    MODE_NAMES.map((mode): [ThemeName, Theme] => [`${style}:${mode}`, buildTheme(style, mode)]),
+  ),
 ) as Record<ThemeName, Theme>;
 
-/** What the user has chosen: follow the system, or a specific theme. */
-export type ThemePref = 'system' | ThemeName;
+/** Selectable options for the Settings style picker. */
+export const STYLE_OPTIONS: { key: StyleName; label: string; subtitle: string }[] = [
+  { key: 'broadcast', label: 'Broadcast', subtitle: 'Condensed type · bold gradients' },
+  { key: 'programme', label: 'Programme', subtitle: 'Editorial serif · warm paper' },
+  { key: 'terminal', label: 'Terminal', subtitle: 'Monospace · dense data' },
+];
 
-/** Selectable options for the Settings picker. */
-export const THEME_OPTIONS: { key: ThemePref; label: string; subtitle: string }[] = [
+/** Selectable options for the Settings appearance picker. */
+export const MODE_OPTIONS: { key: ModePref; label: string; subtitle: string }[] = [
   { key: 'system', label: 'System', subtitle: 'Match device appearance' },
-  { key: 'light', label: 'Light', subtitle: 'Pitch green · light' },
-  { key: 'dark', label: 'Dark', subtitle: 'Pitch green · dark' },
-  { key: 'midnight', label: 'Midnight', subtitle: 'Cool indigo blue' },
-  { key: 'claret', label: 'Claret', subtitle: 'Claret & sky blue' },
-  { key: 'sunset', label: 'Sunset', subtitle: 'Warm amber & orange' },
-  { key: 'graphite', label: 'Graphite', subtitle: 'Neutral slate & teal' },
+  { key: 'light', label: 'Light', subtitle: 'Always light' },
+  { key: 'dark', label: 'Dark', subtitle: 'Always dark' },
 ];
 
 type Scheme = 'light' | 'dark' | null | undefined;
 
-/** Resolve a preference (+ current OS scheme) to a concrete theme. */
-export function resolveTheme(pref: ThemePref, scheme: Scheme): Theme {
-  const standard = scheme === 'light' ? themes.light : themes.dark;
-  // `pref in themes` also guards against a stale/unknown persisted preference.
-  if (pref !== 'system' && pref in themes) return themes[pref];
-  return standard;
+/** System (or an unknown scheme) follows the OS; otherwise the explicit pick wins. */
+function resolveMode(modePref: ModePref, scheme: Scheme): Mode {
+  if (modePref === 'light') return 'light';
+  if (modePref === 'dark') return 'dark';
+  return scheme === 'light' ? 'light' : 'dark';
+}
+
+/** Resolve the two prefs (+ current OS scheme) to a concrete theme. */
+export function resolveTheme(stylePref: StyleName, modePref: ModePref, scheme: Scheme): Theme {
+  // Guard against a stale/unknown persisted style preference.
+  const style: StyleName = STYLE_NAMES.includes(stylePref) ? stylePref : 'broadcast';
+  const mode = resolveMode(modePref, scheme);
+  return themes[`${style}:${mode}`];
 }
 
 // -------------------------------------------------------------- context/hooks
-const ThemeContext = createContext<Theme>(themes.dark);
+const ThemeContext = createContext<Theme>(themes['broadcast:dark']);
 
 export const useTheme = (): Theme => useContext(ThemeContext);
 
 export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const pref = usePrefsStore((s) => s.themePref);
+  const stylePref = usePrefsStore((s) => s.stylePref);
+  const modePref = usePrefsStore((s) => s.modePref);
   const scheme = useColorScheme();
-  const theme = useMemo(() => resolveTheme(pref, scheme), [pref, scheme]);
+  const theme = useMemo(() => resolveTheme(stylePref, modePref, scheme), [stylePref, modePref, scheme]);
 
   useEffect(() => {
     // Keep the native root background in step with the theme (overscroll, gaps).

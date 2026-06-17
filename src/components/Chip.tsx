@@ -32,5 +32,5 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  text: { color: theme.colors.text, fontSize: theme.font.small, fontWeight: '800' },
+  text: { color: theme.colors.text, fontFamily: theme.fonts.numeric, fontSize: theme.font.small, fontWeight: '800' },
 });

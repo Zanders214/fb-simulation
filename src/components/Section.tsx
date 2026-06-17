@@ -21,6 +21,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   section: { gap: theme.spacing(0.75) },
   sectionTitle: {
     color: theme.colors.textMuted,
+    fontFamily: theme.fonts.body,
     fontSize: theme.font.small,
     textTransform: 'uppercase',
     letterSpacing: 1,
