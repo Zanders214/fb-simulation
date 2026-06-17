@@ -1,43 +1,115 @@
 /**
- * Home screen — "Continue Dashboard".
+ * Home screen — V3 "Editorial Scoreboard".
  *
- * Foregrounds the match engine for a returning player: last result, recent form,
- * and a live peek at the league table, with a one-tap Continue into the season.
- * A first run (no save) falls back to the original centered hero + New Game / Settings.
+ * The boldest, most brand-led launch screen: a green header panel with the
+ * upcoming matchday + next-fixture scoreboard, then top-scorer / avg-rating stat
+ * cards, a standings ticker, and a gold "PLAY MATCHDAY N" CTA. First run (no
+ * save) keeps the original centered hero + New Game / Settings.
  *
- * Ported from the Claude Design handoff (design_handoff_home_screen) to this repo's
- * conventions: the dynamic theme (`useTheme` / `useThemedStyles`) and `confirmAction`.
+ * Ported from the Claude Design handoff (variation 03) to this repo's conventions:
+ * the dynamic theme (`useTheme` / `useThemedStyles`), `confirmAction`, and the
+ * condensed display font loaded in `app/_layout.tsx`.
  */
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../src/components/Button';
-import { leagueTable, type Fixture } from '../src/engine';
+import { leagueTable, matchdayDate, nextUserFixture, type GameState } from '../src/engine';
 import { useGameStore } from '../src/store/gameStore';
-import { userClub } from '../src/store/selectors';
+import { clubPlayers, userClub } from '../src/store/selectors';
 import { confirmAction } from '../src/ui/confirm';
+import { condensed } from '../src/ui/fonts';
 import { ordinal } from '../src/ui/format';
 import { useTheme, useThemedStyles, type Theme } from '../src/theme';
 
-type Outcome = 'W' | 'D' | 'L';
+const ONES = [
+  'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+  'Seventeen', 'Eighteen', 'Nineteen',
+];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty'];
 
-function outcomeColor(o: Outcome, theme: Theme): string {
-  if (o === 'W') return theme.colors.win;
-  if (o === 'D') return theme.colors.draw;
-  return theme.colors.loss;
+/** Spell a matchday number (1..~59) for the editorial title. Falls back to digits. */
+function matchdayWord(n: number): string {
+  if (n < 0 || n > 59) return String(n);
+  if (n < 20) return ONES[n];
+  const tens = TENS[Math.floor(n / 10)];
+  const ones = n % 10;
+  return ones === 0 ? tens : `${tens}-${ONES[ones]}`;
 }
 
-const crestBase = { alignItems: 'center', justifyContent: 'center' } as const;
-const crestTextBase = { color: '#fff', fontWeight: '800' } as const;
+// ~160° diagonal, matching the design's header gradient.
+const GRADIENT_START = { x: 0, y: 0 } as const;
+const GRADIENT_END = { x: 1, y: 1 } as const;
+
+const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/** "SAT · 16 AUG" from the deterministic matchday date (engine has no clock time). */
+function dateLabel(d: Date): string {
+  return `${WEEKDAYS[d.getUTCDay()]} · ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
+/** First initial + surname, e.g. "L. Okonkwo". */
+function shortPlayerName(firstName: string, lastName: string): string {
+  return firstName ? `${firstName[0]}. ${lastName}` : lastName;
+}
+
+/** Leading scorer on a club this season (by `seasonGoals`), or null. */
+function computeTopScorer(game: GameState, clubId: string): { name: string; goals: number } | null {
+  let best: { name: string; goals: number } | null = null;
+  for (const p of clubPlayers(game, clubId)) {
+    const goals = p.seasonGoals ?? 0;
+    if (goals > 0 && (!best || goals > best.goals)) {
+      best = { name: shortPlayerName(p.firstName, p.lastName), goals };
+    }
+  }
+  return best;
+}
+
+/** Highest average match rating on a club this season (derived from fixtures), or null. */
+function computeTopRated(game: GameState, clubId: string): { name: string; avg: number } | null {
+  const tally = new Map<string, { sum: number; count: number }>();
+  for (const f of game.season.fixtures) {
+    if (!f.result) continue;
+    for (const [pid, r] of Object.entries(f.result.ratings)) {
+      if (game.world.players[pid]?.clubId !== clubId) continue;
+      const t = tally.get(pid) ?? { sum: 0, count: 0 };
+      t.sum += r.rating;
+      t.count += 1;
+      tally.set(pid, t);
+    }
+  }
+  let best: { name: string; avg: number } | null = null;
+  for (const [pid, t] of tally) {
+    const avg = t.sum / t.count;
+    if (!best || avg > best.avg) {
+      const p = game.world.players[pid];
+      best = { name: shortPlayerName(p.firstName, p.lastName), avg };
+    }
+  }
+  return best;
+}
 
 /** Crest = 3-letter club code on a rounded square in the club's primary colour. */
-function Crest({ code, color, size = 40 }: Readonly<{ code: string; color: string; size?: number }>) {
+function Crest({ code, color, size = 36 }: Readonly<{ code: string; color: string; size?: number }>) {
   const boxStyle = useMemo(
-    () => [crestBase, { width: size, height: size, borderRadius: size * 0.27, backgroundColor: color }],
+    () => ({
+      width: size,
+      height: size,
+      borderRadius: size * 0.25,
+      backgroundColor: color,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    }),
     [size, color],
   );
-  const textStyle = useMemo(() => [crestTextBase, { fontSize: size * 0.4 }], [size]);
+  const textStyle = useMemo(
+    () => ({ color: '#fff', fontFamily: condensed.extra, fontSize: size * 0.42 }),
+    [size],
+  );
   return (
     <View style={boxStyle}>
       <Text style={textStyle}>{code}</Text>
@@ -45,59 +117,34 @@ function Crest({ code, color, size = 40 }: Readonly<{ code: string; color: strin
   );
 }
 
-/** Everything the home screen needs, derived from the active game. */
+/** Everything the editorial scoreboard needs, derived from the active game. */
 function useHomeSummary() {
   const game = useGameStore((s) => s.game);
   return useMemo(() => {
     if (!game) return null;
 
-    const table = leagueTable(game);
-    const pos = table.findIndex((r) => r.clubId === game.managedClubId) + 1;
-    const row = table.find((r) => r.clubId === game.managedClubId);
     const club = userClub(game);
+    const league = game.world.leagues[club.leagueId];
+    const table = leagueTable(game);
 
-    const outcomeOf = (f: Fixture): Outcome => {
-      const home = f.homeClubId === game.managedClubId;
-      const gf = home ? f.result!.homeGoals : f.result!.awayGoals;
-      const ga = home ? f.result!.awayGoals : f.result!.homeGoals;
-      if (gf > ga) return 'W';
-      if (gf < ga) return 'L';
-      return 'D';
+    // Next fixture (undefined once the season is complete).
+    const next = nextUserFixture(game);
+    const fixture = next
+      ? {
+          home: game.world.clubs[next.homeClubId],
+          away: game.world.clubs[next.awayClubId],
+          when: dateLabel(matchdayDate(game.season.number, next.matchday, game.season.totalMatchdays)),
+        }
+      : null;
+
+    return {
+      game,
+      league,
+      table,
+      fixture,
+      topScorer: computeTopScorer(game, game.managedClubId),
+      topRated: computeTopRated(game, game.managedClubId),
     };
-
-    const mine = game.season.fixtures
-      .filter(
-        (f) =>
-          f.result &&
-          (f.homeClubId === game.managedClubId || f.awayClubId === game.managedClubId),
-      )
-      .sort((a, b) => a.matchday - b.matchday);
-
-    const form = mine.slice(-5).map((f) => ({ id: f.id, o: outcomeOf(f) }));
-
-    const lastFix = mine[mine.length - 1] ?? null;
-    let last: null | {
-      opp: ReturnType<typeof userClub>;
-      us: number;
-      them: number;
-      matchday: number;
-      scorers: string[];
-    } = null;
-    if (lastFix) {
-      const home = lastFix.homeClubId === game.managedClubId;
-      const oppId = home ? lastFix.awayClubId : lastFix.homeClubId;
-      last = {
-        opp: game.world.clubs[oppId],
-        us: home ? lastFix.result!.homeGoals : lastFix.result!.awayGoals,
-        them: home ? lastFix.result!.awayGoals : lastFix.result!.homeGoals,
-        matchday: lastFix.matchday,
-        scorers: lastFix.result!.events
-          .filter((e) => e.clubId === game.managedClubId)
-          .map((e) => `${game.world.players[e.scorerId]?.lastName ?? '?'} ${e.minute}'`),
-      };
-    }
-
-    return { game, table, pos, row, club, form, last };
   }, [game]);
 }
 
@@ -125,7 +172,11 @@ export default function Home() {
 
   const goToSeason = useCallback(() => router.push('/season'), [router]);
   const goToSettings = useCallback(() => router.push('/settings'), [router]);
-  const goToTable = useCallback(() => router.push('/season/table'), [router]);
+
+  const gradientColors = useMemo(
+    () => [theme.colors.primary, theme.colors.primaryDark] as const,
+    [theme.colors.primary, theme.colors.primaryDark],
+  );
 
   if (!hasHydrated) {
     return (
@@ -140,11 +191,11 @@ export default function Home() {
     return (
       <SafeAreaView style={styles.emptyContainer}>
         <View style={styles.hero}>
-          <View style={styles.appCrest}>
-            <Text style={styles.appCrestText}>FB</Text>
+          <View style={styles.appCrestLg}>
+            <Text style={styles.appCrestLgText}>FB</Text>
           </View>
-          <Text style={styles.kicker}>FOOTBALL MANAGER</Text>
-          <Text style={styles.title}>FB SIMULATION</Text>
+          <Text style={styles.kickerHero}>FOOTBALL MANAGER</Text>
+          <Text style={styles.titleHero}>FB SIMULATION</Text>
           <Text style={styles.subtitle}>Build your club. Pick a league. Play the season.</Text>
         </View>
         <View style={styles.menu}>
@@ -156,118 +207,117 @@ export default function Home() {
     );
   }
 
-  const { game, club, pos, row, form, last } = summary;
+  const { game, league, table, fixture, topScorer, topRated } = summary;
   const nextMd = game.season.currentMatchday;
-  const league = game.world.leagues[club.leagueId];
+  const seasonDone = fixture === null;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* top bar */}
-        <View style={styles.topBar}>
-          <View style={styles.brandRow}>
-            <View style={styles.appCrestSm}>
-              <Text style={styles.appCrestSmText}>FB</Text>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {/* ---- Header panel ---- */}
+        <LinearGradient colors={gradientColors} start={GRADIENT_START} end={GRADIENT_END} style={styles.header}>
+          <View style={styles.goldRule} />
+          <View style={styles.ring} />
+
+          <SafeAreaView edges={['top']} style={styles.headerSafe}>
+            <View style={styles.brandRow}>
+              <View style={styles.brandLeft}>
+                <View style={styles.appCrestSm}>
+                  <Text style={styles.appCrestSmText}>FB</Text>
+                </View>
+                <Text style={styles.brandWord}>FB SIMULATION</Text>
+              </View>
+              <Pressable onPress={goToSettings} style={styles.gearBtn} testID="home-settings">
+                <Text style={styles.gearGlyph}>⚙</Text>
+              </Pressable>
             </View>
-            <Text style={styles.brandWord}>FB SIMULATION</Text>
+
+            <Text style={styles.kicker}>
+              Season {game.season.number} · {league.name}
+            </Text>
+            {seasonDone ? (
+              <Text style={styles.matchdayTitle}>SEASON{'\n'}COMPLETE</Text>
+            ) : (
+              <Text style={styles.matchdayTitle}>MATCHDAY{'\n'}{matchdayWord(nextMd).toUpperCase()}</Text>
+            )}
+
+            {fixture && (
+              <View style={styles.scoreboard}>
+                <View style={styles.sbSide}>
+                  <Crest code={fixture.home.shortName} color={fixture.home.primaryColor} />
+                  <Text style={styles.sbName} numberOfLines={1}>
+                    {fixture.home.name.split(' ')[0]}
+                  </Text>
+                </View>
+                <View style={styles.sbCenter}>
+                  <Text style={styles.sbVs}>VS</Text>
+                  <Text style={styles.sbWhen}>{fixture.when}</Text>
+                </View>
+                <View style={styles.sbSide}>
+                  <Crest code={fixture.away.shortName} color={fixture.away.primaryColor} />
+                  <Text style={styles.sbName} numberOfLines={1}>
+                    {fixture.away.name.split(' ')[0]}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </SafeAreaView>
+        </LinearGradient>
+
+        {/* ---- Body ---- */}
+        <View style={styles.body}>
+          {/* Stat cards */}
+          <View style={styles.statRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>TOP SCORER</Text>
+              <Text style={[styles.statNum, styles.statNumGold]}>{topScorer ? topScorer.goals : '–'}</Text>
+              <Text style={styles.statName} numberOfLines={1}>
+                {topScorer ? topScorer.name : 'No goals yet'}
+              </Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>AVG RATING</Text>
+              <Text style={[styles.statNum, styles.statNumWin]}>{topRated ? topRated.avg.toFixed(1) : '–'}</Text>
+              <Text style={styles.statName} numberOfLines={1}>
+                {topRated ? topRated.name : 'No matches yet'}
+              </Text>
+            </View>
           </View>
-          <Pressable onPress={goToSettings} style={styles.gearBtn} testID="home-settings">
-            <Text style={styles.gearGlyph}>⚙</Text>
+
+          {/* Standings ticker */}
+          <View>
+            <Text style={styles.sectionLabel}>STANDINGS</Text>
+            <View style={styles.ticker}>
+              {table.slice(0, 4).map((r, i) => {
+                const c = game.world.clubs[r.clubId];
+                const isMine = r.clubId === game.managedClubId;
+                return (
+                  <View key={r.clubId} style={[styles.tickerTile, isMine && styles.tickerTileMine]}>
+                    <Text style={[styles.tickerPos, isMine && styles.goldText]}>{ordinal(i + 1).toUpperCase()}</Text>
+                    <Text style={[styles.tickerCode, isMine && styles.goldText]}>{c.shortName}</Text>
+                    <Text style={[styles.tickerPts, isMine && styles.goldText]}>{r.points}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.spacer} />
+
+          {/* Primary CTA + text links */}
+          <Pressable onPress={goToSeason} style={styles.cta} testID="home-continue">
+            <Text style={styles.ctaText}>{seasonDone ? 'VIEW SEASON' : `PLAY MATCHDAY ${nextMd}`}</Text>
+            <Text style={styles.ctaChevron}>›</Text>
           </Pressable>
-        </View>
-
-        {/* Continue hero card */}
-        <View style={styles.heroCard}>
-          <View style={styles.clubRow}>
-            <Crest code={club.shortName} color={club.primaryColor} />
-            <View style={styles.clubRowText}>
-              <Text style={styles.clubName} numberOfLines={1}>
-                {club.name}
-              </Text>
-              <Text style={styles.clubMeta}>
-                Season {game.season.number} · {league.name}
-              </Text>
-            </View>
-            <View style={styles.posPill}>
-              <Text style={styles.posPillText}>
-                {pos > 0 ? ordinal(pos).toUpperCase() : '–'} · {row?.points ?? 0} PTS
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          {/* Last result */}
-          {last ? (
-            <View>
-              <View style={styles.sectionHead}>
-                <Text style={styles.sectionLabel}>LAST RESULT</Text>
-                <Text style={styles.sectionMeta}>Matchday {last.matchday}</Text>
-              </View>
-              <View style={styles.scoreRow}>
-                <View style={[styles.scoreSide, styles.scoreSideEnd]}>
-                  <Text style={styles.scoreClub}>{club.shortName}</Text>
-                  <Crest code={club.shortName} color={club.primaryColor} size={26} />
-                </View>
-                <View style={styles.scoreNums}>
-                  <Text style={[styles.scoreNum, last.us > last.them && styles.scoreWin]}>{last.us}</Text>
-                  <Text style={styles.scoreDash}>–</Text>
-                  <Text style={[styles.scoreNum, last.them > last.us && styles.scoreWin]}>{last.them}</Text>
-                </View>
-                <View style={[styles.scoreSide, styles.scoreSideStart]}>
-                  <Crest code={last.opp.shortName} color={last.opp.primaryColor} size={26} />
-                  <Text style={[styles.scoreClub, styles.scoreClubOpp]}>{last.opp.shortName}</Text>
-                </View>
-              </View>
-              {last.scorers.length > 0 && <Text style={styles.scorers}>{last.scorers.join(' · ')}</Text>}
-            </View>
-          ) : (
-            <Text style={styles.sectionMeta}>No matches played yet this season.</Text>
-          )}
-
-          {/* Form */}
-          {form.length > 0 && (
-            <View style={styles.formRow}>
-              <Text style={[styles.sectionLabel, styles.formLabel]}>FORM</Text>
-              {form.map((f) => (
-                <View key={f.id} style={[styles.formPill, { backgroundColor: outcomeColor(f.o, theme) }]}>
-                  <Text style={[styles.formPillText, f.o === 'L' && styles.formPillTextLoss]}>{f.o}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <Button label={`Continue · Matchday ${nextMd}`} onPress={goToSeason} testID="home-continue" />
-        </View>
-
-        {/* League table peek (top 4, user highlighted) */}
-        <View style={styles.tableCard}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionLabel}>{league.name.toUpperCase()}</Text>
-            <Pressable onPress={goToTable}>
-              <Text style={styles.sectionMeta}>Table ›</Text>
+          <View style={styles.links}>
+            <Pressable onPress={startNewGame} testID="home-new-game">
+              <Text style={styles.link}>New Game</Text>
+            </Pressable>
+            <Text style={styles.linkDot}>·</Text>
+            <Pressable onPress={goToSettings}>
+              <Text style={styles.link}>Settings</Text>
             </Pressable>
           </View>
-          {summary.table.slice(0, 4).map((r, i) => {
-            const c = game.world.clubs[r.clubId];
-            const isMine = r.clubId === game.managedClubId;
-            return (
-              <View key={r.clubId} style={[styles.tableRow, isMine && styles.tableRowMine]}>
-                <Text style={[styles.tablePos, isMine && styles.accentText]}>{i + 1}</Text>
-                <Crest code={c.shortName} color={c.primaryColor} size={20} />
-                <Text style={[styles.tableName, isMine && styles.tableNameMine]} numberOfLines={1}>
-                  {c.name}
-                </Text>
-                <Text style={[styles.tablePts, isMine && styles.accentText]}>{r.points}</Text>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Secondary actions */}
-        <View style={styles.actionRow}>
-          <Button label="New Game" variant="secondary" onPress={startNewGame} style={styles.actionBtn} testID="home-new-game" />
-          <Button label="Settings" variant="ghost" onPress={goToSettings} style={styles.actionBtn} />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -275,27 +325,27 @@ export default function Home() {
 }
 
 const makeStyles = (theme: Theme) => {
-  const s = theme.spacing;
-  // Gold-tint emphasis surfaces, derived from the theme accent so they re-skin per theme.
-  const accentFill = `${theme.colors.accent}1F`; // ~12%
-  const accentBorder = `${theme.colors.accent}4D`; // ~30%
-  const accentRowFill = `${theme.colors.accent}12`; // ~7%
+  const sp = theme.spacing;
+  // Gold-tint emphasis surfaces, derived from the active accent so they re-skin per theme.
+  const accentFill = `${theme.colors.accent}1A`; // ~10%
+  const accentBorder = `${theme.colors.accent}59`; // ~35%
+  const onPanelMuted = 'rgba(255,255,255,0.7)';
 
   return StyleSheet.create({
     center: { flex: 1, backgroundColor: theme.colors.bg, alignItems: 'center', justifyContent: 'center' },
     container: { flex: 1, backgroundColor: theme.colors.bg },
-    content: { padding: s(2), gap: s(1.75), paddingBottom: s(4) },
+    scroll: { flexGrow: 1 },
 
-    // empty / first-run
+    // ---- empty / first-run ----
     emptyContainer: {
       flex: 1,
       backgroundColor: theme.colors.bg,
-      paddingHorizontal: s(3),
-      paddingVertical: s(4),
+      paddingHorizontal: sp(3),
+      paddingVertical: sp(4),
       justifyContent: 'space-between',
     },
-    hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: s(1.25) },
-    appCrest: {
+    hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: sp(1.25) },
+    appCrestLg: {
       width: 84,
       height: 84,
       borderRadius: 42,
@@ -305,112 +355,147 @@ const makeStyles = (theme: Theme) => {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    appCrestText: { color: theme.colors.accent, fontSize: 32, fontWeight: '800' },
-    kicker: { color: theme.colors.accent, fontSize: 13, letterSpacing: 4, fontWeight: '600' },
-    title: { color: theme.colors.text, fontSize: theme.font.title, fontWeight: '800', letterSpacing: 0.5 },
-    subtitle: { color: theme.colors.textMuted, fontSize: theme.font.body, textAlign: 'center', paddingHorizontal: s(2) },
-    menu: { gap: s(1.5) },
-    footer: { color: theme.colors.textMuted, fontSize: theme.font.small, textAlign: 'center', marginTop: s(2) },
+    appCrestLgText: { color: theme.colors.accent, fontFamily: condensed.extra, fontSize: 34 },
+    kickerHero: { color: theme.colors.accent, fontFamily: condensed.semibold, fontSize: 14, letterSpacing: 5 },
+    titleHero: { color: theme.colors.text, fontFamily: condensed.extra, fontSize: 42, letterSpacing: 0.5 },
+    subtitle: { color: theme.colors.textMuted, fontSize: theme.font.body, textAlign: 'center', paddingHorizontal: sp(2) },
+    menu: { gap: sp(1.5) },
+    footer: { color: theme.colors.textMuted, fontSize: theme.font.small, textAlign: 'center', marginTop: sp(2) },
 
-    // top bar
-    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: s(0.5) },
-    brandRow: { flexDirection: 'row', alignItems: 'center', gap: s(1.25) },
+    // ---- header panel ----
+    header: { paddingHorizontal: sp(3), paddingBottom: sp(3.25), overflow: 'hidden' },
+    headerSafe: { gap: 2 },
+    goldRule: { position: 'absolute', top: 0, left: 0, right: 0, height: 4, backgroundColor: theme.colors.accent },
+    ring: {
+      position: 'absolute',
+      right: -60,
+      top: -30,
+      width: 200,
+      height: 200,
+      borderRadius: 100,
+      borderWidth: 2,
+      borderColor: `${theme.colors.accent}1A`,
+    },
+    brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: sp(2.25) },
+    brandLeft: { flexDirection: 'row', alignItems: 'center', gap: sp(1.25) },
     appCrestSm: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.colors.primary,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: theme.colors.bg,
       borderWidth: 1.5,
       borderColor: theme.colors.accent,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    appCrestSmText: { color: theme.colors.accent, fontSize: 13, fontWeight: '800' },
-    brandWord: { color: theme.colors.text, fontSize: 18, fontWeight: '800', letterSpacing: 0.3 },
+    appCrestSmText: { color: theme.colors.accent, fontFamily: condensed.extra, fontSize: 13 },
+    brandWord: { color: theme.colors.onPrimary, fontFamily: condensed.bold, fontSize: 17, letterSpacing: 0.5 },
     gearBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: 'rgba(255,255,255,0.12)',
       alignItems: 'center',
       justifyContent: 'center',
     },
-    gearGlyph: { color: theme.colors.textMuted, fontSize: 17 },
+    gearGlyph: { color: theme.colors.onPrimary, fontSize: 17 },
 
-    // hero card
-    heroCard: {
+    kicker: {
+      color: theme.colors.accent,
+      fontFamily: condensed.semibold,
+      fontSize: 13,
+      letterSpacing: 4,
+      textTransform: 'uppercase',
+    },
+    matchdayTitle: {
+      color: theme.colors.onPrimary,
+      fontFamily: condensed.extra,
+      fontSize: 56,
+      lineHeight: 50,
+      letterSpacing: 0.5,
+      marginTop: 2,
+    },
+
+    scoreboard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: 'rgba(0,0,0,0.28)',
+      borderRadius: 14,
+      paddingHorizontal: sp(2.25),
+      paddingVertical: sp(1.75),
+      marginTop: sp(2.5),
+    },
+    sbSide: { flex: 1, alignItems: 'center', gap: sp(0.75) },
+    sbName: { color: theme.colors.onPrimary, fontSize: 13, fontWeight: '600' },
+    sbCenter: { alignItems: 'center', paddingHorizontal: sp(1) },
+    sbVs: { color: theme.colors.accent, fontFamily: condensed.extra, fontSize: 22, letterSpacing: 1 },
+    sbWhen: { color: onPanelMuted, fontSize: 11, letterSpacing: 1, marginTop: 2 },
+
+    // ---- body ----
+    body: { padding: sp(2.5), gap: sp(2), flexGrow: 1 },
+    statRow: { flexDirection: 'row', gap: sp(1.5) },
+    statCard: {
+      flex: 1,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: theme.radius.lg,
-      padding: s(2),
-      gap: s(1.75),
+      borderRadius: 14,
+      padding: sp(1.75),
     },
-    clubRow: { flexDirection: 'row', alignItems: 'center', gap: s(1.5) },
-    clubRowText: { flex: 1 },
-    clubName: { color: theme.colors.text, fontSize: theme.font.body, fontWeight: '700' },
-    clubMeta: { color: theme.colors.textMuted, fontSize: theme.font.small },
-    posPill: {
-      backgroundColor: accentFill,
-      borderWidth: 1,
-      borderColor: accentBorder,
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: s(1.25),
-      paddingVertical: s(0.6),
+    statLabel: {
+      color: theme.colors.textMuted,
+      fontFamily: condensed.semibold,
+      fontSize: 11,
+      letterSpacing: 1.5,
+      textTransform: 'uppercase',
     },
-    posPillText: { color: theme.colors.accent, fontSize: 13, fontWeight: '700' },
-    divider: { height: 1, backgroundColor: theme.colors.border },
+    statNum: { fontFamily: condensed.extra, fontSize: 32, lineHeight: 34, marginTop: sp(0.75) },
+    statNumGold: { color: theme.colors.accent },
+    statNumWin: { color: theme.colors.win },
+    statName: { color: theme.colors.text, fontSize: 13, marginTop: 2 },
 
-    sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: s(1) },
-    sectionLabel: { color: theme.colors.textMuted, fontSize: 12, letterSpacing: 2, fontWeight: '600' },
-    sectionMeta: { color: theme.colors.textMuted, fontSize: 12 },
-
-    scoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(1.5) },
-    scoreSide: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: s(1) },
-    scoreSideEnd: { justifyContent: 'flex-end' },
-    scoreSideStart: { justifyContent: 'flex-start' },
-    scoreClub: { color: theme.colors.text, fontSize: 14, fontWeight: '600' },
-    scoreClubOpp: { color: theme.colors.textMuted },
-    scoreNums: { flexDirection: 'row', alignItems: 'center', gap: s(1) },
-    scoreNum: { color: theme.colors.text, fontSize: 28, fontWeight: '800' },
-    scoreWin: { color: theme.colors.win },
-    scoreDash: { color: theme.colors.textMuted, fontSize: 18 },
-    scorers: { color: theme.colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: s(1) },
-
-    formRow: { flexDirection: 'row', alignItems: 'center', gap: s(1) },
-    formLabel: { marginRight: 4 },
-    formPill: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-    formPillText: { color: theme.colors.bg, fontSize: 13, fontWeight: '800' },
-    formPillTextLoss: { color: '#fff' },
-
-    // table peek
-    tableCard: {
+    sectionLabel: {
+      color: theme.colors.textMuted,
+      fontFamily: condensed.semibold,
+      fontSize: 11,
+      letterSpacing: 1.5,
+      textTransform: 'uppercase',
+      marginBottom: sp(1),
+    },
+    ticker: { flexDirection: 'row', gap: sp(1) },
+    tickerTile: {
+      flex: 1,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: theme.radius.lg,
-      padding: s(2),
-      gap: s(0.5),
+      borderRadius: 11,
+      paddingVertical: sp(1.25),
+      paddingHorizontal: sp(0.75),
+      alignItems: 'center',
+      gap: 3,
     },
-    tableRow: { flexDirection: 'row', alignItems: 'center', gap: s(1.5), paddingVertical: s(1) },
-    tableRowMine: {
-      backgroundColor: accentRowFill,
-      borderLeftWidth: 3,
-      borderLeftColor: theme.colors.accent,
-      marginHorizontal: -s(2),
-      paddingLeft: s(2) - 3,
-      paddingRight: s(2),
-      borderRadius: 4,
-    },
-    tablePos: { color: theme.colors.textMuted, fontSize: 14, fontWeight: '700', width: 18 },
-    tableName: { flex: 1, color: theme.colors.text, fontSize: 14 },
-    tableNameMine: { fontWeight: '700' },
-    tablePts: { color: theme.colors.text, fontSize: 15, fontWeight: '700' },
-    accentText: { color: theme.colors.accent },
+    tickerTileMine: { backgroundColor: accentFill, borderColor: accentBorder },
+    tickerPos: { color: theme.colors.textMuted, fontFamily: condensed.bold, fontSize: 11 },
+    tickerCode: { color: theme.colors.text, fontFamily: condensed.extra, fontSize: 15 },
+    tickerPts: { color: theme.colors.textMuted, fontSize: 11 },
+    goldText: { color: theme.colors.accent },
 
-    actionRow: { flexDirection: 'row', gap: s(1.5) },
-    actionBtn: { flex: 1 },
+    spacer: { flexGrow: 1, minHeight: sp(1) },
+
+    cta: {
+      minHeight: 56,
+      borderRadius: 13,
+      backgroundColor: theme.colors.accent,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: sp(1),
+    },
+    ctaText: { color: theme.colors.bg, fontFamily: condensed.extra, fontSize: 21, letterSpacing: 1 },
+    ctaChevron: { color: theme.colors.bg, fontSize: 22, fontWeight: '800', marginTop: -2 },
+    links: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: sp(2) },
+    link: { color: theme.colors.textMuted, fontSize: 14, fontWeight: '600' },
+    linkDot: { color: theme.colors.border },
   });
 };

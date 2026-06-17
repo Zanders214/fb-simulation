@@ -1,10 +1,21 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import {
+  BarlowCondensed_600SemiBold,
+  BarlowCondensed_700Bold,
+  BarlowCondensed_800ExtraBold,
+} from '@expo-google-fonts/barlow-condensed';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import type { NativeStackHeaderBackProps } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { HeaderBackButton } from '../src/components/HeaderBackButton';
 import { ThemeProvider, useTheme } from '../src/theme';
+
+// Keep the native splash up until the condensed display font is ready, so the
+// home screen never flashes in a fallback face. Failures here are non-fatal.
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 const renderHeaderBack = (props: NativeStackHeaderBackProps) => <HeaderBackButton {...props} />;
 const renderNoHeaderLeft = () => null;
@@ -36,6 +47,21 @@ const SETTINGS_OPTIONS = { title: 'Settings' } as const;
  * here (react-native-screens#3294).
  */
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    BarlowCondensed_600SemiBold,
+    BarlowCondensed_700Bold,
+    BarlowCondensed_800ExtraBold,
+  });
+
+  const ready = fontsLoaded || fontError != null;
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync().catch(() => undefined);
+  }, [ready]);
+
+  // Hold the (native) splash until fonts resolve. On error we still render so a
+  // font CDN/bundling hiccup can't brick the app — text just falls back.
+  if (!ready) return null;
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>
