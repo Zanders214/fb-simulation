@@ -21,7 +21,7 @@ export default function RolesScreen() {
 
   if (!game) return <Redirect href="/" />;
   const { squad, world } = game;
-  const xiPlayers = squad.startingXI.map((id) => world.players[id]);
+  const xiPlayers = squad.startingXI.map((id) => world.players[id]).filter((p): p is Player => Boolean(p));
   const assignedId = squad.roles[activeRole];
 
   return (

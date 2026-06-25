@@ -135,6 +135,19 @@ three tools fill that gap — making it easier to keep the app fast and light:
   `.expo/atlas.jsonl`, a treemap of exactly which modules bloat the JS bundle
   shipped to the device. (Uses an inline env var, so it's macOS/Linux-friendly.)
 
+## Known limitations
+
+- **No player retirement or youth intake (TODO).** Every player ages one year at
+  each season rollover (`applySeasonEnd` in [`src/engine/progression.ts`](src/engine/progression.ts))
+  and veterans decline, but no one ever retires and no new/young players are ever
+  generated after world creation. The `PROGRESSION.RETIRE_AGE` constant in
+  [`src/engine/config.ts`](src/engine/config.ts) is defined but currently unused.
+  Over a long save this means squads steadily age and decay toward the attribute
+  floor with no replenishment. A proper fix needs design thought, not just wiring:
+  retirement triggers (age/ability thresholds), youth-generation cadence and
+  quality, how new players slot into clubs, keeping it deterministic from the
+  world seed, and the impact on save size. Tracked here until that's designed.
+
 ## Licensing
 
 All clubs, players and league names are fictional and procedurally generated — no licensed names, likenesses, crests, or logos. Only real-world country names (which carry no IP) are used. Only the store developer fees apply when publishing (Apple $99/yr, Google $25 one-time).
