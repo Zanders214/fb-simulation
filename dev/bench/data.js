@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782410204491,
+  "lastUpdate": 1782412184319,
   "repoUrl": "https://github.com/Zanders214/fb-simulation",
   "entries": {
     "fb-simulation engine": [
@@ -43,6 +43,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "retained heap / season",
             "value": 0.619,
+            "unit": "MiB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "152227414+Zanders214@users.noreply.github.com",
+            "name": "Dennis Zanders",
+            "username": "Zanders214"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c231a498e8a6686f807366d14b1a39f3eb00a593",
+          "message": "Merge pull request #35 from Zanders214/claude/code-review-j4w9fk\n\nFix create-mode clubs to start as mid-table newcomers; harden two edges",
+          "timestamp": "2026-06-25T21:29:04+03:00",
+          "tree_id": "5f0fa6731379ca9086aff9f9b3ef95a8abceed93",
+          "url": "https://github.com/Zanders214/fb-simulation/commit/c231a498e8a6686f807366d14b1a39f3eb00a593"
+        },
+        "date": 1782412184002,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "world-gen + setup",
+            "value": 32.01,
+            "unit": "ms"
+          },
+          {
+            "name": "per-season avg",
+            "value": 911.85,
+            "unit": "ms"
+          },
+          {
+            "name": "per-matchday median",
+            "value": 29.492,
+            "unit": "ms"
+          },
+          {
+            "name": "retained heap / season",
+            "value": 0.617,
             "unit": "MiB"
           }
         ]
