@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782412184319,
+  "lastUpdate": 1782412227725,
   "repoUrl": "https://github.com/Zanders214/fb-simulation",
   "entries": {
     "fb-simulation engine": [
@@ -87,6 +87,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "retained heap / season",
             "value": 0.617,
+            "unit": "MiB"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "152227414+Zanders214@users.noreply.github.com",
+            "name": "Dennis Zanders",
+            "username": "Zanders214"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e819295cb06a12c74c723c70ad37a6dae727ee44",
+          "message": "Merge pull request #34 from Zanders214/claude/design-implementation-lll5id\n\nRedesign home screen: V3 editorial scoreboard (matchday, stats & standings)",
+          "timestamp": "2026-06-25T21:29:24+03:00",
+          "tree_id": "7e015f9fd8d0889f2b89c9e8eaa98d43b1aa803c",
+          "url": "https://github.com/Zanders214/fb-simulation/commit/e819295cb06a12c74c723c70ad37a6dae727ee44"
+        },
+        "date": 1782412226979,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "world-gen + setup",
+            "value": 28.39,
+            "unit": "ms"
+          },
+          {
+            "name": "per-season avg",
+            "value": 748.87,
+            "unit": "ms"
+          },
+          {
+            "name": "per-matchday median",
+            "value": 24.146,
+            "unit": "ms"
+          },
+          {
+            "name": "retained heap / season",
+            "value": 0.62,
             "unit": "MiB"
           }
         ]
