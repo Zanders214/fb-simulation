@@ -12,6 +12,7 @@
     "demo": "tsx scripts/demo.ts",
     "bench": "tsx scripts/bench.ts",
     "bench:gc": "node --expose-gc --import tsx scripts/bench.ts",
+    "bench:json": "node --expose-gc --import tsx scripts/bench.ts 12 2026 --json",
     "analyze": "EXPO_UNSTABLE_ATLAS=true expo export --platform web && expo-atlas .expo/atlas.jsonl",
     "icons": "node scripts/generate-icons.mjs",
     "lint": "eslint ."
