@@ -68,4 +68,49 @@ describe('save load robustness', () => {
     expect(loaded?.managedClubId).toBe(game.managedClubId);
     expect(loaded?.squad.startingXI).toHaveLength(11);
   });
+
+  // Host-contract analog (the pluginval "state survives a load" half): the whole
+  // game must round-trip through the durable layer with nothing dropped or
+  // transformed — not just a spot-checked field or two.
+  it('round-trips a full game through the persist layer with deep equality', async () => {
+    const w = generateWorld(2024);
+    const game = createGame(w, {
+      leagueId: 'L0',
+      mode: 'takeover',
+      takeoverClubId: w.leagues['L0'].clubIds[0],
+    });
+    await seed({ version: SAVE_VERSION, state: { game } });
+
+    await useGameStore.persist.rehydrate();
+
+    // The persist layer stores JSON, so the loaded game must equal the
+    // JSON-canonical form of the original (the same normalisation the storage
+    // round-trip applies) — proving partialize/storage drop nothing.
+    expect(useGameStore.getState().game).toEqual(JSON.parse(JSON.stringify(game)));
+  });
+
+  // Forward-compatibility: a save written before a newer OPTIONAL field existed
+  // must still load and stay playable, because the engine reads those fields
+  // defensively (?? [] / ?? {}). This locks in that tolerated-drift guarantee —
+  // the existing tests only cover REJECTION of incompatible saves.
+  it('loads and stays playable when a save omits newer optional fields', async () => {
+    const w = generateWorld(2024);
+    const game = createGame(w, {
+      leagueId: 'L0',
+      mode: 'takeover',
+      takeoverClubId: w.leagues['L0'].clubIds[0],
+    });
+    // An older save: strip fields the engine added later and reads with `?? []`
+    // (club recent-form history, the squad's training slots).
+    const legacy = JSON.parse(JSON.stringify(game));
+    for (const id of Object.keys(legacy.world.clubs)) delete legacy.world.clubs[id].recentForm;
+    delete legacy.squad.trainingIds;
+    await seed({ version: SAVE_VERSION, state: { game: legacy } });
+
+    await useGameStore.persist.rehydrate();
+
+    expect(useGameStore.getState().game).not.toBeNull();
+    // Still playable: the engine tolerates the missing optional fields.
+    expect(() => useGameStore.getState().playNextMatchday()).not.toThrow();
+  });
 });
