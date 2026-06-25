@@ -51,6 +51,33 @@ module.exports = [
     },
   },
   {
+    // Engine purity guard — the static half of the "real-time-safety" analog
+    // (RTSan bans malloc/lock on the audio thread; we ban the clock and the
+    // global RNG in the pure sim engine). All randomness flows through the
+    // injected seeded Rng (rng.ts); the engine never reads the wall clock. The
+    // determinism golden test enforces the same invariant at runtime.
+    // Note: calendar.ts uses Date as a deterministic constructor (new Date(ms),
+    // Date.UTC, instance methods) — that's fine. We forbid only the clock reads:
+    // Math.random, Date.now, performance.now, and the zero-arg `new Date()`.
+    files: ['src/engine/**/*.{ts,tsx}'],
+    ignores: ['src/engine/**/__tests__/**'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        { object: 'Math', property: 'random', message: 'Engine must be deterministic: use the injected Rng (rng.ts), not Math.random.' },
+        { object: 'Date', property: 'now', message: 'Engine must be clock-free: no Date.now in the simulation.' },
+        { object: 'performance', property: 'now', message: 'Engine must be clock-free: no performance.now in the simulation.' },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message: 'Engine must be clock-free: no `new Date()` (reads the clock). Pass an explicit timestamp.',
+        },
+      ],
+    },
+  },
+  {
     // Tests and the demo script: provide the runtime globals and don't gate
     // their complexity (test bodies and console tooling are exempt).
     files: ['**/__tests__/**', '**/*.test.{ts,tsx}', 'scripts/**'],

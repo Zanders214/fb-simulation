@@ -51,3 +51,31 @@ jobs:
         with:
           args: >
             -Dsonar.qualitygate.wait=true
+
+  # Host-contract analog: lint/typecheck prove the code parses and type-checks,
+  # but only a real bundle proves every import resolves and nothing throws at
+  # module-load. A web export is fully headless (no simulator/browser) and is
+  # already exercised by `npm run analyze`, so it's the high-signal, low-cost
+  # check. Runs in parallel with the build job; needs no secrets.
+  build-web:
+    name: Expo web export smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Expo web export (bundles without import/runtime errors)
+        run: npx expo export --platform web --output-dir dist
+        timeout-minutes: 10
+
+      - name: Assert a bundle was produced
+        run: test -d dist && test -n "$(ls -A dist)"
