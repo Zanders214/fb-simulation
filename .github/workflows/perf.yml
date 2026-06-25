@@ -1,0 +1,67 @@
+name: Performance
+
+# Performance-trend layer (the JUCE nanobench → github-action-benchmark analog).
+# Runs the pure engine benchmark, then stores/compares the result against the
+# history on the gh-pages branch and publishes a trend dashboard:
+#   https://zanders214.github.io/fb-simulation/dev/bench/
+#
+# One-time setup before this works (see PR description / plan):
+#   1. create an orphan `gh-pages` branch
+#   2. Settings -> Pages -> Deploy from a branch -> gh-pages / (root)
+#   3. Settings -> Actions -> General -> Workflow permissions -> Read and write
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+# Unlike CI, do NOT cancel an in-progress perf run: a run that is interrupted
+# mid auto-push could corrupt the benchmark data series. Queue instead.
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # auto-push to gh-pages (push events only)
+  pull-requests: write # comment-on-alert / per-PR summary
+
+jobs:
+  benchmark:
+    name: Engine benchmark
+    runs-on: ubuntu-latest # single runner only — cross-OS numbers aren't comparable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run engine benchmark (writes bench-results.json)
+        run: npm run bench:json
+
+      - name: Store / compare benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: fb-simulation engine
+          tool: customSmallerIsBetter
+          output-file-path: bench-results.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: dev/bench
+          # Publish history only from pushes to dev/main; PRs (incl. forks, which
+          # can't push to gh-pages) just compare + comment.
+          auto-push: ${{ github.event_name == 'push' }}
+          # Generous threshold for a noisy shared JS runner — a real algorithmic
+          # regression (e.g. an O(n^2) accident) is far larger than runner jitter.
+          # Tighten toward 130-150% after a few baseline runs if the spread is small.
+          alert-threshold: '180%'
+          comment-on-alert: true
+          fail-on-alert: true
+          summary-always: true

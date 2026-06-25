@@ -42,6 +42,9 @@ yarn-error.*
 coverage/
 .scannerwork/
 
+# perf benchmark output (written by npm run bench:json, consumed by CI)
+bench-results.json
+
 # generated native folders
 /ios
 /android
